@@ -100,13 +100,57 @@
       "you": "You",
       "assistant": "Assistant",
       "reasoning": "Thinking",
+      "thinking": "Thinking…",
+      "thoughtFor": "Thought for {{duration}}",
       "edit": "Edit",
       "resend": "Save & resend",
+      "saveEdit": "Save",
       "cancelEdit": "Cancel editing",
       "retry": "Retry",
       "partial": "Stopped — output is partial",
       "copyMessage": "Copy message content",
       "tokenCount": "{{count}} tokens"
+    },
+    "actions": {
+      "branch": "Branch chat after this message",
+      "copy": "Copy",
+      "edit": "Edit",
+      "delete": "Delete",
+      "regenerate": "Regenerate",
+      "continue": "Continue",
+      "disabledWhileGenerating": "Unavailable while generating"
+    },
+    "branch": {
+      "prev": "Previous branch",
+      "next": "Next branch",
+      "label": "Branch {{index}}/{{count}}"
+    },
+    "stats": {
+      "tokPerSec": "{{rate}} tok/s",
+      "tokens": "{{count}} tokens",
+      "ttft": "TTFT {{duration}}",
+      "total": "Total {{duration}}",
+      "finishReason": "Stop reason: {{reason}}"
+    },
+    "delete": {
+      "title": "Delete messages",
+      "bodySingle": "This will delete the message and every reply branch after it. This cannot be undone.",
+      "bodyMulti": "This will delete the {{count}} selected messages and their reply branches. This cannot be undone."
+    },
+    "select": {
+      "count": "{{count}} selected",
+      "exit": "Exit selection",
+      "delete": "Delete selected",
+      "toggleMessage": "Select this message"
+    },
+    "composer": {
+      "think": "Think",
+      "thinkToggle": "Toggle thinking",
+      "contextUsage": "Context usage",
+      "ctxSession": "Session: {{tokens}} tokens",
+      "ctxWindow": "Context window: {{budget}} tokens",
+      "ctxPercent": "{{used}}% used ({{left}}% left)",
+      "generateResponse": "✨ Generate Response (Ctrl+R)"
     },
     "error": {
       "title": "Generation failed",
@@ -300,7 +344,8 @@
       "stop": "Stop generation",
       "send": "Send message",
       "newline": "Newline in composer",
-      "sendAlt": "Send when Enter-to-send is off"
+      "sendAlt": "Send when Enter-to-send is off",
+      "generateResponse": "Generate response (when the last message is yours)"
     },
     "backup": {
       "create": "Create backup",

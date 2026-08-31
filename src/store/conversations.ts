@@ -15,7 +15,7 @@ import { getApi } from '../bridge';
 import { usePresetsStore } from './presets';
 
 type ConvPatch = Partial<
-  Pick<Conversation, 'title' | 'pinned' | 'provider_id' | 'model' | 'preset_id'>
+  Pick<Conversation, 'title' | 'pinned' | 'provider_id' | 'model' | 'preset_id' | 'reasoning_enabled'>
 > & {
   params?: ParamOverridesPatch;
 };

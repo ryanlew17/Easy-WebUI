@@ -20,6 +20,79 @@ export function roundForStep(v: number, step: number): number {
   return Math.round(v * f) / f;
 }
 
+/* ---------- IconButton：图标按钮（操作行/发送/停止等唯一按钮形态） ----------
+ * 约定：未来新增按钮一律用 IconButton（SVG 图标 + title/aria-label），
+ * 不再新增纯文字按钮；编辑态确认/取消可为 icon+文字（MessageBubble 内自拟）。
+ * - ghost 为默认风格（btn-ghost 悬浮底色），variant 切换 accent/danger 语义色；
+ * - 命中区 ≥24px（1.5rem，kimi.md §5.3 最小点击区的紧凑档）；
+ * - 动效走 .btn 的令牌过渡（--dur-fast / --ease-interactive，active:scale 0.98）。
+ */
+export function IconButton({
+  label,
+  title,
+  variant = 'ghost',
+  round = false,
+  size = 'md',
+  disabled,
+  disabledHint,
+  active,
+  onClick,
+  children,
+  className,
+}: {
+  /** aria-label（必填，i18n 文案） */
+  label: string;
+  /** 悬浮 tooltip；缺省 = label */
+  title?: string;
+  /** ghost=默认；accent=accent 实心（发送）；danger=danger 文字色；danger-solid=danger 实心（停止） */
+  variant?: 'ghost' | 'accent' | 'danger' | 'danger-solid';
+  /** 圆形（发送/停止等主按钮） */
+  round?: boolean;
+  /** md=2rem 命中区；sm=1.5rem 命中区（消息操作行） */
+  size?: 'md' | 'sm';
+  disabled?: boolean;
+  /** 禁用时的 tooltip（如"生成中，暂不可用"），优先级高于 title */
+  disabledHint?: string;
+  /** 开启态高亮（Think 胶囊等 toggle 场景） */
+  active?: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const variantClass =
+    variant === 'accent'
+      ? 'btn-accent'
+      : variant === 'danger'
+        ? 'btn-danger'
+        : variant === 'danger-solid'
+          ? 'btn-danger-solid'
+          : 'btn-ghost';
+  const dim =
+    size === 'sm'
+      ? { minWidth: '1.5rem', minHeight: '1.5rem', padding: '0.25rem' }
+      : { minWidth: '2rem', minHeight: '2rem', padding: '0.375rem' };
+  return (
+    <button
+      type="button"
+      className={`btn ${variantClass}${className ? ` ${className}` : ''}`}
+      style={{
+        ...dim,
+        borderRadius: round ? 'var(--radius-pill)' : 'var(--radius-m)',
+        ...(active
+          ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+          : undefined),
+      }}
+      title={disabled ? (disabledHint ?? title ?? label) : (title ?? label)}
+      aria-label={label}
+      aria-pressed={active === undefined ? undefined : active}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 /* ---------- Toggle ---------- */
 export function Toggle({
   checked,

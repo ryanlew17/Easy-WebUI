@@ -6,13 +6,16 @@
  * - v2（参数预设重构）：新增 presets 表；conversations 增 preset_id + overrides_json，
  *   旧 params_json（SessionParams 扁平结构）逐行走 shared/params.ts 的 migrateLegacyParamsJson
  *   迁移后 DROP；provider_id/model 提升到顶层列；插入全局预设（id='global'，工厂默认）。
+ * - v3（树形分支模型）：messages 增 parent_id + 生成统计列（reasoning_ms/ttft_ms/
+ *   total_ms/finish_reason）；conversations 增 active_leaf_id + reasoning_enabled(默认 1)；
+ *   旧线性历史按 (created_at, rowid) 顺序回填 parent_id 链（首条为 NULL）。
  */
 import Database from 'better-sqlite3';
 import { FACTORY_DEFAULTS, GLOBAL_PRESET_ID, migrateLegacyParamsJson } from '../../shared/params';
 
 export type DB = Database.Database;
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 interface Migration {
   version: number;
@@ -107,7 +110,52 @@ const MIGRATIONS: Migration[] = [
       db.exec('ALTER TABLE conversations DROP COLUMN params_json');
     },
   },
+  {
+    version: 3,
+    up(db) {
+      db.exec(`
+        ALTER TABLE messages ADD COLUMN parent_id TEXT;
+        ALTER TABLE messages ADD COLUMN reasoning_ms INTEGER;
+        ALTER TABLE messages ADD COLUMN ttft_ms INTEGER;
+        ALTER TABLE messages ADD COLUMN total_ms INTEGER;
+        ALTER TABLE messages ADD COLUMN finish_reason TEXT;
+        CREATE INDEX idx_msg_parent ON messages(parent_id);
+
+        ALTER TABLE conversations ADD COLUMN active_leaf_id TEXT;
+        ALTER TABLE conversations ADD COLUMN reasoning_enabled INTEGER NOT NULL DEFAULT 1;
+      `);
+
+      // 旧线性历史 → 树：按 (created_at, rowid) 顺序把 parent_id 填成前一条消息
+      // （首条为 NULL）。backfillParentLinks 只补 parent_id 为 NULL 的非首条，
+      // 健康 v3 库上重跑为空操作（幂等；本迁移本身在事务内由 schema_migrations 保证只跑一次）。
+      const convIds = (db.prepare('SELECT id FROM conversations').all() as { id: string }[]).map(
+        (r) => r.id,
+      );
+      backfillParentLinks(db, convIds);
+    },
+  },
 ];
+
+/**
+ * parent_id 链回填（v3 迁移与旧版备份恢复共用）：
+ * 对每个会话按 (created_at, rowid) 升序扫描，parent_id 为 NULL 且不是序列首条的
+ * 消息把 parent 指向前一条；已含非 NULL parent_id 的消息一律不动。
+ * 健康 v3 会话（仅根消息 parent_id 为 NULL 且为最老一条）上运行是无害的 no-op。
+ */
+export function backfillParentLinks(db: DB, conversationIds: readonly string[]): void {
+  const listStmt = db.prepare(
+    'SELECT id, parent_id FROM messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC',
+  );
+  const upd = db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?');
+  for (const cid of conversationIds) {
+    const rows = listStmt.all(cid) as { id: string; parent_id: string | null }[];
+    let prev: string | null = null;
+    for (const r of rows) {
+      if (r.parent_id === null && prev !== null) upd.run(prev, r.id);
+      prev = r.id;
+    }
+  }
+}
 
 export function migrate(db: DB): void {
   db.exec(

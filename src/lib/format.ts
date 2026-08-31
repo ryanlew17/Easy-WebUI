@@ -55,6 +55,34 @@ export function formatLatency(ms: number, locale: string): string {
 }
 
 /**
+ * 生成耗时统一格式化（reasoning 块标题 / 统计行共用）：
+ * <60s → zh「X.XX 秒」/ en「X.XXs」；≥60s → zh「X 分 XX 秒」/ en「Xm XXs」。
+ */
+export function formatDurationMs(ms: number, locale: string): string {
+  const zh = locale.startsWith('zh');
+  const s = ms / 1000;
+  if (s < 60) {
+    const v = s.toFixed(2);
+    return zh ? `${v} 秒` : `${v}s`;
+  }
+  const m = Math.floor(s / 60);
+  const rest = String(Math.round(s % 60)).padStart(2, '0');
+  return zh ? `${m} 分 ${rest} 秒` : `${m}m ${rest}s`;
+}
+
+/** 速率（tok/s）两位小数，按语言本地化小数点 */
+export function formatRate(perSec: number, locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(perSec);
+  } catch {
+    return perSec.toFixed(2);
+  }
+}
+
+/**
  * 会话标题展示的唯一入口（侧栏行 / 消息流顶栏共用，保证「空标题 → 占位文案」
  * 与「有标题 → 原文」两种状态在所有消费点一致联动，不再各处散写 `title || t(...)`）。
  */

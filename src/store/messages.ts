@@ -27,9 +27,11 @@ interface ErrorPayload {
 }
 
 export interface SendOptions {
-  regenerate?: boolean;
-  fromMessageId?: string;
+  /** user 消息编辑后重发：以该消息同级分支身份插入（parent = 其 parent_id） */
+  siblingOf?: string;
 }
+
+type Result = { ok: boolean; error?: ApiError };
 
 interface MessagesState {
   byConv: Record<string, Message[]>;
@@ -41,8 +43,22 @@ interface MessagesState {
     convId: string,
     content: string,
     opts?: SendOptions,
-  ) => Promise<{ ok: boolean; error?: ApiError }>;
+  ) => Promise<Result>;
   stop: (convId: string) => Promise<void>;
+  /** 重新生成指定 assistant 消息（新同级分支，激活叶切过去；流式事件同 send） */
+  regenerate: (convId: string, messageId: string) => Promise<Result>;
+  /** 续写指定 assistant 消息（delta 追加同一气泡，不新建分支） */
+  continueGeneration: (convId: string, messageId: string) => Promise<Result>;
+  /** 激活叶为 user 消息时直接生成回复（Generate Response 按钮 / Ctrl+R） */
+  generate: (convId: string) => Promise<Result>;
+  /** 切换到相邻分支（messageId 取自 branch.ids）；返回路径整体替换 */
+  switchBranch: (convId: string, messageId: string) => Promise<Result>;
+  /** 把激活叶精确设为指定消息（branch 按钮："在此消息之后分叉聊天"） */
+  setActiveLeaf: (convId: string, messageId: string) => Promise<Result>;
+  /** assistant 原地编辑（不重发） */
+  updateContent: (convId: string, messageId: string, content: string) => Promise<Result>;
+  /** 批量删除（含子树连删）；返回路径整体替换 */
+  deleteMessages: (convId: string, ids: string[]) => Promise<Result>;
 
   handleDelta: (p: DeltaPayload) => void;
   handleDone: (p: DonePayload) => void;
@@ -124,10 +140,9 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
         await getApi().sendMessage({
           conversationId: convId,
           content,
-          regenerate: opts?.regenerate,
-          fromMessageId: opts?.fromMessageId,
+          siblingOf: opts?.siblingOf,
         });
-        // 重载以拿到落库的 user/assistant 占位消息（regenerate 时也会反映分叉删除）
+        // 重载以拿到落库的 user/assistant 占位消息（siblingOf 分叉会反映新路径）
         await get().loadFor(convId);
         return { ok: true };
       } catch (e) {
@@ -140,6 +155,101 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
     stop: async (convId) => {
       await getApi().stopGeneration(convId);
       // 主进程/mock 会以 done(partial:true) 收尾，generating 在 handleDone 清除
+    },
+
+    /** 生成类操作的公共骨架：锁 + 调用 + 重载路径（done/error 事件负责解锁） */
+    regenerate: async (convId, messageId) => {
+      if (get().generating[convId]) {
+        return { ok: false, error: { code: 'generation_in_progress', message: '' } };
+      }
+      setGenerating(convId, true);
+      try {
+        await getApi().regenerateMessage({ conversationId: convId, messageId });
+        await get().loadFor(convId);
+        return { ok: true };
+      } catch (e) {
+        setGenerating(convId, false);
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    continueGeneration: async (convId, messageId) => {
+      if (get().generating[convId]) {
+        return { ok: false, error: { code: 'generation_in_progress', message: '' } };
+      }
+      setGenerating(convId, true);
+      try {
+        // 续写不新建消息：delta 事件直接拼同一 messageId（handleDelta 已支持），无需重载
+        await getApi().continueMessage({ conversationId: convId, messageId });
+        return { ok: true };
+      } catch (e) {
+        setGenerating(convId, false);
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    generate: async (convId) => {
+      if (get().generating[convId]) {
+        return { ok: false, error: { code: 'generation_in_progress', message: '' } };
+      }
+      setGenerating(convId, true);
+      try {
+        await getApi().generateResponse({ conversationId: convId });
+        await get().loadFor(convId);
+        return { ok: true };
+      } catch (e) {
+        setGenerating(convId, false);
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    switchBranch: async (convId, messageId) => {
+      try {
+        const path = await getApi().switchBranch({ conversationId: convId, messageId });
+        set((state) => ({ byConv: { ...state.byConv, [convId]: path } }));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    setActiveLeaf: async (convId, messageId) => {
+      try {
+        const path = await getApi().setActiveLeaf({ conversationId: convId, messageId });
+        set((state) => ({ byConv: { ...state.byConv, [convId]: path } }));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    updateContent: async (convId, messageId, content) => {
+      try {
+        const updated = await getApi().updateMessageContent({
+          conversationId: convId,
+          messageId,
+          content,
+        });
+        set((state) => ({
+          byConv: {
+            ...state.byConv,
+            [convId]: (state.byConv[convId] ?? []).map((m) => (m.id === messageId ? updated : m)),
+          },
+        }));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: parseIpcError(e) };
+      }
+    },
+
+    deleteMessages: async (convId, ids) => {
+      try {
+        const path = await getApi().deleteMessages({ conversationId: convId, ids });
+        set((state) => ({ byConv: { ...state.byConv, [convId]: path } }));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: parseIpcError(e) };
+      }
     },
 
     handleDelta: (p) => {
@@ -155,18 +265,23 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
       const buf = clearPendingFor(p.messageId);
       set((state) => {
         const msgs = state.byConv[p.conversationId] ?? [];
-        const exists = msgs.some((m) => m.id === p.messageId);
-        const merged: Message = buf
-          ? {
-              ...p.message,
-              content: p.message.content || buf.content,
-              reasoning: p.message.reasoning ?? buf.reasoning,
-            }
-          : p.message;
+        const existing = msgs.find((m) => m.id === p.messageId);
+        // done 事件携带的是落库裸消息（无 branch 元数据）；保留 loadFor 路径解析出的
+        // branch，否则分支导航在生成完成瞬间消失
+        const merged: Message = {
+          ...(buf
+            ? {
+                ...p.message,
+                content: p.message.content || buf.content,
+                reasoning: p.message.reasoning ?? buf.reasoning,
+              }
+            : p.message),
+          branch: existing?.branch ?? p.message.branch,
+        };
         return {
           byConv: {
             ...state.byConv,
-            [p.conversationId]: exists
+            [p.conversationId]: existing
               ? msgs.map((m) => (m.id === p.messageId ? merged : m))
               : [...msgs, merged],
           },

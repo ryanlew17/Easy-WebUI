@@ -408,6 +408,33 @@
     border-color: var(--separator);
   }
 
+  /* ---------- 上下文用量环悬停浮层（Composer；hover/focus-within 显隐） ---------- */
+  .ctx-tip {
+    position: absolute;
+    bottom: calc(100% + 0.375rem);
+    right: 0;
+    z-index: 40;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.25rem);
+    pointer-events: none;
+    text-align: left;
+  }
+  .ctx-ring:hover .ctx-tip,
+  .ctx-ring:focus-within .ctx-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ctx-tip {
+      transition:
+        opacity var(--dur-fast) var(--ease-interactive),
+        transform var(--dur-fast) var(--ease-interactive),
+        visibility var(--dur-fast);
+    }
+  }
+
   /* ---------- Markdown 渲染（.md） ---------- */
   .md {
     font-size: 0.875rem;

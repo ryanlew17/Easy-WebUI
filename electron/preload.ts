@@ -51,6 +51,14 @@ const api: EasyUiApi = {
     invoke(IPC.deleteConversation, id) as ReturnType<EasyUiApi['deleteConversation']>,
   listMessages: (conversationId) =>
     invoke(IPC.listMessages, conversationId) as ReturnType<EasyUiApi['listMessages']>,
+  switchBranch: (input) =>
+    invoke(IPC.switchBranch, input) as ReturnType<EasyUiApi['switchBranch']>,
+  setActiveLeaf: (input) =>
+    invoke(IPC.setActiveLeaf, input) as ReturnType<EasyUiApi['setActiveLeaf']>,
+  updateMessageContent: (input) =>
+    invoke(IPC.updateMessageContent, input) as ReturnType<EasyUiApi['updateMessageContent']>,
+  deleteMessages: (input) =>
+    invoke(IPC.deleteMessages, input) as ReturnType<EasyUiApi['deleteMessages']>,
   generateTitle: (conversationId) =>
     invoke(IPC.generateTitle, conversationId) as ReturnType<EasyUiApi['generateTitle']>,
   onTitleUpdated: subscribe(EVT.titleUpdated),
@@ -70,6 +78,12 @@ const api: EasyUiApi = {
 
   // —— 对话生成 ——
   sendMessage: (input) => invoke(IPC.sendMessage, input) as ReturnType<EasyUiApi['sendMessage']>,
+  regenerateMessage: (input) =>
+    invoke(IPC.regenerateMessage, input) as ReturnType<EasyUiApi['regenerateMessage']>,
+  continueMessage: (input) =>
+    invoke(IPC.continueMessage, input) as ReturnType<EasyUiApi['continueMessage']>,
+  generateResponse: (input) =>
+    invoke(IPC.generateResponse, input) as ReturnType<EasyUiApi['generateResponse']>,
   stopGeneration: (conversationId) =>
     invoke(IPC.stopGeneration, conversationId) as ReturnType<EasyUiApi['stopGeneration']>,
   onChatDelta: subscribe(EVT.chatDelta),

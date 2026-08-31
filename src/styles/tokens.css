@@ -474,6 +474,21 @@
   }
 }
 
+/* ---------- 分支切换内容淡入（150ms 纯透明度过渡；MessageBubble 内容区 key=msg.id 触发） ---------- */
+@keyframes easyui-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in-fast {
+    animation: easyui-fade-in var(--dur-fast) ease-out;
+  }
+}
+
 /* ---------- 勾选框 pop（勾选瞬间；描边绘制走 .checkbox-mark 过渡，见 index.css） ---------- */
 @keyframes easyui-checkbox-pop {
   0% {

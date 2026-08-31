@@ -17,6 +17,10 @@ import {
   updateParamPresetSchema,
   setDataDirSchema,
   openExternalSchema,
+  sendMessageSchema,
+  messageAnchorSchema,
+  updateMessageContentSchema,
+  deleteMessagesSchema,
 } from '../shared/ipc';
 import { PRESETS } from '../shared/presets';
 import { serializeIpcError } from '../shared/errors';
@@ -45,7 +49,7 @@ import type { PresetsDao } from './db/presets';
 import type { BackupService } from './backup';
 import type { ChatOrchestrator } from './chat';
 import type { Updater } from './updater';
-import { detectFormat as gwDetectFormat, listModels, testAllModels, testModel } from './gateway';
+import { detectFormat as gwDetectFormat, defaultTokenCounter, listModels, testAllModels, testModel } from './gateway';
 import { logger } from './logger';
 
 /* ---------- zod schemas ---------- */
@@ -89,15 +93,15 @@ const updateConversationSchema = z.object({
   model: z.string().nullable().optional(),
   /** undefined=保持不变；null=回落全局预设；否则必须指向存在的预设 */
   preset_id: z.string().nullable().optional(),
+  /** 会话级思考开关（schema v3） */
+  reasoning_enabled: z.boolean().optional(),
   /** overrides 合并语义：值传 null 删除该 override 键；等值修剪在主进程完成 */
   params: paramOverridesPatchSchema.optional(),
 });
 
-const sendMessageSchema = z.object({
+/** generateResponse 入参（shared/ipc.ts 无独立 schema，风格与 messageAnchorSchema 一致） */
+const generateResponseSchema = z.object({
   conversationId: z.string().min(1),
-  content: z.string().max(1_000_000),
-  regenerate: z.boolean().optional(),
-  fromMessageId: z.string().optional(),
 });
 
 const fetchModelsSchema = z.object({
@@ -350,6 +354,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       provider_id: patch.provider_id,
       model: patch.model,
       preset_id: patch.preset_id,
+      reasoning_enabled: patch.reasoning_enabled,
       overrides: patch.params ? overrides : undefined,
     });
     if (!updated) throw new Error('conversation_not_found');
@@ -364,6 +369,47 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle(IPC.generateTitle, (conversationId: unknown) =>
     orchestrator.generateTitle(z.string().min(1).parse(conversationId)),
   );
+
+  /* —— 树形分支操作（schema v3） —— */
+
+  /** 校验消息存在且属于该会话，返回消息（供分支操作复用） */
+  const requireMessageInConv = (conversationId: string, messageId: string) => {
+    const msg = messages.get(messageId);
+    if (!msg || msg.conversation_id !== conversationId) throw new Error('message_not_found');
+    return msg;
+  };
+
+  handle(IPC.switchBranch, (raw: unknown) => {
+    const input = messageAnchorSchema.parse(raw);
+    requireMessageInConv(input.conversationId, input.messageId);
+    messages.switchToSibling(input.conversationId, input.messageId);
+    return messages.list(input.conversationId);
+  });
+
+  handle(IPC.setActiveLeaf, (raw: unknown) => {
+    const input = messageAnchorSchema.parse(raw);
+    requireMessageInConv(input.conversationId, input.messageId);
+    messages.setActiveLeaf(input.conversationId, input.messageId);
+    return messages.list(input.conversationId);
+  });
+
+  handle(IPC.updateMessageContent, (raw: unknown) => {
+    const input = updateMessageContentSchema.parse(raw);
+    requireMessageInConv(input.conversationId, input.messageId);
+    const updated = messages.update(input.messageId, {
+      content: input.content,
+      token_count: defaultTokenCounter(input.content), // 内容变了，缓存的估算值同步刷新
+    });
+    if (!updated) throw new Error('message_not_found');
+    return updated;
+  });
+
+  handle(IPC.deleteMessages, (raw: unknown) => {
+    const input = deleteMessagesSchema.parse(raw);
+    for (const id of input.ids) requireMessageInConv(input.conversationId, id);
+    messages.deleteWithDescendants(input.conversationId, input.ids);
+    return messages.list(input.conversationId);
+  });
 
   /* —— 参数预设 —— */
   handle(IPC.listParamPresets, () => presets.list());
@@ -399,6 +445,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   /* —— 对话生成 —— */
   handle(IPC.sendMessage, (raw: unknown) =>
     orchestrator.sendMessage(sendMessageSchema.parse(raw)),
+  );
+  handle(IPC.regenerateMessage, (raw: unknown) =>
+    orchestrator.regenerateMessage(messageAnchorSchema.parse(raw)),
+  );
+  handle(IPC.continueMessage, async (raw: unknown) => {
+    await orchestrator.continueMessage(messageAnchorSchema.parse(raw));
+  });
+  handle(IPC.generateResponse, (raw: unknown) =>
+    orchestrator.generateResponse(generateResponseSchema.parse(raw)),
   );
   handle(IPC.stopGeneration, (conversationId: unknown) => {
     orchestrator.stopGeneration(z.string().min(1).parse(conversationId));

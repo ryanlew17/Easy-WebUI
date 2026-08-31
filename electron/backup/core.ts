@@ -30,7 +30,7 @@ export interface ProviderExportRow {
   updated_at: number;
 }
 
-/** schema v2 会话行；旧版（v1）备份里的 params_json 行在 parseBackup 中迁移为本形状 */
+/** schema v3 会话行；旧版（v1 params_json / v2 无 active_leaf_id 等）备份在 parseBackup 中迁移为本形状 */
 export interface ConversationExportRow {
   id: string;
   title: string;
@@ -39,6 +39,10 @@ export interface ConversationExportRow {
   preset_id: string | null;
   overrides_json: string;
   pinned: number;
+  /** schema v3 起存在；旧备份缺省 → null（激活叶回退最新一条消息） */
+  active_leaf_id: string | null;
+  /** schema v3 起存在；旧备份缺省 → 1（思考开） */
+  reasoning_enabled: number;
   created_at: number;
   updated_at: number;
 }
@@ -64,15 +68,21 @@ export interface PresetExportRow {
   updated_at: number;
 }
 
+/** schema v3 消息行；旧版备份缺少 parent_id / 统计列，parseBackup 中补默认值 */
 export interface MessageExportRow {
   id: string;
   conversation_id: string;
+  parent_id: string | null;
   role: string;
   content: string;
   reasoning: string | null;
   token_count: number | null;
   partial: number;
   error_json: string | null;
+  reasoning_ms: number | null;
+  ttft_ms: number | null;
+  total_ms: number | null;
+  finish_reason: string | null;
   created_at: number;
 }
 
@@ -94,13 +104,18 @@ export interface BackupDataJson {
   keys_cipher?: { cipher_b64: string } | null;
 }
 
-/** 旧版（v1）会话行 → v2：params_json 走 shared/params.ts 迁移（provider/model 提升顶层） */
+/** 旧版（v1/v2）会话行 → v3：params_json 走 shared/params.ts 迁移；v3 新列缺省补默认 */
 function normalizeConversationRow(
   raw: ConversationExportRow | LegacyConversationExportRow,
 ): ConversationExportRow {
   if (typeof (raw as ConversationExportRow).overrides_json === 'string') {
     const r = raw as ConversationExportRow;
-    return { ...r, preset_id: r.preset_id ?? null };
+    return {
+      ...r,
+      preset_id: r.preset_id ?? null,
+      active_leaf_id: r.active_leaf_id ?? null,
+      reasoning_enabled: r.reasoning_enabled ?? 1,
+    };
   }
   const legacy = raw as LegacyConversationExportRow;
   const m = migrateLegacyParamsJson(
@@ -116,8 +131,30 @@ function normalizeConversationRow(
     preset_id: null,
     overrides_json: JSON.stringify(m.overrides),
     pinned: legacy.pinned ?? 0,
+    active_leaf_id: null,
+    reasoning_enabled: 1,
     created_at: legacy.created_at ?? 0,
     updated_at: legacy.updated_at ?? 0,
+  };
+}
+
+/** 旧版（v1/v2）消息行 → v3：parent_id / 统计列缺省补 NULL（parent 链由恢复方回填） */
+function normalizeMessageRow(raw: Partial<MessageExportRow> & { id: string; conversation_id: string }): MessageExportRow {
+  return {
+    id: raw.id,
+    conversation_id: raw.conversation_id,
+    parent_id: raw.parent_id ?? null,
+    role: raw.role ?? 'user',
+    content: raw.content ?? '',
+    reasoning: raw.reasoning ?? null,
+    token_count: raw.token_count ?? null,
+    partial: raw.partial ?? 0,
+    error_json: raw.error_json ?? null,
+    reasoning_ms: raw.reasoning_ms ?? null,
+    ttft_ms: raw.ttft_ms ?? null,
+    total_ms: raw.total_ms ?? null,
+    finish_reason: raw.finish_reason ?? null,
+    created_at: raw.created_at ?? 0,
   };
 }
 
@@ -237,7 +274,7 @@ export function parseBackup(
   return {
     providers,
     conversations: (data.conversations ?? []).map(normalizeConversationRow),
-    messages: data.messages ?? [],
+    messages: (data.messages ?? []).map(normalizeMessageRow),
     presets: data.presets ?? [], // 旧版备份无 presets：跳过（全局预设缺失由恢复方补建）
     settings: data.settings,
   };

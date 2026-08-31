@@ -12,6 +12,7 @@ import {
   buildBackup,
   parseBackup,
   planImport,
+  type BackupDataJson,
   type ExportRows,
 } from '../electron/backup/core';
 import { DEFAULT_SETTINGS } from '@shared/types';
@@ -50,6 +51,8 @@ const rows: ExportRows = {
       preset_id: 'preset-creative',
       overrides_json: '{"temperature":0.4}',
       pinned: 0,
+      active_leaf_id: 'm2',
+      reasoning_enabled: 0,
       created_at: 1,
       updated_at: 2,
     },
@@ -76,23 +79,33 @@ const rows: ExportRows = {
     {
       id: 'm1',
       conversation_id: 'c1',
+      parent_id: null,
       role: 'user',
       content: 'hi',
       reasoning: null,
       token_count: 1,
       partial: 0,
       error_json: null,
+      reasoning_ms: null,
+      ttft_ms: null,
+      total_ms: null,
+      finish_reason: null,
       created_at: 1,
     },
     {
       id: 'm2',
       conversation_id: 'c1',
+      parent_id: 'm1',
       role: 'assistant',
       content: 'hello',
       reasoning: 'think',
       token_count: 2,
       partial: 0,
       error_json: null,
+      reasoning_ms: 50,
+      ttft_ms: 120,
+      total_ms: 800,
+      finish_reason: 'stop',
       created_at: 2,
     },
   ],
@@ -157,6 +170,57 @@ describe('备份导出（不含密钥）', () => {
     expect(restored.conversations[0].overrides_json).toBe('{"temperature":0.4}');
     expect(restored.presets).toHaveLength(2);
     expect(restored.presets[0].is_global).toBe(1);
+    // v3 形状原样往返：active_leaf_id / reasoning_enabled / parent_id / 统计列
+    expect(restored.conversations[0].active_leaf_id).toBe('m2');
+    expect(restored.conversations[0].reasoning_enabled).toBe(0);
+    expect(restored.messages[1].parent_id).toBe('m1');
+    expect(restored.messages[1].reasoning_ms).toBe(50);
+    expect(restored.messages[1].ttft_ms).toBe(120);
+    expect(restored.messages[1].total_ms).toBe(800);
+    expect(restored.messages[1].finish_reason).toBe('stop');
+  });
+
+  it('旧版（v2）备份：缺 v3 新列 → 补默认值（parent/统计 NULL，reasoning_enabled=1）', () => {
+    // 手工构造 v2 备份数据：会话/消息均无 v3 新增列
+    const v2Data = {
+      providers: [],
+      conversations: [
+        {
+          id: 'c2',
+          title: 'v2',
+          provider_id: null,
+          model: null,
+          preset_id: null,
+          overrides_json: '{}',
+          pinned: 0,
+          created_at: 5,
+          updated_at: 6,
+        },
+      ],
+      messages: [
+        { id: 'mm1', conversation_id: 'c2', role: 'user', content: 'a', reasoning: null, token_count: null, partial: 0, error_json: null, created_at: 5 },
+        { id: 'mm2', conversation_id: 'c2', role: 'assistant', content: 'b', reasoning: null, token_count: null, partial: 0, error_json: null, created_at: 6 },
+      ],
+      presets: [],
+      settings: { ...DEFAULT_SETTINGS },
+      keys_cipher: null,
+    };
+    const restored = parseBackup(v2Data as unknown as BackupDataJson /* 故意缺 v3 新列，模拟旧备份 */, { app_version: '1.0.0', schema_version: 2, includes_keys: false, created_at: 1 }, {
+      encryptKey,
+      currentSchemaVersion: 3,
+    });
+    const c = restored.conversations[0];
+    expect(c.active_leaf_id).toBeNull();
+    expect(c.reasoning_enabled).toBe(1);
+    for (const m of restored.messages) {
+      expect(m.parent_id).toBeNull();
+      expect(m.reasoning_ms).toBeNull();
+      expect(m.ttft_ms).toBeNull();
+      expect(m.total_ms).toBeNull();
+      expect(m.finish_reason).toBeNull();
+    }
+    // 注：parent_id 链的实际回填在恢复方（electron/backup/index.ts，
+    // manifest.schema_version<3 时调 backfillParentLinks）完成，见 db-messages.test.ts 的迁移用例
   });
 
   it('旧版（v1）备份：params_json 会话行被迁移，presets 缺省为空数组', () => {

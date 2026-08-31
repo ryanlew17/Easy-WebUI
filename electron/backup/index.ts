@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 import type { DB } from '../db';
-import { SCHEMA_VERSION } from '../db';
+import { backfillParentLinks, SCHEMA_VERSION } from '../db';
 import type { CryptoService } from '../crypto';
 import type { BackupFileInfo, GeneralSettings, ImportResult } from '../../shared/types';
 import { FACTORY_DEFAULTS } from '../../shared/params';
@@ -163,12 +163,12 @@ export function createBackupService(deps: BackupDeps) {
            VALUES (@id, @name, @base_url, @api_format, @api_key_cipher, @models_json, @created_at, @updated_at)`,
         );
         const insertConversation = db.prepare(
-          `INSERT INTO conversations (id, title, provider_id, model, preset_id, overrides_json, pinned, created_at, updated_at)
-           VALUES (@id, @title, @provider_id, @model, @preset_id, @overrides_json, @pinned, @created_at, @updated_at)`,
+          `INSERT INTO conversations (id, title, provider_id, model, preset_id, overrides_json, pinned, active_leaf_id, reasoning_enabled, created_at, updated_at)
+           VALUES (@id, @title, @provider_id, @model, @preset_id, @overrides_json, @pinned, @active_leaf_id, @reasoning_enabled, @created_at, @updated_at)`,
         );
         const insertMessage = db.prepare(
-          `INSERT INTO messages (id, conversation_id, role, content, reasoning, token_count, partial, error_json, created_at)
-           VALUES (@id, @conversation_id, @role, @content, @reasoning, @token_count, @partial, @error_json, @created_at)`,
+          `INSERT INTO messages (id, conversation_id, parent_id, role, content, reasoning, token_count, partial, error_json, reasoning_ms, ttft_ms, total_ms, finish_reason, created_at)
+           VALUES (@id, @conversation_id, @parent_id, @role, @content, @reasoning, @token_count, @partial, @error_json, @reasoning_ms, @ttft_ms, @total_ms, @finish_reason, @created_at)`,
         );
         const insertPreset = db.prepare(
           `INSERT INTO presets (id, name, is_global, params_json, created_at, updated_at)
@@ -236,6 +236,13 @@ export function createBackupService(deps: BackupDeps) {
           db.prepare(
             "INSERT INTO settings (key, value) VALUES ('general', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
           ).run(JSON.stringify(rows.settings));
+        }
+
+        // 旧版（schema < 3）备份：消息无 parent_id 链，按 (created_at, rowid) 顺序回填
+        // （只补 parent_id 为 NULL 的非首条消息，健康 v3 数据不受影响）
+        if (manifest.schema_version < 3 && rows.messages.length > 0) {
+          const touched = [...new Set(rows.messages.map((m) => m.conversation_id))];
+          backfillParentLinks(db, touched);
         }
       });
       tx();

@@ -100,13 +100,57 @@
       "you": "我",
       "assistant": "助手",
       "reasoning": "思考过程",
+      "thinking": "思考中…",
+      "thoughtFor": "思考了 {{duration}}",
       "edit": "编辑",
       "resend": "保存并重新发送",
+      "saveEdit": "保存",
       "cancelEdit": "取消编辑",
       "retry": "重试",
       "partial": "已停止，内容为部分输出",
       "copyMessage": "复制消息内容",
       "tokenCount": "{{count}} tokens"
+    },
+    "actions": {
+      "branch": "在此消息之后分叉聊天",
+      "copy": "复制",
+      "edit": "编辑",
+      "delete": "删除",
+      "regenerate": "重新生成",
+      "continue": "续写",
+      "disabledWhileGenerating": "生成中，暂不可用"
+    },
+    "branch": {
+      "prev": "上一分支",
+      "next": "下一分支",
+      "label": "分支 {{index}}/{{count}}"
+    },
+    "stats": {
+      "tokPerSec": "{{rate}} tok/s",
+      "tokens": "{{count}} tokens",
+      "ttft": "TTFT {{duration}}",
+      "total": "总用时 {{duration}}",
+      "finishReason": "结束原因：{{reason}}"
+    },
+    "delete": {
+      "title": "删除消息",
+      "bodySingle": "将删除该消息及其之后的所有回复分支，此操作不可撤销。",
+      "bodyMulti": "将删除选中的 {{count}} 条消息及各自的后续分支，此操作不可撤销。"
+    },
+    "select": {
+      "count": "已选 {{count}} 条",
+      "exit": "退出选择",
+      "delete": "删除所选",
+      "toggleMessage": "选择此消息"
+    },
+    "composer": {
+      "think": "思考",
+      "thinkToggle": "切换思考模式",
+      "contextUsage": "上下文用量",
+      "ctxSession": "当前会话：{{tokens}} tokens",
+      "ctxWindow": "上下文窗口：{{budget}} tokens",
+      "ctxPercent": "已用 {{used}}%（剩余 {{left}}%）",
+      "generateResponse": "✨ 生成回复 (Ctrl+R)"
     },
     "error": {
       "title": "生成失败",
@@ -300,7 +344,8 @@
       "stop": "停止生成",
       "send": "发送消息",
       "newline": "输入框内换行",
-      "sendAlt": "Enter 发送关闭时发送消息"
+      "sendAlt": "Enter 发送关闭时发送消息",
+      "generateResponse": "生成回复（最后一条是用户消息时）"
     },
     "backup": {
       "create": "创建备份",

@@ -334,6 +334,7 @@ export function GeneralTab() {
     ['Enter', t('settings.shortcuts.send')],
     ['Shift+Enter', t('settings.shortcuts.newline')],
     ['Ctrl/Cmd+Enter', t('settings.shortcuts.sendAlt')],
+    ['Ctrl/Cmd+R', t('settings.shortcuts.generateResponse')],
   ];
 
   return (

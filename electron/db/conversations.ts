@@ -18,6 +18,8 @@ interface ConversationRow {
   preset_id: string | null;
   overrides_json: string;
   pinned: number;
+  active_leaf_id: string | null;
+  reasoning_enabled: number;
   created_at: number;
   updated_at: number;
 }
@@ -37,6 +39,7 @@ export function rowToConversation(row: ConversationRow): Conversation {
     preset_id: row.preset_id,
     overrides,
     pinned: row.pinned === 1,
+    reasoning_enabled: row.reasoning_enabled !== 0, // 缺省/1 = 开（DB 默认 1）
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -64,6 +67,8 @@ export function createConversationsDao(db: DB) {
         preset_id: null,
         overrides_json: '{}',
         pinned: 0,
+        active_leaf_id: null,
+        reasoning_enabled: 1,
         created_at: now,
         updated_at: now,
       };
@@ -94,6 +99,7 @@ export function createConversationsDao(db: DB) {
         model?: string | null;
         preset_id?: string | null;
         overrides?: ParamOverrides;
+        reasoning_enabled?: boolean;
       },
     ): Conversation | null {
       const current = this.get(id);
@@ -107,11 +113,13 @@ export function createConversationsDao(db: DB) {
         model: patch.model === undefined ? current.model : patch.model,
         preset_id: patch.preset_id === undefined ? current.preset_id : patch.preset_id,
         overrides: patch.overrides ?? current.overrides,
+        reasoning_enabled: patch.reasoning_enabled ?? current.reasoning_enabled,
         updated_at: Date.now(),
       };
       db.prepare(
         `UPDATE conversations SET title=@title, pinned=@pinned, provider_id=@provider_id,
-         model=@model, preset_id=@preset_id, overrides_json=@overrides_json, updated_at=@updated_at
+         model=@model, preset_id=@preset_id, overrides_json=@overrides_json,
+         reasoning_enabled=@reasoning_enabled, updated_at=@updated_at
          WHERE id=@id`,
       ).run({
         id: next.id,
@@ -121,6 +129,7 @@ export function createConversationsDao(db: DB) {
         model: next.model,
         preset_id: next.preset_id,
         overrides_json: JSON.stringify(sanitizeOverrides(next.overrides)),
+        reasoning_enabled: next.reasoning_enabled ? 1 : 0,
         updated_at: next.updated_at,
       });
       return next;

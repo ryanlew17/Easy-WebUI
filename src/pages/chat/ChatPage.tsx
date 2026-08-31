@@ -3,26 +3,32 @@
  * CSS Grid：minmax(200px,260px) 1fr <右栏宽度（cookie 持久化，可拖拽）>；960px 窗口仍可用。
  * 右栏可折叠（折叠态存 cookie）；栏间 0.5px 发丝分隔线。
  *
- * 编辑后重新发送的取舍（契约缺口说明）：
- * - 内容未变 → sendMessage({regenerate:true, fromMessageId})，复用原 user 消息，真分叉；
- * - 内容已改 → 当前契约没有任何"原地更新消息内容"的 API（mock 与主进程的
- *   regenerate 都忽略 content 字段，见 electron/chat.ts §1），因此以新 user 消息
- *   追加发送，不产生重复记录的语义由后端 regenerate 承担不了 —— 详见交付报告。
+ * 树形分支模型接线（schema v3 契约）：
+ * - user 编辑后"保存并重新发送"：内容变更 → sendMessage({siblingOf}) 产生新分支；
+ *   未变更 → 其后 assistant regenerate（无后继则 generateResponse）；
+ * - assistant 编辑 → updateMessageContent 原地更新（不重发）；
+ * - 错误卡片重试 → regenerateMessage(msg)；
+ * - branch 按钮 → setActiveLeaf（"在此消息之后分叉聊天"，之后发送落在其下）；
+ * - 删除（单个/批量）→ Modal 确认后 deleteMessages（子树连删，返回路径整体替换）。
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Message } from '@shared/types';
+import { FACTORY_DEFAULTS, resolveParams } from '@shared/params';
+import { modelSupportsReasoning } from '@shared/reasoning';
 import {
   useConversationsStore,
   useCurrentConversation,
 } from '../../store/conversations';
 import { useMessagesStore } from '../../store/messages';
+import { usePresetsStore } from '../../store/presets';
 import { useProvidersStore } from '../../store/providers';
 import { RIGHT_WIDTH_MAX, RIGHT_WIDTH_MIN, useUiStore } from '../../store/ui';
 import { displayTitle } from '../../lib/format';
+import { ConfirmDialog } from '../../components/Modal';
 import { Sidebar } from './Sidebar';
-import { MessageList } from './MessageList';
-import { Composer } from './Composer';
+import { MessageList, type MessageListCallbacks } from './MessageList';
+import { Composer, type ContextUsage } from './Composer';
 import { ParamsPanel } from './ParamsPanel';
 import { ModelPicker } from './ModelPicker';
 import { EmptyNoConversation, EmptyNoProvider } from './EmptyStates';
@@ -31,16 +37,26 @@ export function ChatPage() {
   const { t } = useTranslation();
   const providers = useProvidersStore((s) => s.providers);
   const providersLoaded = useProvidersStore((s) => s.loaded);
-  const conversations = useConversationsStore((s) => s.conversations);
   const conv = useCurrentConversation();
   const patch = useConversationsStore((s) => s.patch);
   const send = useMessagesStore((s) => s.send);
   const stop = useMessagesStore((s) => s.stop);
+  const regenerate = useMessagesStore((s) => s.regenerate);
+  const continueGeneration = useMessagesStore((s) => s.continueGeneration);
+  const generate = useMessagesStore((s) => s.generate);
+  const switchBranch = useMessagesStore((s) => s.switchBranch);
+  const setActiveLeaf = useMessagesStore((s) => s.setActiveLeaf);
+  const updateContent = useMessagesStore((s) => s.updateContent);
+  const deleteMessages = useMessagesStore((s) => s.deleteMessages);
+  const messages = useMessagesStore((s) => (conv ? s.byConv[conv.id] : undefined));
   const generating = useMessagesStore((s) => (conv ? !!s.generating[conv.id] : false));
+  const presets = usePresetsStore((s) => s.presets);
   const toast = useUiStore((s) => s.toast);
   const { rightCollapsed, rightWidth, toggleRight, setRightWidth } = useUiStore();
 
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const hasProvider = providers.length > 0;
   const providerId = conv ? conv.provider_id : null;
@@ -69,37 +85,149 @@ export function ChatPage() {
     [conv, send, reportError],
   );
 
+  /* 错误卡片重试 → regenerateMessage（新同级分支，不再删后续消息） */
   const onRetry = useCallback(
     (msg: Message): void => {
       if (!conv) return;
-      const msgs = useMessagesStore.getState().byConv[conv.id] ?? [];
-      const anchor = [...msgs]
-        .filter((m) => m.created_at < msg.created_at && m.role === 'user')
-        .pop();
-      void send(conv.id, '', { regenerate: true, fromMessageId: anchor?.id }).then((res) => {
+      void regenerate(conv.id, msg.id).then((res) => {
         if (!res.ok) reportError(res.error);
       });
     },
-    [conv, send, reportError],
+    [conv, regenerate, reportError],
   );
 
+  /* user 编辑后"保存并重新发送"：变了 → siblingOf 新分支；没变 → 其后 assistant regenerate */
   const onEditResend = useCallback(
     (msg: Message, newContent: string): void => {
       if (!conv) return;
-      if (newContent === msg.content) {
-        // 未改动：真分叉（复用原消息，不产生重复记录）
-        void send(conv.id, '', { regenerate: true, fromMessageId: msg.id }).then((res) => {
+      if (newContent !== msg.content) {
+        void send(conv.id, newContent, { siblingOf: msg.id }).then((res) => {
           if (!res.ok) reportError(res.error);
         });
-      } else {
-        // 已改动：契约无原地更新消息 API，追加为新 user 消息（见文件头取舍说明）
-        void send(conv.id, newContent).then((res) => {
-          if (!res.ok) reportError(res.error);
-        });
+        return;
       }
+      const path = useMessagesStore.getState().byConv[conv.id] ?? [];
+      const idx = path.findIndex((m) => m.id === msg.id);
+      const nextAssistant = path.slice(idx + 1).find((m) => m.role === 'assistant');
+      const p = nextAssistant ? regenerate(conv.id, nextAssistant.id) : generate(conv.id);
+      void p.then((res) => {
+        if (!res.ok) reportError(res.error);
+      });
     },
-    [conv, send, reportError],
+    [conv, send, regenerate, generate, reportError],
   );
+
+  const msgCallbacks = useMemo<MessageListCallbacks>(
+    () => ({
+      onRetry,
+      onEditResend,
+      onEditContent: (msg, newContent) => {
+        if (!conv) return;
+        if (newContent === msg.content) return;
+        void updateContent(conv.id, msg.id, newContent).then((res) => {
+          if (!res.ok) reportError(res.error);
+        });
+      },
+      onBranch: (msg) => {
+        if (!conv) return;
+        void setActiveLeaf(conv.id, msg.id).then((res) => {
+          if (!res.ok) reportError(res.error);
+          else toast('info', t('chat.actions.branch'));
+        });
+      },
+      onDelete: (ids) => setPendingDelete(ids),
+      onRegenerate: (msg) => {
+        if (!conv) return;
+        void regenerate(conv.id, msg.id).then((res) => {
+          if (!res.ok) reportError(res.error);
+        });
+      },
+      onContinue: (msg) => {
+        if (!conv) return;
+        void continueGeneration(conv.id, msg.id).then((res) => {
+          if (!res.ok) reportError(res.error);
+        });
+      },
+      onSwitchBranch: (msg, targetId) => {
+        if (!conv) return;
+        void switchBranch(conv.id, targetId).then((res) => {
+          if (!res.ok) reportError(res.error);
+        });
+      },
+    }),
+    [
+      conv,
+      onRetry,
+      onEditResend,
+      updateContent,
+      setActiveLeaf,
+      regenerate,
+      continueGeneration,
+      switchBranch,
+      reportError,
+      toast,
+      t,
+    ],
+  );
+
+  const confirmDelete = useCallback((): void => {
+    if (!conv || !pendingDelete) return;
+    setDeleting(true);
+    void deleteMessages(conv.id, pendingDelete)
+      .then((res) => {
+        if (!res.ok) reportError(res.error);
+      })
+      .finally(() => {
+        setDeleting(false);
+        setPendingDelete(null);
+      });
+  }, [conv, pendingDelete, deleteMessages, reportError]);
+
+  /* 上下文用量：激活路径 token_count（缺省 4 字符≈1 token）+ system_prompt；
+     预算 = resolveParams（全局 ← 用户预设 ← overrides）的 context_window */
+  const usage = useMemo<ContextUsage>(() => {
+    if (!conv) {
+      return { historyTokens: 0, systemTokens: 0, budget: FACTORY_DEFAULTS.context_window };
+    }
+    const globalParams = presets.find((p) => p.is_global)?.params ?? FACTORY_DEFAULTS;
+    const preset = conv.preset_id
+      ? (presets.find((p) => p.id === conv.preset_id) ?? null)
+      : null;
+    const eff = resolveParams(globalParams, preset, conv.overrides);
+    const historyTokens = (messages ?? []).reduce(
+      (sum, m) =>
+        sum + (m.token_count ?? Math.ceil(m.content.length / 4 + (m.reasoning?.length ?? 0) / 4)),
+      0,
+    );
+    return {
+      historyTokens,
+      systemTokens: Math.ceil(eff.system_prompt.length / 4),
+      budget: eff.context_window,
+    };
+  }, [conv, presets, messages]);
+
+  /* Generate Response 可见性：激活路径最后一条（非 system）是 user 消息 */
+  const lastMsg = useMemo(
+    () => (messages ?? []).filter((m) => m.role !== 'system').pop(),
+    [messages],
+  );
+  const canGenerate = !!conv && !!lastMsg && lastMsg.role === 'user';
+
+  const thinkEnabled = conv?.reasoning_enabled ?? true;
+  const thinkSupported = model ? modelSupportsReasoning(model) : true;
+  const onToggleThink = useCallback((): void => {
+    if (!conv) return;
+    void patch(conv.id, { reasoning_enabled: !thinkEnabled }).catch(() =>
+      toast('error', t('toast.errorGeneric')),
+    );
+  }, [conv, patch, thinkEnabled, toast, t]);
+
+  const onGenerate = useCallback((): void => {
+    if (!conv) return;
+    void generate(conv.id).then((res) => {
+      if (!res.ok) reportError(res.error);
+    });
+  }, [conv, generate, reportError]);
 
   const onModelSelect = (pid: string, mid: string): void => {
     if (!conv) return;
@@ -186,13 +314,19 @@ export function ChatPage() {
           <EmptyNoConversation />
         ) : (
           <>
-            <MessageList conversationId={conv.id} onRetry={onRetry} onEditResend={onEditResend} />
+            <MessageList conversationId={conv.id} callbacks={msgCallbacks} />
             <Composer
               disabled={false}
               generating={generating}
               hasModel={!!providerId && !!model}
               onSend={onSend}
               onStop={() => conv && void stop(conv.id).catch(() => toast('error', t('toast.stopFailed')))}
+              thinkSupported={thinkSupported}
+              thinkEnabled={thinkEnabled}
+              onToggleThink={onToggleThink}
+              usage={usage}
+              canGenerate={canGenerate}
+              onGenerate={onGenerate}
             />
           </>
         )}
@@ -234,6 +368,23 @@ export function ChatPage() {
           )}
         </div>
       )}
+
+      {/* 删除确认（单删/多选批删共用；子树连删） */}
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={t('chat.delete.title')}
+          body={
+            pendingDelete.length > 1
+              ? t('chat.delete.bodyMulti', { count: pendingDelete.length })
+              : t('chat.delete.bodySingle')
+          }
+          confirmLabel={t('common.delete')}
+          danger
+          busy={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
     </div>
   );
 }

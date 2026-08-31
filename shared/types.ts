@@ -52,19 +52,48 @@ export interface Conversation {
   /** 会话级参数覆盖（只含与预设基线不等的键；schema v2 起，替代旧 SessionParams） */
   overrides: ParamOverrides;
   pinned: boolean;
+  /** 会话级思考开关（schema v3）：true = 默认思考（请求不附加参数）；false = 按 api_format 附加关闭参数 */
+  reasoning_enabled: boolean;
   created_at: number;
   updated_at: number;
+}
+
+/** 单条消息的生成统计（schema v3 起落库；continue 续写会累计 total_ms 与 token_count） */
+export interface MessageStats {
+  /** reasoning 阶段耗时（首 reasoning delta → 首 content delta / 流结束）；无 reasoning 缺省 */
+  reasoning_ms?: number;
+  /** 首 token 时间（请求发出 → 首个 delta，reasoning 或 content 先到为准）；非流式 = total_ms */
+  ttft_ms?: number;
+  /** 总生成耗时（请求发出 → 流结束/中止）；continue 续写累加 */
+  total_ms?: number;
+  /** 结束原因（finish_reason，原文保留，如 stop / length / tool_calls） */
+  finish_reason?: string;
+}
+
+/** 分支信息：仅当该消息存在同级分支（同一 parent 下 >1 个子消息）时由 listMessages 填充 */
+export interface BranchInfo {
+  /** 当前激活分支在同级中的序号（从 1 开始，按 created_at,rowid 排序） */
+  index: number;
+  /** 同级分支总数 */
+  count: number;
+  /** 同级分支消息 id 列表（按序；UI 切换时传目标 id 给 switchBranch） */
+  ids: string[];
 }
 
 export interface Message {
   id: string;
   conversation_id: string;
+  /** 父消息 id（树形分支模型，schema v3）；会话首条消息为 null */
+  parent_id: string | null;
   role: 'system' | 'user' | 'assistant';
   content: string;
   reasoning?: string; // DeepSeek 等 reasoning_content 落库于此
   token_count: number | null;
   partial: boolean;
   error?: { code: string; message: string } | null; // 已脱敏
+  stats?: MessageStats;
+  /** 分支元数据（仅 listMessages 路径上且有分支时存在） */
+  branch?: BranchInfo;
   created_at: number;
 }
 
@@ -260,12 +289,34 @@ export interface EasyUiApi {
    */
   updateConversation(
     id: string,
-    patch: Partial<Pick<Conversation, 'title' | 'pinned' | 'provider_id' | 'model' | 'preset_id'>> & {
+    patch: Partial<
+      Pick<Conversation, 'title' | 'pinned' | 'provider_id' | 'model' | 'preset_id' | 'reasoning_enabled'>
+    > & {
       params?: ParamOverridesPatch;
     },
   ): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
+  /**
+   * 返回会话当前激活路径的消息序列（从根到 active_leaf 沿 parent_id 上溯后反转；
+   * active_leaf 为空 = 最新一条消息为叶）。路径上有分支的消息带 branch 元数据。
+   */
   listMessages(conversationId: string): Promise<Message[]>;
+  /**
+   * 切换分支：messageId = 目标同级分支消息 id（取自 branch.ids）。
+   * 主进程把激活叶切到该分支最深后代（分叉处取最新子），返回新路径（同 listMessages）。
+   */
+  switchBranch(input: { conversationId: string; messageId: string }): Promise<Message[]>;
+  /** 原地更新消息内容（assistant 编辑 / user 编辑不重发场景）；不触发重新生成 */
+  updateMessageContent(input: {
+    conversationId: string;
+    messageId: string;
+    content: string;
+  }): Promise<Message>;
+  /**
+   * 批量删除消息（单个删除 = ids 长度 1）：删除各节点及其整个子树；
+   * 激活叶在被删子树内时回退到被删节点的最近存活祖先。返回新路径（同 listMessages）。
+   */
+  deleteMessages(input: { conversationId: string; ids: string[] }): Promise<Message[]>;
   /**
    * 手动触发标题生成（✨ 按钮）：强制覆盖现有标题，忽略 auto_title 开关与
    * 标题是否为空；20s 超时 + 失败后重试 1 次。成功返回更新后的 Conversation
@@ -290,14 +341,44 @@ export interface EasyUiApi {
   /** 全局预设参数重置为工厂默认 */
   resetGlobalPreset(): Promise<ParamPreset>;
 
-  // —— 对话生成 ——
-  /** 发送用户消息并开始生成；消息创建后即返回 id，流式进度经事件推送 */
+  // —— 对话生成（树形分支模型，schema v3） ——
+  /**
+   * 发送用户消息并开始生成：user 消息的 parent = 当前激活叶（即"branch after this message"
+   * 的落点）；assistant 占位消息为其子。消息创建后即返回 id，流式进度经事件推送。
+   * 生成中（同会话锁）拒绝 generation_in_progress。
+   */
   sendMessage(input: {
     conversationId: string;
     content: string;
-    regenerate?: boolean;
-    fromMessageId?: string;
+    /**
+     * 以指定消息的"同级分支"身份插入新 user 消息（parent = 该消息的 parent_id）：
+     * 用于 user 消息编辑后重发（编辑产生新分支，原分支保留）。缺省 = parent 为当前激活叶。
+     */
+    siblingOf?: string;
   }): Promise<{ userMessageId: string | null; assistantMessageId: string }>;
+  /**
+   * 把激活叶精确设为指定消息（branch 按钮："Branch chat after this message"）；
+   * 之后 sendMessage 即在该消息下开辟新分支。返回新路径（同 listMessages）。
+   */
+  setActiveLeaf(input: { conversationId: string; messageId: string }): Promise<Message[]>;
+  /**
+   * 重新生成指定 assistant 消息：在其 parent 下新建同级分支消息（不删除旧分支），
+   * 激活叶切到新分支；流式事件同 sendMessage。
+   */
+  regenerateMessage(input: {
+    conversationId: string;
+    messageId: string;
+  }): Promise<{ assistantMessageId: string }>;
+  /**
+   * 续写指定 assistant 消息：不新建气泡，delta 追加到同一消息；
+   * total_ms 与 token_count 累计，finish_reason 取最后一次运行。事件 messageId 不变。
+   */
+  continueMessage(input: { conversationId: string; messageId: string }): Promise<void>;
+  /**
+   * 当激活叶为 user 消息时直接生成 assistant 回复（Generate Response 按钮）；
+   * 不与输入框交互。激活叶非 user 时报 nothing_to_generate。
+   */
+  generateResponse(input: { conversationId: string }): Promise<{ assistantMessageId: string }>;
   stopGeneration(conversationId: string): Promise<void>;
   /** 事件订阅，均返回取消订阅函数 */
   onChatDelta(
