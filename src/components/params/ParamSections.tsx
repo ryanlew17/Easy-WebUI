@@ -12,6 +12,13 @@ import { useTranslation } from 'react-i18next';
 import type { ContextOverflow, ParamOverrides, ParamOverridesPatch, ParamValues } from '@shared/types';
 import { PARAM_GROUPS, isGroupModified, type ParamGroupKey } from '@shared/params';
 import {
+  IconBraces,
+  IconDoc,
+  IconNote,
+  IconSliders,
+  IconSparkle,
+} from '../icons';
+import {
   Checkbox,
   FieldRow,
   InfoTip,
@@ -40,59 +47,13 @@ interface RowExtras {
   resetLabel?: string;
 }
 
-/** 分块图标（16 视窗细线风格，与现有 UI 语言一致） */
+/** 分块图标（统一走 icons.tsx，16 视口墨迹居中） */
 export const SectionIcons = {
-  preset: (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M3 2.5h7.5L13 5v8.5H3V2.5zM10 2.5V5h2.5"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  ),
-  systemPrompt: (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M3 2.5h10v11H3V2.5zM5.5 5.5h5M5.5 8h5M5.5 10.5h3"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  ),
-  settings: (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M2.5 4.5h11M2.5 11.5h11M6 2.8v3.4M10 9.8v3.4"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  ),
-  sampling: (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M8 1.8l1.7 3.7 4 .5-3 2.7.8 3.9L8 10.6l-3.5 2 .8-3.9-3-2.7 4-.5L8 1.8z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-    </svg>
-  ),
-  structured: (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M5.5 3C4 3 3.5 4 3.5 5v1.5c0 .8-.5 1.5-1.5 1.5 1 0 1.5.7 1.5 1.5V11c0 1 .5 2 2 2M10.5 3c1.5 0 2 1 2 2v1.5c0 .8.5 1.5 1.5 1.5-1 0-1.5.7-1.5 1.5V11c0 1-.5 2-2 2"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  ),
+  preset: <IconDoc size={13} />,
+  systemPrompt: <IconNote size={13} />,
+  settings: <IconSliders size={13} />,
+  sampling: <IconSparkle size={13} />,
+  structured: <IconBraces size={13} />,
 };
 
 /**

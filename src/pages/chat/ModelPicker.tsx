@@ -1,6 +1,8 @@
 /**
  * 模型选择器：按平台分组列出已启用模型（enabledModelsByProvider）。
- * 触发按钮显示当前模型（长名 ellipsis）；弹层为 .glass-pop 强玻璃浮层（临时态，防透底）；
+ * 触发按钮显示当前模型（长名 ellipsis）；弹层为 .glass-pop 强玻璃浮层（临时态，防透底），
+ * 经 AnchoredPopover portal 到 document.body —— 顶栏 .glass-bar 自带 backdrop-filter，
+ * 弹层若留在其 DOM 内则构成 backdrop root、模糊失效（只剩半透明底，透出消息文字）；
  * 进/退场走 .pop-layer + useDelayedUnmount（150ms），与 SelectField 同一视觉/动效规范。
  */
 import { useEffect, useRef, useState } from 'react';
@@ -8,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { enabledModelsByProvider, useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { useDelayedUnmount } from '../../lib/useDelayedUnmount';
+import { AnchoredPopover } from '../../components/Popover';
 
 export function ModelPicker({
   providerId,
@@ -24,11 +27,14 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const pop = useDelayedUnmount(open, 150);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent): void => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') setOpen(false);
@@ -71,11 +77,14 @@ export function ModelPicker({
       </button>
 
       {pop.mounted ? (
-        <div
+        <AnchoredPopover
+          anchorRef={rootRef}
+          popoverRef={listRef}
+          mounted={pop.mounted}
+          closing={pop.closing}
+          className="max-h-80 w-72 overflow-y-auto p-1.5"
           role="listbox"
           aria-label={t('aria.modelPicker')}
-          className="glass-pop pop-layer absolute left-0 top-full z-40 mt-1.5 max-h-80 w-72 overflow-y-auto p-1.5"
-          data-closing={pop.closing ? 'true' : undefined}
         >
           {groups.length === 0 ? (
             <div className="px-3 py-3 text-xs text-secondary">
@@ -155,7 +164,7 @@ export function ModelPicker({
               </div>
             ))
           )}
-        </div>
+        </AnchoredPopover>
       ) : null}
     </div>
   );

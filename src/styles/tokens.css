@@ -1,46 +1,38 @@
 /*
- * 设计令牌（kimi.md §5.1 + 契约 §7）：液态玻璃 + 双主题。
- * - 尺寸一律 rem（根字号 16px），仅边框线宽允许 px —— kimi.md §5.3。
- * - data-theme 只有 light/dark 两个具体值；"跟随系统"由 JS 媒体查询解析后落到具体值。
- * - 性能红线：同屏玻璃模糊层 ≤ 5（左栏顶栏 / 消息流顶栏 / 输入坞 / 右栏顶栏 / 模态框），
- *   列表行与消息气泡一律用半透明纯色（--row-bg 系），不 blur。
- *
- * 玻璃分层（Apple 风格：高饱和 + 充足模糊 + 半透明 + 0.5px 发丝边 + 顶部内嵌高光）：
- * - 常驻 chrome（.glass / .glass-bar）：--glass-blur 28px / saturate 180%；
- * - 浮层（.glass-pop：下拉/菜单/Toast/tooltip）：--glass-blur-pop 40px / saturate 200%，
- *   半透明背景 + 分层柔和投影 + --glass-inset 顶部内嵌高光；临时态，不占 ≤5 层预算；
- * - 模态（.glass-strong）：--glass-blur-modal 44px，背景略更不透明托底长文本可读性。
- *
- * 动效令牌：--dur-fast 150ms / --dur-base 200ms / --dur-slow 300ms；
- * 缓动 --ease-interactive（控件交互）/ --ease-panel（面板/页面/浮层）。
- * 圆角梯度：--radius-xs/s/m/l/panel/pill（--radius-control 为 --radius-l 兼容别名）。
+ * 设计令牌：液态玻璃 + 双主题。
+ * - 尺寸一律 rem；仅边框线宽允许 px。
+ * - 玻璃材质：方向性边缘（顶缘更亮）+ 双 specular 内嵌高光 + 分层环境投影；
+ *   布局语言"画布上的卡片"——全屏发丝分隔线一律不用，分组靠圆角卡片与抽屉底色。
+ * - 性能红线：同屏玻璃模糊层 ≤ 5（消息流顶栏 / 输入卡片 / 模态）。
+ * - 动效：--dur-fast/base/slow + 两档缓动；圆角 xs/s/m/l/panel/pill。
  */
 
 :root[data-theme='light'] {
   color-scheme: light;
 
   /* 常驻 chrome 玻璃 */
-  --glass-bg: rgba(255, 255, 255, 0.5);
-  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-bg: rgba(255, 255, 255, 0.52);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-border-top: rgba(255, 255, 255, 0.85);
   --glass-blur: 28px;
   --glass-saturate: 180%;
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  /* 浮层玻璃（下拉/菜单/Toast/tooltip，临时态不占预算）：
-     半透明 + 40px 强模糊 + 200% 饱和；@supports 失效/降低透明度时回退近不透明（见文件尾） */
+  /* 浮层玻璃（下拉/菜单/Toast/tooltip） */
   --glass-bg-pop: rgba(255, 255, 255, 0.72);
   --glass-blur-pop: 40px;
   --glass-saturate-pop: 200%;
   --glass-shadow-pop:
     0 12px 40px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.06);
-  /* 模态玻璃：长文本可读性优先，略更不透明 */
+  /* 模态玻璃 */
   --glass-bg-modal: rgba(255, 255, 255, 0.8);
   --glass-blur-modal: 44px;
   --glass-shadow-modal:
     0 24px 64px rgba(0, 0, 0, 0.16),
     0 4px 16px rgba(0, 0, 0, 0.08);
-  /* 顶部内嵌高光（Apple 发丝 highlight，box-shadow 内嵌层） */
-  --glass-inset: inset 0 0.5px 0 rgba(255, 255, 255, 0.55);
+  /* specular 内嵌高光（顶亮 / 底微亮，模拟玻璃受光） */
+  --specular-top: rgba(255, 255, 255, 0.7);
+  --specular-bottom: rgba(255, 255, 255, 0.16);
 
   --text-primary: rgba(0, 0, 0, 0.85);
   --text-secondary: rgba(0, 0, 0, 0.55);
@@ -50,7 +42,6 @@
   --accent-soft: rgba(10, 132, 255, 0.12);
   --on-accent: #ffffff;
 
-  /* 纯色用于圆点/图标；*-text 变体保证浅底上 ≥ 4.5:1（WCAG AA，kimi.md §9） */
   --danger: #ff3b30;
   --danger-text: #d70015;
   --success: #34c759;
@@ -60,17 +51,23 @@
   --warning-bg: rgba(255, 204, 0, 0.16);
 
   --bg-base: #f2f2f7;
-  /* 列表行 / 气泡 / 卡片：半透明纯色，不走 blur（性能红线） */
+  /* 抽屉（侧栏 / 右栏）：半透明底色分区，无 blur 无边框 */
+  --drawer-bg: rgba(120, 120, 128, 0.09);
+  /* 列表行 / 气泡 / 卡片：半透明纯色 + 柔和卡片投影（不走 blur） */
   --row-bg: rgba(255, 255, 255, 0.72);
   --row-bg-hover: rgba(255, 255, 255, 0.88);
   --row-bg-active: rgba(255, 255, 255, 0.96);
+  --card-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 6px 20px rgba(0, 0, 0, 0.05);
   --bubble-user-bg: rgba(10, 132, 255, 0.12);
   --separator: rgba(60, 60, 67, 0.12);
   --code-bg: rgba(118, 118, 128, 0.12);
-  --input-bg: rgba(255, 255, 255, 0.8);
+  --input-bg: rgba(118, 118, 128, 0.1);
+  --input-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
   --overlay-bg: rgba(0, 0, 0, 0.28);
 
-  /* 窗口背景：柔和多段径向渐变（浅），供玻璃"折射" */
+  /* 窗口背景：柔和多段径向渐变，供玻璃"折射" */
   --bg-gradient:
     radial-gradient(at 12% 18%, rgba(10, 132, 255, 0.16), transparent 55%),
     radial-gradient(at 86% 8%, rgba(191, 90, 242, 0.13), transparent 52%),
@@ -82,8 +79,9 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --glass-bg: rgba(30, 30, 32, 0.5);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg: rgba(30, 30, 32, 0.52);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-top: rgba(255, 255, 255, 0.22);
   --glass-blur: 28px;
   --glass-saturate: 180%;
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -98,7 +96,8 @@
   --glass-shadow-modal:
     0 24px 64px rgba(0, 0, 0, 0.6),
     0 4px 16px rgba(0, 0, 0, 0.4);
-  --glass-inset: inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
+  --specular-top: rgba(255, 255, 255, 0.18);
+  --specular-bottom: rgba(255, 255, 255, 0.04);
 
   --text-primary: rgba(255, 255, 255, 0.92);
   --text-secondary: rgba(255, 255, 255, 0.6);
@@ -117,13 +116,18 @@
   --warning-bg: rgba(255, 214, 10, 0.12);
 
   --bg-base: #0b0b0f;
+  --drawer-bg: rgba(255, 255, 255, 0.045);
   --row-bg: rgba(44, 44, 48, 0.72);
   --row-bg-hover: rgba(56, 56, 60, 0.78);
   --row-bg-active: rgba(64, 64, 68, 0.85);
+  --card-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.22);
   --bubble-user-bg: rgba(10, 132, 255, 0.25);
   --separator: rgba(255, 255, 255, 0.1);
   --code-bg: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(28, 28, 30, 0.8);
+  --input-bg: rgba(0, 0, 0, 0.22);
+  --input-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.32);
   --overlay-bg: rgba(0, 0, 0, 0.5);
 
   --bg-gradient:
@@ -134,18 +138,16 @@
   --noise-opacity: 0.05;
 }
 
-/* 主题无关令牌：圆角梯度 + 动效梯度（单一来源，双主题共享） */
+/* 主题无关令牌：圆角梯度 + 动效梯度 */
 :root {
-  /* 圆角梯度（kimi.md §5.3 rem 尺寸；--radius-control 为 --radius-l 兼容别名） */
   --radius-xs: 0.25rem; /* 4px：勾选框 */
-  --radius-s: 0.375rem; /* 6px：kbd / 行内代码 / 紧凑小图标按钮 */
+  --radius-s: 0.375rem; /* 6px：kbd / 行内代码 */
   --radius-m: 0.5rem; /* 8px：icon 按钮 */
-  --radius-l: 0.75rem; /* 12px：控件 / 输入框 / 行 */
-  --radius-panel: 1rem; /* 16px：面板 / 气泡 / 模态 */
-  --radius-pill: 999px; /* 胶囊 / 圆点 */
+  --radius-l: 0.75rem; /* 12px：控件 / 行 / 卡片 / 浮层 */
+  --radius-panel: 1.25rem; /* 20px：面板 / 气泡 / 模态 / 分组卡 */
+  --radius-pill: 999px;
   --radius-control: var(--radius-l);
 
-  /* 动效梯度：时长 + 统一缓动（交互 / 面板两档） */
   --dur-fast: 150ms;
   --dur-base: 200ms;
   --dur-slow: 300ms;
@@ -190,57 +192,65 @@
   }
 }
 
-/* ---------- 玻璃工具类 ---------- */
+/* ---------- 玻璃工具类 ----------
+   声明顺序纪律：-webkit- 前缀在前、标准版在后（LightningCSS 压缩会"后者覆盖"合并）。 */
 
-/* 面板/模态级玻璃（面板圆角 + 双主题阴影）。同屏 ≤5 处使用。 */
+/* 玻璃卡片（输入卡 / 面板）：方向性边缘（顶缘亮）+ 双 specular + 环境投影 */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 0.5px solid var(--glass-border);
+  border-top-color: var(--glass-border-top);
   border-radius: var(--radius-panel);
-  box-shadow: var(--glass-shadow);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--specular-top),
+    inset 0 -1px 0 var(--specular-bottom);
 }
 
-/* 顶栏/输入坞级玻璃：无圆角无投影，仅发丝分隔线 */
+/* 顶栏 chrome 玻璃：无边线，靠玻璃本身与内容分层 */
 .glass-bar {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border-bottom: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
-/*
- * 强玻璃（临时态，防背景文字透底；出现时常规玻璃层被遮罩盖住，不计入 ≤5 层预算）：
- * - .glass-strong：模态面板。模态背景 + 44px 模糊 + 面板圆角 + 分层投影 + 内嵌高光。
- * - .glass-pop：一切浮层（下拉、弹出菜单、Toast、tooltip 类）。半透明 + 40px 模糊 +
- *   200% 饱和 + 0.5px 发丝边 + 控件圆角 + 分层柔和投影 + 顶部内嵌高光。
- */
+/* 抽屉（侧栏 / 右栏）：半透明底色分区，无 blur 无边框 */
+.drawer {
+  background: var(--drawer-bg);
+}
+
+/* 模态面板 / 一切浮层：双 specular + 分层投影 */
 .glass-strong {
   background: var(--glass-bg-modal);
-  backdrop-filter: blur(var(--glass-blur-modal)) saturate(var(--glass-saturate-pop));
   -webkit-backdrop-filter: blur(var(--glass-blur-modal)) saturate(var(--glass-saturate-pop));
+  backdrop-filter: blur(var(--glass-blur-modal)) saturate(var(--glass-saturate-pop));
   border: 0.5px solid var(--glass-border);
+  border-top-color: var(--glass-border-top);
   border-radius: var(--radius-panel);
   box-shadow:
     var(--glass-shadow-modal),
-    var(--glass-inset);
+    inset 0 1px 0 var(--specular-top),
+    inset 0 -1px 0 var(--specular-bottom);
 }
 .glass-pop {
   background: var(--glass-bg-pop);
-  backdrop-filter: blur(var(--glass-blur-pop)) saturate(var(--glass-saturate-pop));
   -webkit-backdrop-filter: blur(var(--glass-blur-pop)) saturate(var(--glass-saturate-pop));
+  backdrop-filter: blur(var(--glass-blur-pop)) saturate(var(--glass-saturate-pop));
   border: 0.5px solid var(--glass-border);
+  border-top-color: var(--glass-border-top);
   border-radius: var(--radius-l);
   box-shadow:
     var(--glass-shadow-pop),
-    var(--glass-inset);
+    inset 0 1px 0 var(--specular-top),
+    inset 0 -1px 0 var(--specular-bottom);
 }
 
 /* 模态遮罩：把模态后方内容压虚，是模态可读性的关键 */
 .modal-overlay {
-  backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
 }
 
 /* 可交互玻璃（卡片/按钮）：悬浮亮度 +4%、位移 -1px，交互缓动 --dur-base */

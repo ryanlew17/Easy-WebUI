@@ -268,15 +268,16 @@ export function ChatPage() {
           : `minmax(12.5rem, 16.25rem) minmax(0, 1fr) ${rightRem}rem`,
       }}
     >
-      {/* 左栏 */}
-      <div className="flex min-h-0 flex-col border-r hairline">
+      {/* 左栏：抽屉底色分区（无边线） */}
+      <div className="drawer flex min-h-0 flex-col">
         <Sidebar />
       </div>
 
       {/* 中栏 */}
       <div className="flex min-w-0 flex-col" style={{ minHeight: 0 }}>
-        {/* 消息流顶栏：玻璃模糊层 ② */}
-        <div className="glass-bar flex flex-none items-center gap-2 px-4 py-2.5">
+        {/* 消息流顶栏（玻璃，消息从其下滚过）。z-30：backdrop-filter 形成堆叠上下文，
+            缺省会被 DOM 序更靠后的消息列表盖住 */}
+        <div className="glass-bar relative z-30 flex flex-none items-center gap-2 px-4 py-2.5">
           <div className="min-w-0 flex-1">
             {conv ? (
               <ModelPicker providerId={providerId} model={model} onSelect={onModelSelect} />
@@ -332,10 +333,10 @@ export function ChatPage() {
         )}
       </div>
 
-      {/* 右栏（可折叠 + 可拖拽调宽） */}
+      {/* 右栏（可折叠 + 可拖拽调宽）：抽屉底色分区 */}
       {rightCollapsed ? null : (
-        <div className="relative flex min-h-0 flex-col border-l hairline">
-          {/* 拖拽把手：左缘 0.5rem 热区，grab/grabbing 光标 */}
+        <div className="drawer relative flex min-h-0 flex-col">
+          {/* 拖拽把手：左缘 0.5rem 热区 */}
           <div
             role="separator"
             aria-orientation="vertical"
@@ -347,8 +348,7 @@ export function ChatPage() {
               document.body.style.cursor = 'grabbing';
             }}
           />
-          {/* 右栏顶栏：玻璃模糊层 ④ */}
-          <div className="glass-bar flex flex-none items-center justify-between px-4 py-2.5">
+          <div className="flex flex-none items-center justify-between px-4 py-2.5">
             <h2 className="truncate text-sm font-semibold">{t('params.title')}</h2>
             <button
               type="button"

@@ -291,6 +291,71 @@ describe('树形消息 DAO', () => {
     expect(path[1].branch).toBeUndefined(); // 只剩一支 → 无 branch
   });
 
+  it('逐条删除所在分支（尾→头）：最终落到剩余分支并退出分支模式', () => {
+    // 三分支：u1 → a1 / a2 / a3；a1 支：u2a → a2a；a2 支：u2b；视角 = a1 支尾部
+    const u1 = ins('user', 'q1', null, 1);
+    const a1 = ins('assistant', 'a1', u1.id, 2);
+    const u2a = ins('user', 'q2a', a1.id, 3);
+    const a2a = ins('assistant', 'a2a', u2a.id, 4);
+    const a2 = ins('assistant', 'a2', u1.id, 5);
+    const u2b = ins('user', 'q2b', a2.id, 6);
+    const a3 = ins('assistant', 'a3', u1.id, 7);
+    messages.setActiveLeaf(convId, a2a.id);
+
+    // 尾 → 头逐条删 a1 支
+    messages.deleteWithDescendants(convId, [a2a.id]);
+    let path = messages.list(convId);
+    expect(path.map((m) => m.id)).toEqual([u1.id, a1.id, u2a.id]);
+    expect(path[1].branch!.index).toBe(1); // a1 级三分支仍在
+    expect(path[1].branch!.count).toBe(3);
+
+    messages.deleteWithDescendants(convId, [u2a.id]);
+    path = messages.list(convId);
+    expect(path.map((m) => m.id)).toEqual([u1.id, a1.id]);
+    expect(path[1].branch!.count).toBe(3);
+
+    // 删分支头 a1：应落到剩余最新分支（a3 支）且 a1 级 fork 剩两支仍显示分支
+    messages.deleteWithDescendants(convId, [a1.id]);
+    path = messages.list(convId);
+    expect(path.map((m) => m.id)).toEqual([u1.id, a3.id]);
+    expect(path[1].branch!.index).toBe(2); // a3 在 {a2,a3} 中第 2
+    expect(path[1].branch!.count).toBe(2);
+
+    // 再删 a2 支整支 → 只剩 a3 一支 → 退出分支模式
+    messages.deleteWithDescendants(convId, [a2.id]);
+    path = messages.list(convId);
+    expect(path.map((m) => m.id)).toEqual([u1.id, a3.id]);
+    expect(path.every((m) => m.branch === undefined)).toBe(true);
+  });
+
+  it('删除所在分支的分支头 → 落到剩余分支并完整显示（不再卡在半截路径）', () => {
+    // u1 → a1(分支1) → u2a → a2a；a2(分支2，较新) → u2b；当前激活 = 分支2 最深
+    const u1 = ins('user', 'q1', null, 1);
+    const a1 = ins('assistant', 'a1', u1.id, 2);
+    const u2a = ins('user', 'q2a', a1.id, 3);
+    const a2a = ins('assistant', 'a2a', u2a.id, 4);
+    const a2 = ins('assistant', 'a2', u1.id, 5);
+    const u2b = ins('user', 'q2b', a2.id, 6);
+    messages.switchToSibling(convId, a2.id); // 激活叶 = u2b，路径 = 分支2
+    expect(messages.list(convId).map((m) => m.id)).toEqual([u1.id, a2.id, u2b.id]);
+
+    // 删分支2 的分支头 a2（连同 u2b）→ 应回落到分支1 并完整显示（u1→a1→u2a→a2a）
+    const n = messages.deleteWithDescendants(convId, [a2.id]);
+    expect(n).toBe(2);
+    const path = messages.list(convId);
+    expect(path.map((m) => m.id)).toEqual([u1.id, a1.id, u2a.id, a2a.id]);
+    expect(path.every((m) => m.branch === undefined)).toBe(true); // 剩一支 → 1/1
+
+    // 后续新消息线性追加在分支1 之下（不再挂成新的同级分支）；
+    // insert 不动 active_leaf（由编排层置新尾为叶），此处按编排层行为模拟
+    const u3 = ins('user', 'q3', a2a.id, 7);
+    expect(messages.childrenOfList(convId, a2a.id)).toHaveLength(1); // 无新同级分支
+    messages.setActiveLeaf(convId, u3.id);
+    expect(messages.list(convId).map((m) => m.id)).toEqual([
+      u1.id, a1.id, u2a.id, a2a.id, u3.id,
+    ]);
+  });
+
   it('stats：四列组装 MessageStats，全 NULL 时缺省；update 合并语义', () => {
     const m = ins('assistant', 'x');
     expect(m.stats).toBeUndefined();

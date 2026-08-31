@@ -24,15 +24,15 @@
 
 ## 截图
 
-| 会话页（浅色，中文） | 会话页（深色，English） |
+| 会话页（浅色） | 会话页（深色） |
 | --- | --- |
-| ![会话页（浅色）](docs/screenshots/09-chat-done-params.png) | ![会话页（深色）](docs/screenshots/12-chat-dark-en.png) |
+| ![会话页（浅色）](docs/screenshots/05-chat-light-zh.png) | ![会话页（深色）](docs/screenshots/07-chat-dark-zh.png) |
 
-| 模型选择器 | 新增平台（12 家预置） |
+| 模型选择器（液态玻璃模糊） | 新增平台（12 家预置） |
 | --- | --- |
-| ![模型选择器](docs/screenshots/07-model-picker.png) | ![新增平台](docs/screenshots/03-provider-modal-presets.png) |
+| ![模型选择器](docs/screenshots/04-model-picker-blur-zh.png) | ![新增平台](docs/screenshots/03-provider-modal-light-zh.png) |
 
-更多见 [docs/screenshots/](./docs/screenshots/)（含打包后的 Electron 应用截图）。
+更多见 [docs/screenshots/](./docs/screenshots/)：欢迎页、设置、生成中「思考中…」状态与多行输入坞（上方浮出「生成回复」液态玻璃胶囊）等 8 张。
 
 ## 技术栈
 

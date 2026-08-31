@@ -43,7 +43,7 @@ export function SettingsPage() {
         <div
           role="tablist"
           aria-label={t('aria.settingsTabs')}
-          className="row-surface ml-2 inline-flex p-0.5"
+          className="seg ml-2"
         >
           {tabs.map((tab) => (
             <button
@@ -55,7 +55,9 @@ export function SettingsPage() {
               style={{
                 minHeight: '1.75rem',
                 padding: '0 0.875rem',
+                borderRadius: 'var(--radius-pill)',
                 background: settingsTab === tab.key ? 'var(--row-bg-active)' : 'transparent',
+                boxShadow: settingsTab === tab.key ? '0 1px 3px rgba(0,0,0,0.12)' : undefined,
                 color: settingsTab === tab.key ? 'var(--text-primary)' : 'var(--text-secondary)',
               }}
               onClick={() => setSettingsTab(tab.key)}

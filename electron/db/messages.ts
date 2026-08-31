@@ -9,7 +9,7 @@
  * - switchToSibling = setActiveLeaf(deepestDescendant(siblingId))：切到目标
  *   同级分支后沿"最新子"下钻到最深后代；
  * - deleteWithDescendants 删各节点子树；active_leaf 落在被删集合时回退到
- *   最近存活祖先（全删光则 NULL）。
+ *   最近存活祖先并沿最新存活子下钻（全删光则 NULL）。
  */
 import { randomUUID } from 'node:crypto';
 import type { DB } from './index';
@@ -265,8 +265,10 @@ export function createMessagesDao(db: DB) {
     },
 
     /**
-     * 删除各节点及其整个子树；active_leaf 落在被删集合时回退到被删路径上
-     * 最近的存活祖先（祖先也全被删则 NULL）。返回删除行数。
+     * 删除各节点及其整个子树；active_leaf 落在被删集合时，回退到被删路径上
+     * 最近的存活祖先、并沿"最新存活子"下钻到该位置的最新分支（仅指回祖先本身
+     * 会让路径停在半截、其余分支全部"消失"，且后续新消息会挂成新同级分支）。
+     * 祖先也全被删则 NULL。返回删除行数。
      */
     deleteWithDescendants(convId: string, ids: readonly string[]): number {
       const toDelete = new Set<string>();
@@ -277,9 +279,10 @@ export function createMessagesDao(db: DB) {
 
       // active_leaf 回退：从激活叶沿 parent 上溯找第一个不在删除集合里的祖先
       const conv = activeLeafStmt.get(convId) as { active_leaf_id: string | null } | undefined;
-      if (conv?.active_leaf_id && toDelete.has(conv.active_leaf_id)) {
-        let survivor: string | null = null;
-        let cur = getRow(conv.active_leaf_id);
+      const leafHit = !!conv?.active_leaf_id && toDelete.has(conv.active_leaf_id);
+      let survivor: string | null = null;
+      if (leafHit) {
+        let cur = getRow(conv.active_leaf_id as string);
         const seen = new Set<string>();
         while (cur && !seen.has(cur.id)) {
           seen.add(cur.id);
@@ -291,7 +294,6 @@ export function createMessagesDao(db: DB) {
           }
           cur = getRow(parentId);
         }
-        this.setActiveLeaf(convId, survivor);
       }
 
       const del = db.prepare('DELETE FROM messages WHERE id = ?');
@@ -300,6 +302,9 @@ export function createMessagesDao(db: DB) {
         for (const id of toDelete) count += del.run(id).changes;
       });
       tx();
+
+      // 删完再下钻：此时"最新子"查询天然只含存活分支
+      if (leafHit) this.setActiveLeaf(convId, survivor === null ? null : deepestDescendantId(convId, survivor));
       return count;
     },
 

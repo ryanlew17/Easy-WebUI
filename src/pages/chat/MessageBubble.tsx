@@ -1,6 +1,7 @@
 /**
  * 单条消息气泡（LM Studio 式交互）：
  * - user：右侧 accent 淡色气泡；assistant：左侧半透明纯色气泡（均不走 blur —— 性能红线）；
+ * - 最小宽度：assistant 12rem（思考计时行/消息头/短回复不逐字竖排）、user 3rem（单字不破行）；
  * - 操作行（hover/focus-within 显现，IconButton 统一图标）：branch / copy / edit / delete，
  *   assistant 追加 regenerate / continue；生成中全部禁用（置灰 + title 提示）；
  * - 分支导航 ‹ n/N ›：msg.branch.count>1 时显示在操作行左侧，调 switchBranch；
@@ -126,7 +127,7 @@ function StatsRow({ msg }: { msg: Message }) {
   if (items.length === 0) return null;
   return (
     <div
-      className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.6875rem] text-tertiary"
+      className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.6875rem] text-tertiary"
       aria-hidden="true"
     >
       {items.map((it) => (
@@ -306,7 +307,7 @@ export function MessageBubble({
 
   return (
     <div
-      className={`msg-in flex ${isUser ? 'justify-end' : 'justify-start'}`}
+      className={`msg-in flex min-w-0 ${selectionMode ? 'justify-start' : isUser ? 'justify-end' : 'justify-start'}`}
       onContextMenu={(e) => {
         // 右键进入选择模式（已在选择模式则不重复触发，交由复选框/气泡点击切换）
         if (selectionMode) return;
@@ -314,15 +315,19 @@ export function MessageBubble({
         onEnterSelection(msg);
       }}
     >
+      {/* wrapper 撑满整行（flex-1）并承担左右对齐：group 的 max-w-[85%] 以它为
+          确定基准。此前 wrapper 是 fit-content，百分比 max-width 引发 intrinsic
+          循环（wrapper ≈ 气泡宽/0.85）且 group 左对齐 → 用户气泡不贴右、看似提前换行 */}
       <div
-        className="flex items-start gap-2"
+        className={`flex min-w-0 flex-1 items-start gap-2 ${isUser && !selectionMode ? 'justify-end' : 'justify-start'}`}
         style={selectionMode ? { cursor: 'pointer' } : undefined}
         onClick={selectionMode ? () => onToggleSelect(msg) : undefined}
       >
         {selectionMode ? (
+          /* 勾选列：固定 24px 命中区；mt-1.5 + 垂直居中使勾选框中心对齐气泡头部行，
+             行级 justify-start 保证所有勾选框左侧对齐、不随用户气泡长度漂移 */
           <span
-            className="flex flex-none items-center"
-            style={{ minHeight: '2rem', paddingTop: '0.5rem' }}
+            className="mt-1.5 flex h-6 w-6 flex-none items-center justify-center"
             /* 阻止冒泡：否则勾选会再触发气泡包装器的 toggle（双重切换=没切） */
             onClick={(e) => e.stopPropagation()}
           >
@@ -334,12 +339,19 @@ export function MessageBubble({
           </span>
         ) : null}
 
-        <div className={`group max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+        {/* min-w-0 链（行/包装/列/气泡）：断掉不可断内容（长代码行、宽表格）的
+            min-content 经 min-width:auto 逐层撑破 max-width —— 气泡恒 ≤ 聊天区宽，
+            长内容由 pre/表格自身的 overflow-x:auto 内部滚动，列表永不出现横向滚动条 */}
+        <div className={`group min-w-0 max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
           <div
-            className="row-surface px-3.5 py-2.5"
+            className="row-surface min-w-0 max-w-full px-3.5 py-2.5"
             style={{
               background: isUser ? 'var(--bubble-user-bg)' : 'var(--row-bg)',
               borderRadius: 'var(--radius-panel)',
+              /* 最小宽度：user 7.5rem / assistant 12rem —— 气泡宽度至少能单行容纳
+                 消息头（角色/时间/tokens）与"思考中…"计时行，短回复不再尴尬折行。
+                 （不可用 min(...,100%)：气泡处于 fit-content 宽度上下文中，百分比无法解析会归零） */
+              minWidth: isUser ? '7.5rem' : '12rem',
               // 选择模式勾选反馈：accent 发丝描边（不动布局）
               outline: selectionMode && selected ? '1.5px solid var(--accent)' : undefined,
               outlineOffset: '1px',
@@ -347,8 +359,9 @@ export function MessageBubble({
           >
             {/* 内容区：分支切换时 key=msg.id 触发 150ms 淡入（.fade-in-fast，reduced-motion 门控） */}
             <div key={msg.id} className="fade-in-fast">
+              {/* 头部行整体 nowrap：宽度不足时避免"角色/时间/tokens"被 flex 压缩后竖排折行 */}
               <div
-                className="mb-1 flex items-center gap-2 text-[0.6875rem] text-tertiary"
+                className="mb-1 flex flex-nowrap items-center gap-2 whitespace-nowrap text-[0.6875rem] text-tertiary"
                 aria-hidden="true"
               >
                 <span className="font-medium">
@@ -423,13 +436,14 @@ export function MessageBubble({
                   ) : null}
                 </>
               )}
+              {/* 统计行在气泡内部底部：气泡随内容撑宽，统计永远与气泡对齐
+                  （放外部时短气泡 min-width 装不下统计行，会向右突出错位） */}
+              {!isUser && !editing && !msg.error && !streaming && !msg.partial ? (
+                <StatsRow msg={msg} />
+              ) : null}
             </div>
           </div>
 
-          {/* 统计行：assistant 完成后、操作行上方 */}
-          {!isUser && !editing && !msg.error && !streaming && !msg.partial ? (
-            <StatsRow msg={msg} />
-          ) : null}
 
           {showActions ? (
             <div

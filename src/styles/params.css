@@ -3,13 +3,16 @@
  * 只新增类，不改动既有令牌与工具类。
  */
 
-/* ---------- 可折叠分块 ---------- */
+/* ---------- 可折叠分块：圆角卡片 ---------- */
 .param-block {
-  border-bottom: 0.5px solid var(--separator);
-  padding: 0.125rem 0;
+  background: var(--row-bg);
+  border-radius: var(--radius-l);
+  box-shadow: var(--card-shadow);
+  padding: 0.125rem 0.625rem 0.25rem;
+  margin-bottom: 0.625rem;
 }
 .param-block:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 .param-block-header {
   display: flex;

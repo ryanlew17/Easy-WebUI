@@ -12,6 +12,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useDelayedUnmount } from '../lib/useDelayedUnmount';
+import { AnchoredPopover } from './Popover';
 
 /** 按 step 的小数位取整（step=1 → 整数；step=0.05 → 两位小数） */
 export function roundForStep(v: number, step: number): number {
@@ -135,8 +136,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="row-surface inline-flex p-0.5"
-      style={{ borderRadius: 'var(--radius-control)' }}
+      className="seg"
     >
       {options.map((opt) => (
         <button
@@ -149,6 +149,7 @@ export function SegmentedControl<T extends string>({
             minHeight: '1.75rem',
             padding: '0 0.75rem',
             fontSize: '0.75rem',
+            borderRadius: 'var(--radius-pill)',
             background: value === opt.value ? 'var(--row-bg-active)' : 'transparent',
             boxShadow: value === opt.value ? '0 1px 3px rgba(0,0,0,0.12)' : undefined,
             color: value === opt.value ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -446,7 +447,9 @@ export function SelectField<T extends string>({
       ?.querySelector(`[id="${CSS.escape(optionId(activeIdx))}"]`)
       ?.scrollIntoView({ block: 'nearest' });
     const onDown = (e: MouseEvent): void => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || listRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -550,12 +553,15 @@ export function SelectField<T extends string>({
       </button>
 
       {pop.mounted ? (
-        <div
-          ref={listRef}
+        <AnchoredPopover
+          anchorRef={rootRef}
+          popoverRef={listRef}
+          mounted={pop.mounted}
+          closing={pop.closing}
+          matchAnchorWidth
+          className="max-h-60 overflow-y-auto p-1"
           role="listbox"
-          aria-label={ariaLabel}
-          className="glass-pop pop-layer absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto p-1"
-          data-closing={pop.closing ? 'true' : undefined}
+          ariaLabel={ariaLabel}
         >
           {options.map((opt, i) => {
             const selected = opt.value === value;
@@ -595,12 +601,12 @@ export function SelectField<T extends string>({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
-                  </svg>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+              </svg>
+            ) : null}
+          </div>
+          );
+        })}
+        </AnchoredPopover>
       ) : null}
     </div>
   );

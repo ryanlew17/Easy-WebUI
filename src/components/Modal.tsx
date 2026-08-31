@@ -117,7 +117,7 @@ export function Modal({
         data-closing={closing ? 'true' : undefined}
         style={{ maxHeight: '90vh' }}
       >
-        <div className="flex items-center justify-between gap-3 border-b hairline px-5 py-3.5">
+        <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
           <h2 className="truncate text-sm font-semibold">{title}</h2>
           <button
             type="button"
@@ -141,7 +141,7 @@ export function Modal({
           </ModalCloseContext.Provider>
         </div>
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-t hairline px-5 py-3">
+          <div className="flex items-center justify-end gap-2 px-5 pb-4 pt-2">
             <ModalCloseContext.Provider value={requestClose}>
               {footer}
             </ModalCloseContext.Provider>

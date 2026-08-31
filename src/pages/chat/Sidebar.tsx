@@ -9,7 +9,7 @@ import type { Conversation } from '@shared/types';
 import { useConversationsStore } from '../../store/conversations';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
-import { IconSettings } from '../../components/icons';
+import { IconPin, IconSettings, IconSparkle } from '../../components/icons';
 import { getApi } from '../../bridge';
 import { formatDateTime, displayTitle } from '../../lib/format';
 import { parseIpcError } from '../../lib/errors';
@@ -75,16 +75,11 @@ function ConversationRow({
     <li>
       <div
         className="row-surface row-surface-hover group relative mb-1 flex items-center gap-1 px-2.5 py-2"
-        style={{
-          background: active ? 'var(--row-bg-active)' : undefined,
-          borderColor: active ? 'var(--accent)' : undefined,
-        }}
+        style={{ background: active ? 'var(--accent-soft)' : undefined }}
       >
         {conv.pinned ? (
           <span className="flex-none text-tertiary" aria-hidden="true" title={t('sidebar.unpin')}>
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M9.828 1.172a2 2 0 012.828 0l2.172 2.172a2 2 0 010 2.828l-1.414 1.414-5-5L9.828 1.172zM7.757 4.343l5 5-2.121.707-3.536 5.303-2.121-2.121 2.121-3.536-2.829-2.828 3.486-3.525z" />
-            </svg>
+            <IconPin size={10} />
           </span>
         ) : null}
 
@@ -117,18 +112,7 @@ function ConversationRow({
               {generatingTitle ? (
                 <span className="spinner" aria-hidden="true" />
               ) : (
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M8 1.8l1.5 4.1 4.1 1.5-4.1 1.5L8 13l-1.5-4.1-4.1-1.5 4.1-1.5L8 1.8z"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M12.6 1.6l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6.6-1.6z"
-                    fill="currentColor"
-                  />
-                </svg>
+                <IconSparkle size={12} />
               )}
             </button>
           </>
@@ -164,13 +148,9 @@ function ConversationRow({
                 )
               }
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M9.828 1.172a2 2 0 012.828 0l2.172 2.172a2 2 0 010 2.828l-1.414 1.414-5-5L9.828 1.172zM7.757 4.343l5 5-2.121.707-3.536 5.303-2.121-2.121 2.121-3.536-2.829-2.828 3.486-3.525z"
-                  fill="currentColor"
-                  opacity={conv.pinned ? 1 : 0.45}
-                />
-              </svg>
+              <span style={{ opacity: conv.pinned ? 1 : 0.45 }} aria-hidden="true">
+                <IconPin size={12} />
+              </span>
             </button>
             <button
               type="button"
@@ -259,8 +239,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex min-h-0 flex-col" aria-label={t('aria.conversationList')}>
-      {/* 左栏顶栏：玻璃模糊层 ① */}
-      <div className="glass-bar flex flex-none flex-col gap-2 px-3 pb-3 pt-3.5">
+      <div className="flex flex-none flex-col gap-2 px-3 pb-2 pt-3.5">
         <button
           type="button"
           className="btn btn-accent btn-pill w-full"
@@ -305,7 +284,7 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="flex-none border-t hairline px-2 py-2">
+      <div className="flex-none px-2 py-1.5">
         <button
           type="button"
           className="btn btn-ghost w-full justify-start"
