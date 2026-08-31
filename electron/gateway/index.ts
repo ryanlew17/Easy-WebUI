@@ -35,6 +35,8 @@ export interface GatewayChatRequest {
   params: ParamValues;
   stream: boolean;
   signal: AbortSignal;
+  /** true = 会话 reasoning_enabled=false，请求体混入按协议的"关闭思考"参数 */
+  reasoningOff?: boolean;
   idleMs?: number;
 }
 
@@ -57,6 +59,7 @@ export async function* chat(req: GatewayChatRequest): AsyncGenerator<ChatChunk> 
         params: req.params,
         stream: req.stream,
         signal: req.signal,
+        reasoningOff: req.reasoningOff,
         idleMs: req.idleMs,
       });
       for await (const chunk of gen) {

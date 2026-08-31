@@ -11,12 +11,86 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useDelayedUnmount } from '../lib/useDelayedUnmount';
 
 /** 按 step 的小数位取整（step=1 → 整数；step=0.05 → 两位小数） */
 export function roundForStep(v: number, step: number): number {
   const decimals = (String(step).split('.')[1] ?? '').length;
   const f = 10 ** decimals;
   return Math.round(v * f) / f;
+}
+
+/* ---------- IconButton：图标按钮（操作行/发送/停止等唯一按钮形态） ----------
+ * 约定：未来新增按钮一律用 IconButton（SVG 图标 + title/aria-label），
+ * 不再新增纯文字按钮；编辑态确认/取消可为 icon+文字（MessageBubble 内自拟）。
+ * - ghost 为默认风格（btn-ghost 悬浮底色），variant 切换 accent/danger 语义色；
+ * - 命中区 ≥24px（1.5rem，kimi.md §5.3 最小点击区的紧凑档）；
+ * - 动效走 .btn 的令牌过渡（--dur-fast / --ease-interactive，active:scale 0.98）。
+ */
+export function IconButton({
+  label,
+  title,
+  variant = 'ghost',
+  round = false,
+  size = 'md',
+  disabled,
+  disabledHint,
+  active,
+  onClick,
+  children,
+  className,
+}: {
+  /** aria-label（必填，i18n 文案） */
+  label: string;
+  /** 悬浮 tooltip；缺省 = label */
+  title?: string;
+  /** ghost=默认；accent=accent 实心（发送）；danger=danger 文字色；danger-solid=danger 实心（停止） */
+  variant?: 'ghost' | 'accent' | 'danger' | 'danger-solid';
+  /** 圆形（发送/停止等主按钮） */
+  round?: boolean;
+  /** md=2rem 命中区；sm=1.5rem 命中区（消息操作行） */
+  size?: 'md' | 'sm';
+  disabled?: boolean;
+  /** 禁用时的 tooltip（如"生成中，暂不可用"），优先级高于 title */
+  disabledHint?: string;
+  /** 开启态高亮（Think 胶囊等 toggle 场景） */
+  active?: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const variantClass =
+    variant === 'accent'
+      ? 'btn-accent'
+      : variant === 'danger'
+        ? 'btn-danger'
+        : variant === 'danger-solid'
+          ? 'btn-danger-solid'
+          : 'btn-ghost';
+  const dim =
+    size === 'sm'
+      ? { minWidth: '1.5rem', minHeight: '1.5rem', padding: '0.25rem' }
+      : { minWidth: '2rem', minHeight: '2rem', padding: '0.375rem' };
+  return (
+    <button
+      type="button"
+      className={`btn ${variantClass}${className ? ` ${className}` : ''}`}
+      style={{
+        ...dim,
+        borderRadius: round ? 'var(--radius-pill)' : 'var(--radius-m)',
+        ...(active
+          ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+          : undefined),
+      }}
+      title={disabled ? (disabledHint ?? title ?? label) : (title ?? label)}
+      aria-label={label}
+      aria-pressed={active === undefined ? undefined : active}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
 }
 
 /* ---------- Toggle ---------- */
@@ -277,7 +351,7 @@ export function TextAreaField({
   );
 }
 
-/* ---------- Checkbox（LM Studio 式勾选框；≥32px 点击区由行容器保证） ---------- */
+/* ---------- Checkbox（自绘勾选框：SVG checkmark 描边绘制 + 轻微 scale pop） ---------- */
 export function Checkbox({
   checked,
   onChange,
@@ -290,14 +364,20 @@ export function Checkbox({
   disabled?: boolean;
 }) {
   return (
-    <input
-      type="checkbox"
-      className="param-checkbox"
-      checked={checked}
-      disabled={disabled}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
       aria-label={label}
-      onChange={(e) => onChange(e.target.checked)}
-    />
+      disabled={disabled}
+      className="checkbox"
+      data-checked={checked ? 'true' : 'false'}
+      onClick={() => onChange(!checked)}
+    >
+      <svg viewBox="0 0 12 12" aria-hidden="true" className="checkbox-icon">
+        <path className="checkbox-mark" d="M2 6.5l2.5 2.5L10 3.5" />
+      </svg>
+    </button>
   );
 }
 
@@ -311,7 +391,8 @@ export function Checkbox({
  *   选中项 var(--accent-soft) 高亮，键盘高亮项 var(--row-bg-hover)；
  * - 交互：点击外部 / Esc 关闭（capture 阶段拦截，避免误触全局 Esc=停止生成），
  *   ↑↓ 导航（循环）+ Enter 选定 + Home/End 跳首尾，打开时高亮当前值；
- * - 动效：150ms 淡入（tokens.css .select-pop-in），尊重 prefers-reduced-motion。
+ * - 动效：进/场均走 tokens.css .pop-layer（--dur-fast 淡入+下沉 / 反向退场，
+ *   退场由 useDelayedUnmount 延迟卸载支撑），尊重 prefers-reduced-motion。
  */
 export function SelectField<T extends string>({
   value,
@@ -330,6 +411,8 @@ export function SelectField<T extends string>({
   const [activeIdx, setActiveIdx] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  /* 退场动效：open 翻 false 后延迟 150ms（--dur-fast）卸载，期间 data-closing 播反向动画 */
+  const pop = useDelayedUnmount(open, 150);
   const uid = useId();
   const optionId = (i: number): string => `${uid}-opt-${i}`;
 
@@ -453,7 +536,7 @@ export function SelectField<T extends string>({
           className="flex-none"
           style={{
             transform: open ? 'rotate(180deg)' : undefined,
-            transition: 'transform 150ms ease',
+            transition: 'transform var(--dur-fast) var(--ease-interactive)',
           }}
         >
           <path
@@ -466,12 +549,13 @@ export function SelectField<T extends string>({
         </svg>
       </button>
 
-      {open ? (
+      {pop.mounted ? (
         <div
           ref={listRef}
           role="listbox"
           aria-label={ariaLabel}
-          className="glass-pop select-pop-in absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto p-1"
+          className="glass-pop pop-layer absolute left-0 right-0 top-full z-40 mt-1.5 max-h-60 overflow-y-auto p-1"
+          data-closing={pop.closing ? 'true' : undefined}
         >
           {options.map((opt, i) => {
             const selected = opt.value === value;
@@ -524,12 +608,24 @@ export function SelectField<T extends string>({
 
 /* ---------- InfoTip：ⓘ 悬停浮窗 ----------
  * 显隐：hover（MouseEnter/Leave）+ focus（Focus/Blur）+ click 切换钉住（触摸端可用）；
- * 150ms 淡入复用 tokens.css .select-pop-in（prefers-reduced-motion 下自动无动画）。
+ * 进/退场动画走 .pop-layer（--dur-fast，prefers-reduced-motion 下自动无动画并立即卸载）。
  * 防裁切：FieldRow/GatedRow 所在的参数面板（ParamsPanel）与设置页（SettingsPage）
  * 滚动容器均为 overflow-y-auto，容器内绝对定位的浮层向上展开必被裁切 —— 故浮层
- * portal 到 document.body 用 fixed 定位，按视口余量自动选择上/下展开，横向钳制
- * 在视口内（8px 边距），并跟随滚动/缩放实时重定位。 ≥32px 点击区由按钮内
- * -inset-2 隐形扩展层保证（视觉仍 h-4 w-4 圆环）。
+ * portal 到 document.body 用 fixed 定位。 ≥32px 点击区由按钮内 -inset-2 隐形扩展层保证。
+ *
+ * 定位（2025-08 重写，修复右缘溢出）——坐标系纪律：
+ * 实测（Chromium CSS zoom，scripts/zoom-probe.mjs）：
+ * - getBoundingClientRect / window.innerWidth / visualViewport 均为「视觉 px」；
+ * - fixed 定位的 style.top/left 与 offsetWidth、documentElement.clientWidth
+ *   均为「layout px」，与视觉 px 差 zoom 倍（旧实现混用两系 → 缩放 >100% 时
+ *   钳制上限虚高，浮窗必溢出视口右缘）。
+ * 因此：几何计算全部在视觉 px 系内完成（按钮/浮窗/视口一律用 gBCR 测量，
+ * 视口尺寸首选 visualViewport，兜底 documentElement.getBoundingClientRect ——
+ * html 经 --app-zoom 视口补偿后恰好填满窗口，其 rect 恒等于窗口视觉尺寸，
+ * 与按钮 rect 同系可比），最后写入 style 时除以实测缩放系数 k
+ * （k = 按钮 gBCR 宽 / offsetWidth，任何缩放实现下都自校准）。
+ * 打开后经 useLayoutEffect + requestAnimationFrame 二次测量（首帧隐藏防闪烁），
+ * 并跟随 scroll（capture）/ resize / visualViewport resize 重定位。
  */
 export function InfoTip({ text }: { text: string }) {
   const [pinned, setPinned] = useState(false);
@@ -538,35 +634,60 @@ export function InfoTip({ text }: { text: string }) {
   const open = pinned || hovered || focused;
   const btnRef = useRef<HTMLButtonElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const pop = useDelayedUnmount(open, 150);
+  const [pos, setPos] = useState<{ top: number; left: number; maxWidth: number } | null>(null);
 
-  /* 定位：默认图标上方居中；上方空间不足翻转到下方；横向钳制视口内 */
+  /* 定位：默认图标上方居中；上方空间不足翻转到下方；横向钳制视口内（8px 视觉边距） */
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!pop.mounted || pop.closing) return;
+    let raf = 0;
     const update = (): void => {
       const btn = btnRef.current;
       const tip = tipRef.current;
       if (!btn || !tip) return;
-      const r = btn.getBoundingClientRect();
-      const gap = 6;
-      const tw = tip.offsetWidth;
-      const th = tip.offsetHeight;
-      let top = r.top - gap - th;
-      if (top < 8) top = r.bottom + gap;
-      const left = Math.min(
-        Math.max(r.left + r.width / 2 - tw / 2, 8),
-        Math.max(8, window.innerWidth - tw - 8),
-      );
-      setPos({ top, left });
+      // 实测缩放系数：视觉 px / layout px（zoom=1 时恒为 1，任何实现下自校准）
+      const br = btn.getBoundingClientRect();
+      const k = btn.offsetWidth > 0 ? br.width / btn.offsetWidth : 1;
+      const zoom = k > 0 ? k : 1;
+      // 视口可用区（视觉 px 系）：visualViewport 优先，html 根矩形兜底
+      const vv = window.visualViewport;
+      const rootRect = document.documentElement.getBoundingClientRect();
+      const vw = vv?.width ?? rootRect.width;
+      const vh = vv?.height ?? rootRect.height;
+      // max-width：min(14rem, 视口可用宽 - 16px)，style 单位是 layout px → 除以 zoom
+      const remBase = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const maxWidth = Math.max(8 * remBase, Math.min(14 * remBase, (vw - 16) / zoom));
+      tip.style.maxWidth = `${maxWidth}px`;
+      // max-width 生效后重测浮窗真实尺寸（视觉 px）
+      const tr = tip.getBoundingClientRect();
+      const tw = tr.width;
+      const th = tr.height;
+      const gap = 6 * zoom; // 视觉 px 间距
+      const margin = 8; // 视觉 px 视口边距
+      // 垂直：上方不足翻转到下方；两侧都不足则钳制在视口内
+      let top = br.top - gap - th;
+      if (top < margin) top = br.bottom + gap;
+      if (top + th > vh - margin) top = Math.max(margin, vh - th - margin);
+      // 水平：优先以按钮为中心，溢出则贴视口边缘
+      let left = br.left + br.width / 2 - tw / 2;
+      left = Math.min(Math.max(left, margin), Math.max(margin, vw - tw - margin));
+      // 写 style（layout px 系 = 视觉 px / zoom）
+      setPos({ top: top / zoom, left: left / zoom, maxWidth });
     };
-    update();
+    update(); // 首测（useLayoutEffect 内同步，首帧前完成）
+    raf = window.requestAnimationFrame(update); // 二次测量：字体/布局沉淀后纠偏
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
     return () => {
+      window.cancelAnimationFrame(raf);
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
     };
-  }, [open]);
+  }, [pop.mounted, pop.closing]);
 
   /* 钉住态：Esc / 点击外部解除（Esc 走 capture + stopPropagation，避免误触全局快捷键） */
   useEffect(() => {
@@ -601,7 +722,7 @@ export function InfoTip({ text }: { text: string }) {
         type="button"
         aria-label={text}
         aria-expanded={open}
-        className="relative inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-tertiary"
+        className="relative inline-flex h-4 w-4 cursor-help items-center justify-center rounded-pill text-tertiary"
         style={{ border: '0.5px solid var(--separator)', fontSize: '0.625rem' }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -611,15 +732,16 @@ export function InfoTip({ text }: { text: string }) {
         {/* 隐形点击区扩展：视觉 16px，命中区 32px（kimi.md §5.3） */}
         <span className="absolute -inset-2" aria-hidden="true" />
       </button>
-      {open
+      {pop.mounted
         ? createPortal(
             <div
               ref={tipRef}
               role="tooltip"
-              className="glass-pop select-pop-in fixed z-50 w-56 whitespace-normal px-2.5 py-2 text-left text-xs leading-relaxed"
+              className="glass-pop pop-layer fixed z-50 whitespace-normal px-2.5 py-2 text-left text-xs leading-relaxed"
+              data-closing={pop.closing ? 'true' : undefined}
               style={
                 pos
-                  ? { top: pos.top, left: pos.left }
+                  ? { top: pos.top, left: pos.left, maxWidth: pos.maxWidth }
                   : { top: 0, left: 0, visibility: 'hidden' } // 首帧定位前不可见，防闪烁
               }
             >

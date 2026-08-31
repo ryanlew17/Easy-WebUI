@@ -10,6 +10,7 @@
  *   message_delta → stop_reason/usage；message_stop → 结束；error 事件 → 抛错。
  */
 import type { ChatChunk } from '../../shared/types';
+import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
@@ -47,6 +48,10 @@ export function buildRequest(input: AdapterChatInput): BuiltRequest {
   if (params.top_p_enabled) body.top_p = params.top_p;
   if (params.top_k > 0) body.top_k = params.top_k;
   if (params.stop_strings.length > 0) body.stop_sequences = params.stop_strings;
+  if (input.reasoningOff) {
+    // 会话关闭思考：thinking:{type:'disabled'}（Anthropic 显式关闭形态）
+    Object.assign(body, reasoningOffPayload('anthropic'));
+  }
 
   return {
     url: joinUrl(input.baseUrl, '/messages'),

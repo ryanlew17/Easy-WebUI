@@ -17,6 +17,7 @@ import { getApi } from '../../bridge';
 import { useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { Modal } from '../../components/Modal';
+import { Checkbox } from '../../components/controls';
 import { summarizeIpcError } from '../../lib/errors';
 
 const FORMATS: ApiFormat[] = ['openai-chat', 'openai-responses', 'anthropic'];
@@ -342,22 +343,27 @@ export function ProviderModal({
               </div>
               <div className="max-h-40 overflow-y-auto">
                 {fetched.map((id) => (
-                  <label
+                  <div
                     key={id}
-                    className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs"
+                    className="flex cursor-pointer items-center gap-2 rounded-s px-1.5 py-1 text-xs"
                     style={{ minHeight: '2rem' }}
+                    onClick={(e) => {
+                      // 点击勾选框按钮自身已由 Checkbox 处理，避免冒泡造成双触发
+                      if ((e.target as HTMLElement).closest('.checkbox')) return;
+                      setFetchedChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+                    }}
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={!!fetchedChecked[id]}
-                      onChange={(e) =>
-                        setFetchedChecked((prev) => ({ ...prev, [id]: e.target.checked }))
+                      onChange={(v) =>
+                        setFetchedChecked((prev) => ({ ...prev, [id]: v }))
                       }
+                      label={id}
                     />
                     <span className="truncate" title={id}>
                       {id}
                     </span>
-                  </label>
+                  </div>
                 ))}
               </div>
               <div className="mt-2 flex justify-end gap-2">

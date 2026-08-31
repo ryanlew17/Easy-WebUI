@@ -14,6 +14,7 @@
  *   choices[0].delta.reasoning_content（DeepSeek 等）→ reasoning_delta。
  */
 import type { ChatChunk } from '../../shared/types';
+import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
@@ -60,6 +61,10 @@ export function buildRequest(input: AdapterChatInput): BuiltRequest {
         strict: true,
       },
     };
+  }
+  if (input.reasoningOff) {
+    // 会话关闭思考：thinking:{type:'disabled'}（DeepSeek/Kimi/智谱等通行形态）
+    Object.assign(body, reasoningOffPayload('openai-chat'));
   }
   return {
     url: joinUrl(input.baseUrl, '/chat/completions'),

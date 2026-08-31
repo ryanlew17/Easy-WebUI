@@ -1,26 +1,30 @@
 /**
- * 生成编排（kimi.md §4.3/§4.4、契约 §5 简化允许）：
- * sendMessage 流程：落库 user 消息（缓存 token_count）→ resolveParams
- * （全局预设 ← 用户预设 ← 会话 overrides）→ trim 裁剪 → 适配层流式 →
- * webContents.send 推送 chat:delta/done/error → 落库 assistant 消息
- * （partial / error / reasoning 语义）。
+ * 生成编排（kimi.md §4.3/§4.4、契约 §5 简化允许）—— 树形分支模型（schema v3）。
  *
- * - 单会话单生成锁：同一会话已有进行中生成时拒绝；
- * - stopGeneration：AbortController.abort()，已收内容落库 partial:true；
- * - regenerate：复用既有 user 消息（fromMessageId 或最后一条 user），
- *   删除其后的消息，不产生重复用户消息；
- * - context_overflow='stop' 且超预算：不发请求，直接抛
- *   ApiError{code:'context_overflow'}（渲染进程 toast 三段式）；
- * - 裁剪截断（truncate/truncate_middle 退化）：仅发一条 code='context_truncated'
- *   的 chat:error 警告，不阻断生成（契约 §5 的简化允许）；
- * - 首轮完成后自动生成标题（≤20 max_tokens，尊重 auto_title 设置）：
- *   模型经 shared/title.ts resolveTitleTarget 解析（设置指定的标题模型优先，
- *   否则回退会话当前模型）；每次尝试 20s 超时，失败间隔 800ms 重试 1 次；
- *   成功广播 title:updated（侧栏即时刷新），最终失败广播 title:failed
- *   （渲染进程 toast 警告，不阻断对话）。手动路径 generateTitle() 强制覆盖、
- *   失败直接 reject。
+ * 入口语义（全部共用 resolveGenerationTarget / assemblePayload / run 管线）：
+ * - sendMessage：user 消息 parent = siblingOf 的 parent_id（校验同会话）或当前激活叶；
+ *   assistant 占位为其子，active_leaf 切到 assistant；
+ * - regenerateMessage：目标必须是 assistant；在其 parent 下新建同级 assistant 占位
+ *   （新分支，旧分支不删），active_leaf 切到新分支；
+ * - continueMessage：目标 assistant 且无进行中生成；请求历史 = 根到其 parent 的路径
+ *   + {role:'assistant', content: 现有内容}（让模型续写）；delta 追加到同一消息
+ *   （chat:delta 的 messageId 不变），结束时 content=旧+新、total_ms 累加、
+ *   token_count 重计总内容、finish_reason 取本次；
+ * - generateResponse：激活叶必须是 user（否则 nothing_to_generate），等价于在叶下
+ *   插 assistant 占位并开跑。
+ *
+ * 横切语义（保持既有行为）：
+ * - 单会话单生成锁；stopGeneration abort，已收内容落库 partial:true；
+ * - context_overflow='stop' 且超预算：不发请求，抛 ApiError{code:'context_overflow'}；
+ *   裁剪截断仅发 context_truncated 警告，不阻断；
+ * - reasoning：conv.reasoning_enabled=false 时请求体混入 reasoningOffPayload(apiFormat)
+ *   （经 AdapterChatInput.reasoningOff 传到三个适配器各自 merge）；true 时不附加参数；
+ * - 计时：t0=请求发出前；首 delta（content 或 reasoning 先到）→ ttft_ms（非流式=total_ms）；
+ *   全程有 reasoning 时 reasoning_ms = 首 content delta（或流结束）− t0；
+ *   total_ms = 流结束/中止/失败 − t0；中止/失败同样落库已测得时间；
+ * - 首轮完成后自动生成标题（基于激活路径首条 user 消息；自动/手动语义见下方函数）。
  */
-import type { ApiError, ApiFormat, Conversation, Message, ParamValues } from '../shared/types';
+import type { ApiError, ApiFormat, Conversation, Message, MessageStats, ParamValues } from '../shared/types';
 import { FACTORY_DEFAULTS, GLOBAL_PRESET_ID, resolveParams } from '../shared/params';
 import {
   resolveTitleTarget,
@@ -38,8 +42,9 @@ import type { PresetsDao } from './db/presets';
 import type { CryptoService } from './crypto';
 import { registerSecret } from './crypto/redact';
 import { chat as gatewayChat, normalizeError } from './gateway';
-import { defaultTokenCounter, trimMessages } from './gateway/trim';
+import { defaultTokenCounter, trimMessages, type TrimResult } from './gateway/trim';
 import { GatewayError } from './gateway/errors';
+import type { ProviderRow } from './db/providers';
 import { logger } from './logger';
 
 const TITLE_PROMPT =
@@ -59,8 +64,21 @@ export interface OrchestratorDeps {
 export interface SendMessageInput {
   conversationId: string;
   content: string;
-  regenerate?: boolean;
-  fromMessageId?: string;
+  /** 以指定消息的同级分支身份插入（parent = 其 parent_id）；缺省 = 当前激活叶 */
+  siblingOf?: string;
+}
+
+export interface MessageAnchorInput {
+  conversationId: string;
+  messageId: string;
+}
+
+/** 生成目标解析结果：生效参数 + provider + 明文密钥 + 模型 */
+interface GenerationTarget {
+  params: ParamValues;
+  providerRow: ProviderRow;
+  apiKey: string;
+  model: string;
 }
 
 export class ChatOrchestrator {
@@ -73,18 +91,142 @@ export class ChatOrchestrator {
     return this.active.has(conversationId);
   }
 
+  /* ---------------- 入口 ---------------- */
+
   async sendMessage(
     input: SendMessageInput,
   ): Promise<{ userMessageId: string | null; assistantMessageId: string }> {
-    const { conversations, messages, providers } = this.deps;
+    const { conversations, messages } = this.deps;
+    const conv = this.requireConversation(input.conversationId);
+    const target = this.resolveGenerationTarget(conv);
 
-    const conv = conversations.get(input.conversationId);
+    // user 消息落点：siblingOf 的 parent（编辑重发开新分支）或当前激活叶
+    let parentId: string | null;
+    if (input.siblingOf) {
+      const sib = messages.get(input.siblingOf);
+      if (!sib || sib.conversation_id !== conv.id) {
+        throw new GatewayError('message_not_found', 'siblingOf message not found in conversation');
+      }
+      parentId = sib.parent_id;
+    } else {
+      parentId = messages.activeLeaf(conv.id)?.id ?? null;
+    }
+    const userMsg = messages.insert({
+      conversation_id: conv.id,
+      parent_id: parentId,
+      role: 'user',
+      content: input.content,
+      token_count: defaultTokenCounter(input.content),
+    });
+
+    const history = messages.pathTo(userMsg.id);
+    const trimmed = this.assemblePayload(target, history); // context_overflow 在此抛
+    const assistantId = this.launch(conv, target, trimmed, userMsg.id);
+    return { userMessageId: userMsg.id, assistantMessageId: assistantId };
+  }
+
+  async regenerateMessage(input: MessageAnchorInput): Promise<{ assistantMessageId: string }> {
+    const { messages } = this.deps;
+    const conv = this.requireConversation(input.conversationId);
+    const anchor = this.requireMessage(conv.id, input.messageId);
+    if (anchor.role !== 'assistant') {
+      throw new GatewayError('invalid_target', 'regenerate target must be an assistant message');
+    }
+    const target = this.resolveGenerationTarget(conv);
+
+    // 历史 = 根到目标 parent 的路径；同级新分支（旧分支保留不删）
+    const history = anchor.parent_id ? messages.pathTo(anchor.parent_id) : [];
+    const trimmed = this.assemblePayload(target, history);
+    const assistantId = this.launch(conv, target, trimmed, anchor.parent_id);
+    return { assistantMessageId: assistantId };
+  }
+
+  async continueMessage(input: MessageAnchorInput): Promise<void> {
+    const { messages } = this.deps;
+    const conv = this.requireConversation(input.conversationId);
+    const anchor = this.requireMessage(conv.id, input.messageId);
+    if (anchor.role !== 'assistant') {
+      throw new GatewayError('invalid_target', 'continue target must be an assistant message');
+    }
+    const target = this.resolveGenerationTarget(conv);
+
+    // 历史 = 根到 parent 的路径 + 现有内容作为 assistant 尾条（让模型续写）
+    const prefix = anchor.parent_id ? messages.pathTo(anchor.parent_id) : [];
+    const history: PayloadMessage[] = [
+      ...prefix.map((m) => ({
+        role: m.role,
+        content: m.content,
+        token_count: m.token_count,
+        error: m.error,
+      })),
+      { role: 'assistant' as const, content: anchor.content, token_count: anchor.token_count },
+    ];
+    const trimmed = this.assemblePayload(target, history);
+
+    if (trimmed.truncated) this.warnTruncated(conv.id, anchor.id, trimmed);
+    const controller = new AbortController();
+    this.active.set(conv.id, controller);
+    void this.run({
+      conversationId: conv.id,
+      assistantMessageId: anchor.id, // delta 追加到同一消息，messageId 不变
+      baseUrl: target.providerRow.base_url,
+      apiFormat: target.providerRow.api_format,
+      apiKey: target.apiKey,
+      model: target.model,
+      messages: trimmed.messages,
+      params: target.params,
+      reasoningOff: !conv.reasoning_enabled,
+      signal: controller.signal,
+      continueFrom: {
+        messageId: anchor.id,
+        existingContent: anchor.content,
+        existingReasoning: anchor.reasoning ?? '',
+        priorTotalMs: anchor.stats?.total_ms ?? 0,
+        priorTokenCount: anchor.token_count ?? 0,
+      },
+    });
+  }
+
+  async generateResponse(input: { conversationId: string }): Promise<{ assistantMessageId: string }> {
+    const { messages } = this.deps;
+    const conv = this.requireConversation(input.conversationId);
+    const target = this.resolveGenerationTarget(conv);
+
+    const leaf = messages.activeLeaf(conv.id);
+    if (!leaf || leaf.role !== 'user') {
+      throw new GatewayError('nothing_to_generate', 'active leaf is not a user message');
+    }
+    const history = messages.pathTo(leaf.id);
+    const trimmed = this.assemblePayload(target, history);
+    const assistantId = this.launch(conv, target, trimmed, leaf.id);
+    return { assistantMessageId: assistantId };
+  }
+
+  stopGeneration(conversationId: string): void {
+    this.active.get(conversationId)?.abort();
+  }
+
+  /* ---------------- 公共管线 ---------------- */
+
+  private requireConversation(conversationId: string): Conversation {
+    const conv = this.deps.conversations.get(conversationId);
     if (!conv) throw new GatewayError('conversation_not_found', 'conversation not found');
     if (this.isGenerating(conv.id)) {
       throw new GatewayError('generation_in_progress', 'generation already in progress');
     }
+    return conv;
+  }
 
-    // 生效参数 = 全局预设 ← 选中用户预设 ← 会话 overrides（发送前解析）
+  private requireMessage(conversationId: string, messageId: string): Message {
+    const msg = this.deps.messages.get(messageId);
+    if (!msg || msg.conversation_id !== conversationId) {
+      throw new GatewayError('message_not_found', 'message not found in conversation');
+    }
+    return msg;
+  }
+
+  /** 生效参数（全局预设 ← 用户预设 ← 会话 overrides）+ provider + 密钥 + 模型 */
+  private resolveGenerationTarget(conv: Conversation): GenerationTarget {
     const globalParams = this.deps.presets.get(GLOBAL_PRESET_ID)?.params ?? FACTORY_DEFAULTS;
     const preset = conv.preset_id ? this.deps.presets.get(conv.preset_id) : null;
     const params: ParamValues = resolveParams(globalParams, preset, conv.overrides);
@@ -93,35 +235,22 @@ export class ChatOrchestrator {
     if (!providerId) throw new GatewayError('no_provider', 'no provider selected');
     if (!model) throw new GatewayError('no_model', 'no model selected');
 
-    const providerRow = providers.getRow(providerId);
+    const providerRow = this.deps.providers.getRow(providerId);
     if (!providerRow) throw new GatewayError('provider_not_found', 'provider not found');
     if (!providerRow.api_key_cipher) {
       throw new GatewayError('missing_api_key', 'provider has no api key');
     }
     const apiKey = this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
     registerSecret(apiKey); // 红线：此后日志/错误中该密钥一律脱敏
+    return { params, providerRow, apiKey, model };
+  }
 
-    // 1) 落库 user 消息（regenerate 复用既有消息，见 kimi.md §4.4 重试语义）
-    let userMessageId: string | null = null;
-    if (input.regenerate) {
-      const anchor = input.fromMessageId
-        ? messages.get(input.fromMessageId)
-        : messages.lastUserMessage(conv.id);
-      if (!anchor) throw new GatewayError('nothing_to_regenerate', 'no user message to regenerate');
-      messages.deleteAfter(conv.id, anchor.id);
-      userMessageId = anchor.id;
-    } else {
-      const userMsg = messages.insert({
-        conversation_id: conv.id,
-        role: 'user',
-        content: input.content,
-        token_count: defaultTokenCounter(input.content),
-      });
-      userMessageId = userMsg.id;
-    }
-
-    // 2) 组装 + 裁剪（系统提示词为生效参数，非空才注入，kimi.md §4.2）
-    const history = messages.list(conv.id);
+  /**
+   * 组装 + 裁剪（系统提示词为生效参数，非空才注入；带错的 assistant 历史不上行）；
+   * context_overflow='stop' 且超预算时抛 context_overflow（不发请求）。
+   */
+  private assemblePayload(target: GenerationTarget, history: PayloadMessage[]): TrimResult {
+    const { params } = target;
     const payloadMessages = [
       ...(params.system_prompt.trim().length > 0
         ? [{ role: 'system' as const, content: params.system_prompt }]
@@ -140,65 +269,79 @@ export class ChatOrchestrator {
       strategy: params.context_overflow,
       counter: defaultTokenCounter,
     });
-
-    // context_overflow='stop' 且超预算：不发请求（契约 §5 溢出策略）
     if (trimmed.overflow) {
       throw new GatewayError(
         'context_overflow',
         `context ${trimmed.totalTokens} tokens exceeds budget ${trimmed.budget} (strategy=stop)`,
       );
     }
+    return trimmed;
+  }
 
-    // 3) assistant 占位消息（流式期间 partial:true，完成后回填）
+  /** 截断警告（契约 §5 简化允许：仅一条 context_truncated chat:error，不阻断） */
+  private warnTruncated(conversationId: string, messageId: string, trimmed: TrimResult): void {
+    if (!trimmed.truncated) return;
+    this.deps.send(EVT.chatError, {
+      conversationId,
+      messageId,
+      error: {
+        code: 'context_truncated',
+        message: `single message truncated to fit budget ${trimmed.budget} tokens`,
+      },
+    });
+  }
+
+  /**
+   * insert assistant 占位（parentId 下）→ active_leaf 切到占位 → 警告 → 上锁 → 异步开跑。
+   */
+  private launch(
+    conv: Conversation,
+    target: GenerationTarget,
+    trimmed: TrimResult,
+    parentId: string | null,
+  ): string {
+    const { messages, conversations } = this.deps;
     const assistant = messages.insert({
       conversation_id: conv.id,
+      parent_id: parentId,
       role: 'assistant',
       content: '',
       partial: true,
-      created_at: Date.now() + 1, // 保证排在 user 消息之后
     });
+    messages.setActiveLeaf(conv.id, assistant.id);
     conversations.touch(conv.id);
-
-    if (trimmed.truncated) {
-      // 契约 §5 简化允许：仅警告，不阻断
-      this.deps.send(EVT.chatError, {
-        conversationId: conv.id,
-        messageId: assistant.id,
-        error: {
-          code: 'context_truncated',
-          message: `single message truncated to fit budget ${trimmed.budget} tokens`,
-        },
-      });
-    }
+    this.warnTruncated(conv.id, assistant.id, trimmed);
 
     const controller = new AbortController();
     this.active.set(conv.id, controller);
-
-    // 4) 异步跑生成，立即把消息 id 返回给渲染进程
     void this.run({
       conversationId: conv.id,
       assistantMessageId: assistant.id,
-      baseUrl: providerRow.base_url,
-      apiFormat: providerRow.api_format,
-      apiKey,
-      model,
+      baseUrl: target.providerRow.base_url,
+      apiFormat: target.providerRow.api_format,
+      apiKey: target.apiKey,
+      model: target.model,
       messages: trimmed.messages,
-      params,
+      params: target.params,
+      reasoningOff: !conv.reasoning_enabled,
       signal: controller.signal,
     });
-
-    return { userMessageId, assistantMessageId: assistant.id };
-  }
-
-  stopGeneration(conversationId: string): void {
-    this.active.get(conversationId)?.abort();
+    return assistant.id;
   }
 
   private async run(args: RunArgs): Promise<void> {
     const { messages, conversations, settings } = this.deps;
+    const cont = args.continueFrom;
     let content = '';
     let reasoning = '';
     let failed: ApiError | null = null;
+    let finishReason: string | undefined;
+
+    const t0 = Date.now(); // 请求发出前
+    let firstDeltaAt: number | null = null; // 首 delta（content 或 reasoning 先到）
+    let firstContentAt: number | null = null;
+    let sawReasoning = false;
+    let tEnd = t0;
 
     try {
       const gen = gatewayChat({
@@ -209,6 +352,7 @@ export class ChatOrchestrator {
         messages: args.messages,
         params: args.params,
         stream: args.params.stream,
+        reasoningOff: args.reasoningOff,
         signal: args.signal,
       });
       for await (const chunk of gen) {
@@ -216,9 +360,17 @@ export class ChatOrchestrator {
           failed = chunk.error;
           break;
         }
-        if (chunk.delta) content += chunk.delta;
-        if (chunk.reasoning_delta) reasoning += chunk.reasoning_delta;
         if (chunk.delta || chunk.reasoning_delta) {
+          const now = Date.now();
+          if (firstDeltaAt === null) firstDeltaAt = now;
+          if (chunk.delta) {
+            content += chunk.delta;
+            if (firstContentAt === null) firstContentAt = now;
+          }
+          if (chunk.reasoning_delta) {
+            reasoning += chunk.reasoning_delta;
+            sawReasoning = true;
+          }
           this.deps.send(EVT.chatDelta, {
             conversationId: args.conversationId,
             messageId: args.assistantMessageId,
@@ -226,22 +378,55 @@ export class ChatOrchestrator {
             reasoning_delta: chunk.reasoning_delta,
           });
         }
+        if (chunk.finishReason) finishReason = chunk.finishReason;
       }
     } catch (e) {
       failed = normalizeError(e);
     } finally {
+      tEnd = Date.now();
       this.active.delete(args.conversationId);
     }
+
+    /* ---- 统计口径（中止/失败也落库已测得的时间；continue 累加 total_ms） ---- */
+    const runTotalMs = tEnd - t0;
+    const stats: MessageStats = { total_ms: runTotalMs };
+    // ttft：非流式 = total；流式以首个 delta 为准，全程无 delta 则缺省
+    if (!args.params.stream) {
+      stats.ttft_ms = runTotalMs;
+    } else if (firstDeltaAt !== null) {
+      stats.ttft_ms = firstDeltaAt - t0;
+    }
+    // reasoning_ms：本次运行出现过 reasoning → 首 content delta（或流结束）− t0
+    const runReasoningMs = sawReasoning ? (firstContentAt ?? tEnd) - t0 : undefined;
+    if (runReasoningMs !== undefined) stats.reasoning_ms = runReasoningMs;
+    if (finishReason !== undefined) stats.finish_reason = finishReason;
+
+    if (cont) {
+      // continue：total_ms 累加；ttft 保留首段运行的既有值（stats 不含该键 → merge 不覆盖）；
+      // reasoning_ms 与既有值累加（同一消息的 reasoning 阶段总耗时）
+      const priorReasoningMs = messages.get(cont.messageId)?.stats?.reasoning_ms;
+      stats.total_ms = cont.priorTotalMs + runTotalMs;
+      delete stats.ttft_ms;
+      if (runReasoningMs !== undefined || priorReasoningMs != null) {
+        stats.reasoning_ms = (priorReasoningMs ?? 0) + (runReasoningMs ?? 0);
+      } else {
+        delete stats.reasoning_ms;
+      }
+    }
+
+    const finalContent = cont ? cont.existingContent + content : content;
+    const finalReasoning = cont ? cont.existingReasoning + reasoning : reasoning;
 
     const aborted = args.signal.aborted;
     if (failed && !aborted) {
       // 请求失败：已收内容与错误一并落库（kimi.md §4.4 错误卡片 + 重试语义）
       const updated = messages.update(args.assistantMessageId, {
-        content,
-        reasoning: reasoning || undefined,
-        token_count: content ? defaultTokenCounter(content) : null,
+        content: finalContent,
+        reasoning: finalReasoning || undefined,
+        token_count: finalContent ? defaultTokenCounter(finalContent) : null,
         partial: true,
         error: failed,
+        stats,
       });
       logger.warn('chat generation failed', { code: failed.code, message: failed.message });
       this.deps.send(EVT.chatError, {
@@ -255,11 +440,12 @@ export class ChatOrchestrator {
 
     // 成功或被中止（中止时已收内容落库 partial:true）
     const updated = messages.update(args.assistantMessageId, {
-      content,
-      reasoning: reasoning || undefined,
-      token_count: content ? defaultTokenCounter(content) : null,
+      content: finalContent,
+      reasoning: finalReasoning || undefined,
+      token_count: finalContent ? defaultTokenCounter(finalContent) : null, // continue：重计总内容
       partial: aborted,
       error: null,
+      stats,
     });
     conversations.touch(args.conversationId);
     this.deps.send(EVT.chatDone, {
@@ -306,7 +492,7 @@ export class ChatOrchestrator {
 
   /**
    * 标题生成主流程（自动/手动共用）：
-   * resolveTitleTarget 解析模型 → 取 provider + 密钥 → 找首条 user 消息 →
+   * resolveTitleTarget 解析模型 → 取 provider + 密钥 → 找激活路径首条 user 消息 →
    * 20s 超时 × (首次 + 800ms 间隔重试 1 次) → 清洗 → 落库。
    */
   private async generateTitleCore(conversationId: string): Promise<Conversation> {
@@ -394,14 +580,32 @@ export class ChatOrchestrator {
   }
 }
 
+/** 组装请求历史的最小消息形状（Message 与 continue 的伪尾条共用） */
+type PayloadMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  token_count?: number | null;
+  error?: { code: string; message: string } | null;
+};
+
 interface RunArgs {
   conversationId: string;
   assistantMessageId: string;
   baseUrl: string;
-  apiFormat: import('../shared/types').ApiFormat;
+  apiFormat: ApiFormat;
   apiKey: string;
   model: string;
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
   params: ParamValues;
+  /** !conv.reasoning_enabled：true 时请求体混入按协议的关闭思考参数 */
+  reasoningOff: boolean;
   signal: AbortSignal;
+  /** continue 续写：delta 追加到同一消息；total_ms 累加 priorTotalMs */
+  continueFrom?: {
+    messageId: string;
+    existingContent: string;
+    existingReasoning: string;
+    priorTotalMs: number;
+    priorTokenCount: number;
+  };
 }

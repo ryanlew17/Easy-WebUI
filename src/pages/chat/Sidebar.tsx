@@ -9,6 +9,7 @@ import type { Conversation } from '@shared/types';
 import { useConversationsStore } from '../../store/conversations';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
+import { IconSettings } from '../../components/icons';
 import { getApi } from '../../bridge';
 import { formatDateTime, displayTitle } from '../../lib/format';
 import { parseIpcError } from '../../lib/errors';
@@ -135,7 +136,7 @@ function ConversationRow({
           <button
             type="button"
             onClick={onSelect}
-            className="min-w-0 flex-1 rounded text-left"
+            className="min-w-0 flex-1 rounded-s text-left"
             style={{ minHeight: '2rem' }}
             aria-current={active}
           >
@@ -311,19 +312,7 @@ export function Sidebar() {
           onClick={() => openSettings()}
           aria-label={t('aria.openSettings')}
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 10a2 2 0 100-4 2 2 0 000 4z"
-              stroke="currentColor"
-              strokeWidth="1.3"
-            />
-            <path
-              d="M13.3 10a1.5 1.5 0 00-.3 1.65l.05.09a1.7 1.7 0 11-2.4 2.4l-.09-.05a1.5 1.5 0 00-1.65-.3 1.5 1.5 0 00-.91 1.38V15.3a1.7 1.7 0 11-3.4 0v-.14A1.5 1.5 0 003.7 13.8a1.5 1.5 0 00-1.65.3l-.09.05a1.7 1.7 0 11-2.4-2.4l.05-.09a1.5 1.5 0 00.3-1.65 1.5 1.5 0 00-1.38-.91H2.4a1.7 1.7 0 110-3.4h.14A1.5 1.5 0 003.9 4.4a1.5 1.5 0 00-.3-1.65l-.05-.09a1.7 1.7 0 112.4-2.4l.09.05a1.5 1.5 0 001.65.3H7.7a1.5 1.5 0 00.91-1.38V1.1a1.7 1.7 0 113.4 0v.14a1.5 1.5 0 00.91 1.38 1.5 1.5 0 001.65-.3l.09-.05a1.7 1.7 0 112.4 2.4l-.05.09a1.5 1.5 0 00-.3 1.65V6.4a1.5 1.5 0 001.38.91h.14a1.7 1.7 0 110 3.4h-.14a1.5 1.5 0 00-1.38.91z"
-              stroke="currentColor"
-              strokeWidth="1.1"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <IconSettings size={13} />
           {t('nav.settings')}
         </button>
       </div>

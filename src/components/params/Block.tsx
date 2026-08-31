@@ -1,7 +1,9 @@
 /**
  * LM Studio 式可折叠分块：header = 图标 + 标题 + 右侧操作区 + chevron。
- * 折叠动效与面板规范一致（300ms cubic-bezier(0.22,1,0.36,1)，尊重 reduced-motion，
- * 见 styles/params.css）。header 用 div 容器 + 独立 toggle 按钮，避免按钮嵌套。
+ * 折叠动效：grid-template-rows 0fr↔1fr 双向过渡（--dur-slow --ease-panel，
+ * 展开/收起都有动画；内容常驻挂载不丢控件状态，收起时 visibility:hidden
+ * 移出 Tab 序；reduced-motion 下瞬时切换），见 styles/params.css。
+ * header 用 div 容器 + 独立 toggle 按钮，避免按钮嵌套。
  */
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -56,7 +58,11 @@ export function ParamBlock({
         </button>
         {actions ? <div className="flex flex-none items-center gap-1">{actions}</div> : null}
       </div>
-      {open ? <div className="param-block-body">{children}</div> : null}
+      <div className="param-collapse" data-open={open ? 'true' : 'false'} aria-hidden={!open}>
+        <div className="param-collapse-inner">
+          <div className="param-block-body">{children}</div>
+        </div>
+      </div>
     </section>
   );
 }

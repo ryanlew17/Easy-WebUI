@@ -26,6 +26,10 @@ export const IPC = {
   deleteConversation: 'conversations:delete',
   listMessages: 'conversations:list-messages',
   generateTitle: 'conversations:generate-title',
+  switchBranch: 'conversations:switch-branch',
+  setActiveLeaf: 'conversations:set-active-leaf',
+  updateMessageContent: 'conversations:update-message',
+  deleteMessages: 'conversations:delete-messages',
 
   listParamPresets: 'params:list-presets',
   createParamPreset: 'params:create-preset',
@@ -35,6 +39,9 @@ export const IPC = {
 
   sendMessage: 'chat:send',
   stopGeneration: 'chat:stop',
+  regenerateMessage: 'chat:regenerate',
+  continueMessage: 'chat:continue',
+  generateResponse: 'chat:generate',
 
   getSettings: 'settings:get',
   setSettings: 'settings:set',
@@ -146,3 +153,27 @@ export const openExternalSchema = z
   .min(1)
   .max(1000)
   .regex(/^https?:\/\//i);
+
+/* ---------------- 树形消息 / 分支操作入参（schema v3） ---------------- */
+
+export const sendMessageSchema = z.object({
+  conversationId: z.string().min(1),
+  content: z.string().min(1).max(200_000),
+  siblingOf: z.string().min(1).optional(),
+});
+
+export const messageAnchorSchema = z.object({
+  conversationId: z.string().min(1),
+  messageId: z.string().min(1),
+});
+
+export const updateMessageContentSchema = z.object({
+  conversationId: z.string().min(1),
+  messageId: z.string().min(1),
+  content: z.string().max(200_000),
+});
+
+export const deleteMessagesSchema = z.object({
+  conversationId: z.string().min(1),
+  ids: z.array(z.string().min(1)).min(1).max(500),
+});

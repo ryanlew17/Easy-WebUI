@@ -94,12 +94,15 @@ export interface Conversation {
 }
 export interface Message {
   id: string; conversation_id: string;
+  parent_id: string | null;  // 树形分支模型（schema v3，见 §11）；会话首条为 null
   role: 'system' | 'user' | 'assistant';
   content: string;
   reasoning?: string;        // DeepSeek 等 reasoning_content 落库于此
   token_count: number | null;
   partial: boolean;
   error?: { code: string; message: string } | null; // 已脱敏
+  stats?: MessageStats;      // reasoning_ms / ttft_ms / total_ms / finish_reason（§11.4）
+  branch?: BranchInfo;       // 仅 listMessages 激活路径上且有同级分支时填充 {index,count,ids}
   created_at: number;
 }
 
@@ -236,14 +239,14 @@ return versioned ? `${base}${path}` : `${base}/v1${path}`;
 | anthropic | Anthropic | `https://api.anthropic.com` | anthropic |
 | openrouter | OpenRouter | `https://openrouter.ai/api` | openai-chat |
 | deepseek | DeepSeek | `https://api.deepseek.com` | openai-chat |
-| kimi | Kimi（Moonshot AI） | `https://api.moonshot.cn` | openai-chat |
-| bigmodel | Bigmodel（智谱 GLM） | `https://open.bigmodel.cn/api/paas/v4` | openai-chat |
-| xiaomimimo | Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | openai-chat |
+| kimi | Kimi (Moonshot AI) | `https://api.moonshot.cn` | openai-chat |
+| bigmodel | 智谱 (Bigmodel) | `https://open.bigmodel.cn/api/paas/v4` | openai-chat |
+| xiaomimimo | 小米 (Xiaomi MiMo) | `https://api.xiaomimimo.com/v1` | openai-chat |
 | minimax | MiniMax | `https://api.minimaxi.com/v1` | openai-chat |
-| siliconflow | 硅基流动 SiliconFlow | `https://api.siliconflow.cn/v1` | openai-chat |
-| modelscope | 魔搭 ModelScope | `https://api-inference.modelscope.cn/v1` | openai-chat |
-| volcengine | 火山引擎（Ark） | `https://ark.cn-beijing.volces.com/api/v3` | openai-chat |
-| alibailian | 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | openai-chat |
+| siliconflow | 硅基流动 (SiliconFlow) | `https://api.siliconflow.cn/v1` | openai-chat |
+| modelscope | 魔搭 (ModelScope) | `https://api-inference.modelscope.cn/v1` | openai-chat |
+| volcengine | 火山引擎 (Ark) | `https://ark.cn-beijing.volces.com/api/v3` | openai-chat |
+| alibailian | 阿里云百炼 (Alibaba Cloud Bailian) | `https://dashscope.aliyuncs.com/compatible-mode/v1` | openai-chat |
 
 预置只作为"新增平台"表单的快捷模板（点选后自动填充 base_url/format，名称可改），**不预写数据库**。
 
@@ -336,3 +339,66 @@ npm run dev            # 浏览器打开即三栏 UI，mock 下可完整走通�
 - 外链：`system:open-external` 仅放行 http(s)（zod `openExternalSchema`）。
 - 发布流程：见 README「发布新版本（在线升级通道）」——Release 需上传 latest.yml +
   Setup.exe + blockmap；beta = GitHub pre-release 勾选。
+
+## 11. v1.0.0 增量契约（对话体验：树形分支 / 生成统计 / 思考开关 / 上下文计量）
+
+### 11.1 树形分支模型（schema v3）
+
+- messages 新增列：`parent_id TEXT`（会话首条为 NULL）、`reasoning_ms / ttft_ms / total_ms INTEGER`、
+  `finish_reason TEXT`；conversations 新增 `active_leaf_id TEXT`、`reasoning_enabled INTEGER NOT NULL DEFAULT 1`。
+- v2→v3 迁移按 (created_at, rowid) 回填 parent 链；`backfillParentLinks()` 幂等，
+  旧备份（schema_version<3）恢复后复用同一函数回填。
+- **激活路径**：`listMessages` 返回从根到 active_leaf（空 = 最新一条）的线性序列；
+  路径上同 parent 子消息数 >1 的消息填充 `branch={index(1 起), count, ids}`（同级按 created_at,rowid）。
+- **操作语义**：
+  - `sendMessage({conversationId, content, siblingOf?})`：新 user 消息 parent = 当前激活叶；
+    `siblingOf` 时 parent = 该消息的 parent_id（user 编辑后重发 = 新分支，原分支保留）。
+  - `setActiveLeaf({conversationId, messageId})`：branch 按钮语义——"在此消息之后分叉聊天"，
+    之后 sendMessage 即在其下开辟新分支。
+  - `regenerateMessage({conversationId, messageId})`：目标 assistant 的 parent 下新建同级分支
+    （**不删除旧分支**），激活叶切到新分支。
+  - `switchBranch({conversationId, messageId})`：激活叶 = 目标分支的最深后代（分叉取最新子）。
+  - `continueMessage({conversationId, messageId})`：不建行；delta 追加到同一消息
+    （chat:delta 的 messageId 不变）；content/token_count 对总内容重计、total_ms 累加、
+    ttft 保留首段值、finish_reason 取本次。
+  - `generateResponse({conversationId})`：激活叶为 user 时直接生成 assistant 子消息
+    （Generate Response 按钮）；否则报 nothing_to_generate。
+  - `updateMessageContent`：原地改内容（assistant 编辑 / 不重发场景），不触发生成。
+  - `deleteMessages({conversationId, ids})`：各节点子树连删（事务）；
+    active_leaf 在被删子树内时回退到最近存活祖先，全删光置 NULL；
+    同级只剩 1 支后自然无 branch 元数据（UI 不渲染 ‹1/1›）。
+
+### 11.2 思考开关（reasoning_enabled，shared/reasoning.ts）
+
+- 会话级开关，新会话默认 true（DB 列默认值）。
+- true = 模型默认思考，**请求不附加任何参数**；false = 按 api_format 附加关闭载荷：
+  openai-chat `thinking:{type:'disabled'}`；openai-responses `reasoning:{effort:'none'}`；
+  anthropic `thinking:{type:'disabled'}`（统一由 `reasoningOffPayload()` 产出，AdapterChatInput.reasoningOff 透传）。
+- 能力判定 `modelSupportsReasoning(modelId)`：保守的"确认不支持"模式名单（gpt-3.5/gpt-4o/
+  moonshot-v1/llama/mistral/gemma 等）；**未知一律按支持处理**（按钮显示）。标题生成不受影响。
+
+### 11.3 气泡操作与 UI（LM Studio 对齐）
+
+- user/assistant 气泡均有 branch/copy/edit/delete 四个 icon 按钮（生成中全部禁用）；
+  assistant 额外有 regenerate/continue。操作按钮一律 icon（controls.tsx `IconButton`，
+  icons.tsx 统一 SVG 图标库；未来新增按钮同规约）。
+- delete 弹确认框；右键任一气泡进入批量选择模式：气泡左侧统一复选框、隐藏其余操作、
+  分支导航暂隐藏，底部浮层显示已选计数 + 删除 + 退出（Esc 亦可）。
+- 分支导航 `‹ n/N ›` 出现在有分支的气泡操作行旁（count>1 才渲染）。
+
+### 11.4 生成统计（MessageStats）与计时口径
+
+- 口径：t0 = 请求发出；ttft = 首个 delta（reasoning/content 先到为准）− t0（非流式 = total）；
+  reasoning_ms = 首 content delta（无则流结束）− t0（仅当出现过 reasoning）；
+  total_ms = 结束/中止/失败 − t0（中止/失败同样落库）。
+- 展示：reasoning 折叠块标题「Thought for XX.XXs / 思考了 XX.XX 秒」；完成后统计行
+  tok/s（= token_count / max(total−ttft,1ms)）、tokens、TTFT、总用时、finish_reason；
+  ≥60s 显示 Xm XXs（`formatDurationMs`，双语）。
+
+### 11.5 上下文计量（渲染进程本地计算，无 IPC）
+
+- 用量 = 激活路径消息 token_count（缺省 4 字符≈1 token 估算）+ system_prompt + 输入草稿估算；
+  预算 = resolveParams 生效参数的 context_window。
+- 输入坞发送键左侧环形进度（>80% 转 warning 色），悬停浮层三行明细（会话 tokens / 窗口 / 已用%）。
+- 激活叶为 user 且无生成中 → 输入坞上方浮出「生成回复 (Ctrl+R) / Generate Response」胶囊，
+  不与输入框交互；快捷键 Ctrl/Cmd+R 仅按钮可见时生效。

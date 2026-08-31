@@ -1,11 +1,13 @@
 /**
  * 模型选择器：按平台分组列出已启用模型（enabledModelsByProvider）。
- * 触发按钮显示当前模型（长名 ellipsis）；弹层为 .glass-pop 强玻璃浮层（临时态，防透底）。
+ * 触发按钮显示当前模型（长名 ellipsis）；弹层为 .glass-pop 强玻璃浮层（临时态，防透底）；
+ * 进/退场走 .pop-layer + useDelayedUnmount（150ms），与 SelectField 同一视觉/动效规范。
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { enabledModelsByProvider, useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
+import { useDelayedUnmount } from '../../lib/useDelayedUnmount';
 
 export function ModelPicker({
   providerId,
@@ -20,6 +22,7 @@ export function ModelPicker({
   const providers = useProvidersStore((s) => s.providers);
   const openSettings = useUiStore((s) => s.openSettings);
   const [open, setOpen] = useState(false);
+  const pop = useDelayedUnmount(open, 150);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,16 +55,27 @@ export function ModelPicker({
         aria-label={t('aria.modelPicker')}
       >
         <span className="truncate">{currentLabel}</span>
-        <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" className="flex-none">
+        <svg
+          width="10"
+          height="6"
+          viewBox="0 0 10 6"
+          aria-hidden="true"
+          className="flex-none"
+          style={{
+            transform: open ? 'rotate(180deg)' : undefined,
+            transition: 'transform var(--dur-fast) var(--ease-interactive)',
+          }}
+        >
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
         </svg>
       </button>
 
-      {open ? (
+      {pop.mounted ? (
         <div
           role="listbox"
           aria-label={t('aria.modelPicker')}
-          className="glass-pop absolute left-0 top-full z-40 mt-1.5 max-h-80 w-72 overflow-y-auto p-1.5"
+          className="glass-pop pop-layer absolute left-0 top-full z-40 mt-1.5 max-h-80 w-72 overflow-y-auto p-1.5"
+          data-closing={pop.closing ? 'true' : undefined}
         >
           {groups.length === 0 ? (
             <div className="px-3 py-3 text-xs text-secondary">
@@ -92,7 +106,7 @@ export function ModelPicker({
                       type="button"
                       role="option"
                       aria-selected={active}
-                      className="btn btn-ghost row-surface-hover w-full justify-start"
+                      className="select-option w-full"
                       style={{
                         background: active ? 'var(--accent-soft)' : undefined,
                         color: active ? 'var(--accent)' : undefined,
@@ -102,19 +116,39 @@ export function ModelPicker({
                         setOpen(false);
                       }}
                     >
-                      <span
-                        className="inline-block h-1.5 w-1.5 flex-none rounded-full"
-                        style={{
-                          background:
-                            m.last_check?.status === 'ok'
-                              ? 'var(--success)'
-                              : m.last_check?.status === 'fail'
-                                ? 'var(--danger)'
-                                : 'var(--text-tertiary)',
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span className="truncate">{m.display_name || m.id}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="inline-block h-1.5 w-1.5 flex-none rounded-pill"
+                          style={{
+                            background:
+                              m.last_check?.status === 'ok'
+                                ? 'var(--success)'
+                                : m.last_check?.status === 'fail'
+                                  ? 'var(--danger)'
+                                  : 'var(--text-tertiary)',
+                          }}
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{m.display_name || m.id}</span>
+                      </span>
+                      {active ? (
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 12 12"
+                          aria-hidden="true"
+                          className="flex-none"
+                        >
+                          <path
+                            d="M2 6.5l2.5 2.5L10 3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : null}
                     </button>
                   );
                 })}

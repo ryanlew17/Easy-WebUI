@@ -53,6 +53,10 @@ function createWindow(): void {
     title: 'Easy WebUI',
     autoHideMenuBar: true,
     backgroundColor: '#0b0b0f',
+    // 窗口/任务栏图标：打包版由 exe 内嵌 icon.ico 提供（electron-builder 默认
+    // 读取 build/icon.ico）；dev 下 exe 是 Electron 本体（⚛️ 默认图标），
+    // 显式指向主图标源文件。打包版不传 —— build/ 不在 files 清单内。
+    ...(app.isPackaged ? {} : { icon: path.join(__dirname, '../../build/icon.png') }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

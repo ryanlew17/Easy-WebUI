@@ -4,8 +4,15 @@
  * 目的：`npm run dev` 纯浏览器可完整演示 UI。
  *
  * 持久化 key 前缀 easyui_mock_；流式回复用 setInterval 逐段推送内置的
- * 中英双语 Markdown 演示文案（含标题、列表、代码块、表格与 reasoning 段），
+ * 中英双语 Markdown 演示文案（含标题、列表、代码块、表格与 reasoning 段；
+ * 同 parent 的第 2 个分支用备用文案，便于目视区分分支切换），
  * 支持 stopGeneration 中断（中断后消息标记 partial:true）。
+ *
+ * 消息模型（schema v3 契约）：parent_id 树 + 每会话 active_leaf
+ * （localStorage 'active_leaves'）。listMessages 返回根 → 激活叶的路径并填充
+ * branch 元数据（同 parent 子消息 >1 时）。流式结束回填假但合理的 stats
+ * （reasoning_ms / ttft_ms / total_ms / finish_reason:'stop'）；
+ * reasoning_enabled=false 的会话不产 reasoning 段。
  *
  * 注意：本阶段全项目允许出现用户可见字符串的地方只有这里的演示常量。
  */
@@ -17,6 +24,7 @@ import type {
   GeneralSettings,
   ImportResult,
   Message,
+  MessageStats,
   ModelCheck,
   ParamPreset,
   PresetProvider,
@@ -82,7 +90,13 @@ function loadConversations(): Conversation[] {
         model: m.model,
         preset_id: null,
         overrides: m.overrides,
+        reasoning_enabled: true,
       } as unknown as Conversation;
+    }
+    // schema v3 前的会话补 reasoning_enabled（后端默认 1 = 默认思考）
+    if (o && typeof o === 'object' && typeof o.reasoning_enabled !== 'boolean') {
+      dirty = true;
+      return { ...o, reasoning_enabled: true } as unknown as Conversation;
     }
     return c as Conversation;
   });
@@ -120,6 +134,101 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);
+}
+
+/* ---------------- 消息树（schema v3：parent_id + active_leaf） ---------------- */
+
+/** 读取全部消息；旧数据（无 parent_id 的线性序列）自动迁移为链式树并回写 */
+function loadMessages(): Message[] {
+  const all = load<Message[]>('messages', []);
+  let dirty = false;
+  const byConv = new Map<string, Message[]>();
+  for (const m of all) {
+    if (!('parent_id' in m)) dirty = true;
+    const list = byConv.get(m.conversation_id) ?? [];
+    list.push(m);
+    byConv.set(m.conversation_id, list);
+  }
+  if (dirty) {
+    for (const list of byConv.values()) {
+      list.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+      let prev: Message | null = null;
+      for (const m of list) {
+        if (!('parent_id' in m)) (m as Message).parent_id = prev ? prev.id : null;
+        prev = m;
+      }
+    }
+    save('messages', all);
+  }
+  return all;
+}
+
+function convMessages(all: Message[], convId: string): Message[] {
+  return all
+    .filter((m) => m.conversation_id === convId)
+    .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+}
+
+/** 同 parent 的子消息（含 parent=null 的根），按 created_at,id 排序 —— 分支排序的唯一依据 */
+function childrenOf(all: Message[], convId: string, parentId: string | null): Message[] {
+  return convMessages(all, convId).filter((m) => m.parent_id === parentId);
+}
+
+/** 沿"最新子"下潜到最深后代（分叉处取最新子，与契约 switchBranch 语义一致） */
+function deepestLeaf(all: Message[], convId: string, id: string): string {
+  let cur = id;
+  for (;;) {
+    const kids = childrenOf(all, convId, cur);
+    if (kids.length === 0) return cur;
+    cur = kids[kids.length - 1].id;
+  }
+}
+
+function loadActiveLeaves(): Record<string, string | null> {
+  return load<Record<string, string | null>>('active_leaves', {});
+}
+
+function getActiveLeaf(all: Message[], convId: string): string | null {
+  const stored = loadActiveLeaves()[convId];
+  if (stored && all.some((m) => m.id === stored && m.conversation_id === convId)) return stored;
+  // active_leaf 为空 = 最新一条消息为叶
+  const list = convMessages(all, convId);
+  return list.length > 0 ? list[list.length - 1].id : null;
+}
+
+function setActiveLeafId(convId: string, leafId: string | null): void {
+  const map = loadActiveLeaves();
+  map[convId] = leafId;
+  save('active_leaves', map);
+}
+
+/**
+ * 解析激活路径：根 → 激活叶（沿 parent_id 上溯后反转），并为路径上
+ * 有同级分支的消息填充 branch 元数据（index 从 1 起，ids 按排序序）。
+ */
+function resolvePath(convId: string): Message[] {
+  const all = loadMessages();
+  const leaf = getActiveLeaf(all, convId);
+  if (!leaf) return [];
+  const byId = new Map(all.map((m) => [m.id, m]));
+  const chain: Message[] = [];
+  let cur: Message | undefined = byId.get(leaf);
+  while (cur && cur.conversation_id === convId) {
+    chain.unshift(cur);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return chain.map((m) => {
+    const siblings = childrenOf(all, convId, m.parent_id);
+    if (siblings.length <= 1) {
+      const { branch: _drop, ...rest } = m;
+      return rest as Message;
+    }
+    const idx = siblings.findIndex((s) => s.id === m.id);
+    return {
+      ...m,
+      branch: { index: idx + 1, count: siblings.length, ids: siblings.map((s) => s.id) },
+    };
+  });
 }
 
 /* ---------------- 事件总线 ---------------- */
@@ -263,6 +372,26 @@ function greet(name: string): string {
 
 If everything works, you should see this text appear chunk by chunk instead of all at once.`;
 
+const DEMO_BODY_ZH_ALT = `## 演示回复（分支 B）
+
+这是同一问题的**另一条分支**回复（mock 变体文案），用于验证分支切换：
+
+- 分支导航器显示 ‹ n/N ›
+- 切换时内容区淡入刷新
+- 统计行（tok/s、TTFT、总用时）随分支各自独立
+
+> 若你看到这里，说明当前激活的是第 2 条分支。`;
+
+const DEMO_BODY_EN_ALT = `## Demo reply (branch B)
+
+This is an **alternate branch** of the answer (mock variant copy), used to verify branch switching:
+
+- The branch navigator shows ‹ n/N ›
+- Switching fades the content area in
+- The stats row (tok/s, TTFT, total) is tracked per branch
+
+> Seeing this means branch 2 is currently active.`;
+
 function currentLang(): 'zh-CN' | 'en-US' {
   // 与 index.html 启动脚本同一数据源：cookie 优先，异常回退 localStorage
   try {
@@ -287,10 +416,11 @@ function currentLang(): 'zh-CN' | 'en-US' {
   return 'zh-CN';
 }
 
-function pickDemo(): { reasoning: string; body: string } {
-  return currentLang() === 'en-US'
-    ? { reasoning: DEMO_REASONING_EN, body: DEMO_BODY_EN }
-    : { reasoning: DEMO_REASONING_ZH, body: DEMO_BODY_ZH };
+/** variant：同 parent 下第 2/4/… 个 assistant 分支用备用文案（分支切换可目视区分） */
+function pickDemo(variant = 0): { reasoning: string; body: string } {
+  const en = currentLang() === 'en-US';
+  if (en) return { reasoning: DEMO_REASONING_EN, body: variant % 2 === 1 ? DEMO_BODY_EN_ALT : DEMO_BODY_EN };
+  return { reasoning: DEMO_REASONING_ZH, body: variant % 2 === 1 ? DEMO_BODY_ZH_ALT : DEMO_BODY_ZH };
 }
 
 function chunkText(text: string, size: number): string[] {
@@ -322,6 +452,149 @@ interface ActiveGen {
   stop: () => void;
 }
 const activeGenerations = new Map<string, ActiveGen>();
+
+/* ---------------- 流式生成引擎（40ms/段，可测试节奏；stats 回填见 finish） ---------------- */
+
+/** 单调时间戳：保证 created_at 严格递增（同毫秒多条消息时排序即插入序） */
+let tsFloor = 0;
+function tick(): number {
+  tsFloor = Math.max(tsFloor + 1, Date.now());
+  return tsFloor;
+}
+
+function newAssistantPlaceholder(convId: string, parentId: string | null): Message {
+  return {
+    id: uuid(),
+    conversation_id: convId,
+    parent_id: parentId,
+    role: 'assistant',
+    content: '',
+    reasoning: '',
+    token_count: null,
+    partial: true,
+    error: null,
+    created_at: tick(),
+  };
+}
+
+/**
+ * 一次生成运行：reasoning 段 → content 段（reasoning_enabled=false 时跳过 reasoning），
+ * 结束/中断时把内容与假但合理的 stats 落库并广播 chatDone。
+ * append=true（continue 续写）：delta 追加到同一消息，total_ms/token_count 累计，
+ * finish_reason 取最后一次运行，ttft 保留首次运行的值。
+ */
+function startGenerationRun(
+  conv: Conversation,
+  assistantId: string,
+  opts: { variant: number; append?: boolean },
+): void {
+  const demo = pickDemo(opts.variant);
+  const withReasoning = conv.reasoning_enabled !== false;
+  const reasoningChunks = withReasoning ? chunkText(demo.reasoning, 14) : [];
+  const bodyChunks = chunkText(demo.body, 10);
+  let ri = 0;
+  let ci = 0;
+  const t0 = Date.now();
+  let firstDeltaAt: number | null = null;
+  let firstReasoningAt: number | null = null;
+  let firstContentAt: number | null = null;
+  let accReasoning = ''; // 本轮新增（不含既有内容）
+  let accContent = '';
+
+  const finish = (stopped: boolean): void => {
+    activeGenerations.delete(conv.id);
+    clearInterval(timer);
+    const end = Date.now();
+    const all = loadMessages();
+    const stored = all.find((m) => m.id === assistantId);
+    // 生成进行中消息被删除（多选删/子树连删）：静默收尾，不再广播 done
+    if (!stored) return;
+
+    const runReasoningMs =
+      withReasoning && firstReasoningAt !== null
+        ? Math.max((firstContentAt ?? end) - firstReasoningAt, 1)
+        : undefined;
+    const runTtft = Math.max((firstDeltaAt ?? end) - t0, 1);
+    const runTotal = Math.max(end - t0, 1);
+    const prior = stored.stats ?? {};
+    const reasoningMs = opts.append
+      ? ((prior.reasoning_ms ?? 0) + (runReasoningMs ?? 0) || undefined)
+      : runReasoningMs;
+    const stats: MessageStats = {
+      reasoning_ms: reasoningMs,
+      ttft_ms: opts.append ? (prior.ttft_ms ?? runTtft) : runTtft,
+      total_ms: (opts.append ? (prior.total_ms ?? 0) : 0) + runTotal,
+      finish_reason: stopped ? undefined : 'stop',
+    };
+
+    const nextContent = opts.append ? stored.content + accContent : accContent;
+    const nextReasoning = opts.append
+      ? (stored.reasoning ?? '') + accReasoning
+      : accReasoning;
+    stored.content = nextContent;
+    stored.reasoning = nextReasoning;
+    stored.partial = stopped;
+    stored.token_count =
+      (opts.append ? (stored.token_count ?? 0) : 0) + estimateTokens(accContent);
+    stored.stats = stats;
+    save('messages', all);
+
+    const convs = loadConversations();
+    const c = convs.find((x) => x.id === conv.id);
+    if (c) {
+      c.updated_at = Date.now();
+      save('conversations', convs);
+    }
+    chatDoneEvent.emit({
+      conversationId: conv.id,
+      messageId: assistantId,
+      message: { ...stored },
+    });
+    // 自动标题（与主进程同语义）：auto_title 开 + 标题为空 + 未中断 →
+    // 异步生成并广播 title:updated；失败转 title:failed（不阻断对话）
+    if (!stopped && !opts.append && c && c.title === '' && loadSettings().auto_title) {
+      void mockGenerateTitle(conv.id).catch((e: unknown) => {
+        const err = e as Partial<Error>;
+        titleFailedEvent.emit({
+          conversationId: conv.id,
+          error: {
+            code: err?.message ?? 'request_failed',
+            message: err?.message ?? String(e),
+          },
+        });
+      });
+    }
+  };
+
+  const timer = setInterval(() => {
+    if (ri < reasoningChunks.length) {
+      const d = reasoningChunks[ri++];
+      const now = Date.now();
+      if (firstDeltaAt === null) firstDeltaAt = now;
+      if (firstReasoningAt === null) firstReasoningAt = now;
+      accReasoning += d;
+      chatDeltaEvent.emit({
+        conversationId: conv.id,
+        messageId: assistantId,
+        delta: '',
+        reasoning_delta: d,
+      });
+      return;
+    }
+    if (ci < bodyChunks.length) {
+      const d = bodyChunks[ci++];
+      const now = Date.now();
+      if (firstDeltaAt === null) firstDeltaAt = now;
+      if (firstContentAt === null) firstContentAt = now;
+      accContent += d;
+      chatDeltaEvent.emit({ conversationId: conv.id, messageId: assistantId, delta: d });
+      return;
+    }
+    finish(false);
+  }, 40);
+
+  activeGenerations.set(conv.id, { stop: () => finish(true) });
+}
 
 /* ---------------- EasyUiApi 实现 ---------------- */
 
@@ -455,6 +728,7 @@ export const mockApi: EasyUiApi = {
       preset_id: null,
       overrides: {},
       pinned: false,
+      reasoning_enabled: true,
       created_at: now,
       updated_at: now,
     };
@@ -492,6 +766,8 @@ export const mockApi: EasyUiApi = {
       provider_id: patch.provider_id === undefined ? current.provider_id : patch.provider_id,
       model: patch.model === undefined ? current.model : patch.model,
       preset_id: presetId,
+      reasoning_enabled:
+        patch.reasoning_enabled === undefined ? current.reasoning_enabled : patch.reasoning_enabled,
       overrides,
       updated_at: Date.now(),
     };
@@ -507,14 +783,94 @@ export const mockApi: EasyUiApi = {
     );
     save(
       'messages',
-      load<Message[]>('messages', []).filter((m) => m.conversation_id !== id),
+      loadMessages().filter((m) => m.conversation_id !== id),
     );
+    const leaves = loadActiveLeaves();
+    if (id in leaves) {
+      delete leaves[id];
+      save('active_leaves', leaves);
+    }
   },
 
   async listMessages(conversationId) {
-    return load<Message[]>('messages', [])
-      .filter((m) => m.conversation_id === conversationId)
-      .sort((a, b) => a.created_at - b.created_at);
+    return resolvePath(conversationId);
+  },
+
+  async switchBranch(input) {
+    const all = loadMessages();
+    const target = all.find(
+      (m) => m.id === input.messageId && m.conversation_id === input.conversationId,
+    );
+    if (!target) throw new Error('message_not_found');
+    // 激活叶切到目标分支最深后代（分叉处取最新子）
+    setActiveLeafId(input.conversationId, deepestLeaf(all, input.conversationId, target.id));
+    return resolvePath(input.conversationId);
+  },
+
+  async setActiveLeaf(input) {
+    const all = loadMessages();
+    const target = all.find(
+      (m) => m.id === input.messageId && m.conversation_id === input.conversationId,
+    );
+    if (!target) throw new Error('message_not_found');
+    setActiveLeafId(input.conversationId, target.id);
+    return resolvePath(input.conversationId);
+  },
+
+  async updateMessageContent(input) {
+    const all = loadMessages();
+    const target = all.find(
+      (m) => m.id === input.messageId && m.conversation_id === input.conversationId,
+    );
+    if (!target) throw new Error('message_not_found');
+    target.content = input.content;
+    target.token_count = estimateTokens(input.content);
+    save('messages', all);
+    return { ...target };
+  },
+
+  async deleteMessages(input) {
+    const all = loadMessages();
+    const convId = input.conversationId;
+    const byId = new Map(all.map((m) => [m.id, m]));
+    // 收集各目标节点的整棵子树
+    const doomed = new Set<string>();
+    const collect = (id: string): void => {
+      if (doomed.has(id)) return;
+      doomed.add(id);
+      for (const m of all) {
+        if (m.conversation_id === convId && m.parent_id === id) collect(m.id);
+      }
+    };
+    let nearestSurvivor: string | null = null;
+    for (const id of input.ids) {
+      const node = byId.get(id);
+      if (!node || node.conversation_id !== convId) continue;
+      // 激活叶回退点：被删节点的最近存活祖先（取最深的那个候选）
+      let anc = node.parent_id;
+      let candidate: string | null = null;
+      while (anc) {
+        const a = byId.get(anc);
+        if (!a || doomed.has(anc) || input.ids.includes(anc)) {
+          anc = a?.parent_id ?? null;
+          continue;
+        }
+        candidate = deepestLeaf(all, convId, anc);
+        break;
+      }
+      if (candidate && (!nearestSurvivor || candidate.length >= nearestSurvivor.length)) {
+        nearestSurvivor = candidate;
+      }
+      collect(id);
+    }
+    save(
+      'messages',
+      all.filter((m) => !doomed.has(m.id)),
+    );
+    // 激活叶在被删子树内（或已失效）时回退
+    const leaf = loadActiveLeaves()[convId];
+    if (leaf && doomed.has(leaf)) setActiveLeafId(convId, nearestSurvivor);
+    return resolvePath(convId);
   },
 
   /* —— 参数预设 —— */
@@ -588,7 +944,7 @@ export const mockApi: EasyUiApi = {
     return next;
   },
 
-  /* —— 对话生成 —— */
+  /* —— 对话生成（树形分支模型，schema v3） —— */
 
   async sendMessage(input) {
     const conversations = loadConversations();
@@ -596,121 +952,85 @@ export const mockApi: EasyUiApi = {
     if (!conv) throw new Error('conversation_not_found');
     if (activeGenerations.has(conv.id)) throw new Error('generation_in_progress');
 
-    let messages = load<Message[]>('messages', []);
-    let userMessageId: string | null = null;
-
-    if (input.regenerate) {
-      const anchor =
-        messages.find((m) => m.id === input.fromMessageId) ??
-        [...messages]
-          .reverse()
-          .find((m) => m.conversation_id === conv.id && m.role === 'user');
-      if (!anchor) throw new Error('nothing_to_regenerate');
-      messages = messages.filter(
-        (m) => !(m.conversation_id === conv.id && m.created_at > anchor.created_at),
-      );
-      userMessageId = anchor.id;
+    const all = loadMessages();
+    let parentId: string | null;
+    if (input.siblingOf) {
+      const sib = all.find((m) => m.id === input.siblingOf && m.conversation_id === conv.id);
+      if (!sib) throw new Error('message_not_found');
+      // 以 siblingOf 的同级分支身份插入（parent = 该消息的 parent_id）
+      parentId = sib.parent_id;
     } else {
-      const userMsg: Message = {
-        id: uuid(),
-        conversation_id: conv.id,
-        role: 'user',
-        content: input.content,
-        token_count: estimateTokens(input.content),
-        partial: false,
-        error: null,
-        created_at: Date.now(),
-      };
-      messages.push(userMsg);
-      userMessageId = userMsg.id;
+      // 缺省：parent = 当前激活叶（branch 按钮 setActiveLeaf 的落点）
+      parentId = getActiveLeaf(all, conv.id);
     }
 
-    const assistant: Message = {
+    const userMsg: Message = {
       id: uuid(),
       conversation_id: conv.id,
-      role: 'assistant',
-      content: '',
-      reasoning: '',
-      token_count: null,
-      partial: true,
+      parent_id: parentId,
+      role: 'user',
+      content: input.content,
+      token_count: estimateTokens(input.content),
+      partial: false,
       error: null,
-      created_at: Date.now() + 1,
+      created_at: tick(),
     };
-    messages.push(assistant);
-    save('messages', messages);
+    const assistant = newAssistantPlaceholder(conv.id, userMsg.id);
+    all.push(userMsg, assistant);
+    save('messages', all);
+    setActiveLeafId(conv.id, assistant.id);
 
-    const demo = pickDemo();
-    const reasoningChunks = chunkText(demo.reasoning, 14);
-    const bodyChunks = chunkText(demo.body, 10);
-    let ri = 0;
-    let ci = 0;
+    startGenerationRun(conv, assistant.id, { variant: 0 });
+    return { userMessageId: userMsg.id, assistantMessageId: assistant.id };
+  },
 
-    const finish = (stopped: boolean) => {
-      activeGenerations.delete(conv.id);
-      clearInterval(timer);
-      const all = load<Message[]>('messages', []);
-      const stored = all.find((m) => m.id === assistant.id);
-      if (stored) {
-        stored.content = assistant.content;
-        stored.reasoning = assistant.reasoning;
-        stored.partial = stopped;
-        stored.token_count = estimateTokens(assistant.content);
-        save('messages', all);
-      }
-      const convs = loadConversations();
-      const c = convs.find((x) => x.id === conv.id);
-      if (c) {
-        c.updated_at = Date.now();
-        save('conversations', convs);
-      }
-      chatDoneEvent.emit({
-        conversationId: conv.id,
-        messageId: assistant.id,
-        message: {
-          ...assistant,
-          partial: stopped,
-          token_count: estimateTokens(assistant.content),
-        },
-      });
-      // 自动标题（与主进程同语义）：auto_title 开 + 标题为空 + 未中断 →
-      // 异步生成并广播 title:updated；失败转 title:failed（不阻断对话）
-      if (!stopped && c && c.title === '' && loadSettings().auto_title) {
-        void mockGenerateTitle(conv.id).catch((e: unknown) => {
-          const err = e as Partial<Error>;
-          titleFailedEvent.emit({
-            conversationId: conv.id,
-            error: {
-              code: err?.message ?? 'request_failed',
-              message: err?.message ?? String(e),
-            },
-          });
-        });
-      }
-    };
+  async regenerateMessage(input) {
+    const conversations = loadConversations();
+    const conv = conversations.find((c) => c.id === input.conversationId);
+    if (!conv) throw new Error('conversation_not_found');
+    if (activeGenerations.has(conv.id)) throw new Error('generation_in_progress');
+    const all = loadMessages();
+    const target = all.find((m) => m.id === input.messageId && m.conversation_id === conv.id);
+    if (!target || target.role !== 'assistant') throw new Error('nothing_to_regenerate');
+    // 新同级分支：变体按现有同级数量轮换（第 2 条分支 → 备用文案）
+    const variant = childrenOf(all, conv.id, target.parent_id).length % 2;
+    const assistant = newAssistantPlaceholder(conv.id, target.parent_id);
+    all.push(assistant);
+    save('messages', all);
+    setActiveLeafId(conv.id, assistant.id);
+    startGenerationRun(conv, assistant.id, { variant });
+    return { assistantMessageId: assistant.id };
+  },
 
-    const timer = setInterval(() => {
-      if (ri < reasoningChunks.length) {
-        const d = reasoningChunks[ri++];
-        assistant.reasoning = (assistant.reasoning ?? '') + d;
-        chatDeltaEvent.emit({
-          conversationId: conv.id,
-          messageId: assistant.id,
-          delta: '',
-          reasoning_delta: d,
-        });
-        return;
-      }
-      if (ci < bodyChunks.length) {
-        const d = bodyChunks[ci++];
-        assistant.content += d;
-        chatDeltaEvent.emit({ conversationId: conv.id, messageId: assistant.id, delta: d });
-        return;
-      }
-      finish(false);
-    }, 40);
+  async continueMessage(input) {
+    const conversations = loadConversations();
+    const conv = conversations.find((c) => c.id === input.conversationId);
+    if (!conv) throw new Error('conversation_not_found');
+    if (activeGenerations.has(conv.id)) throw new Error('generation_in_progress');
+    const all = loadMessages();
+    const target = all.find((m) => m.id === input.messageId && m.conversation_id === conv.id);
+    if (!target || target.role !== 'assistant') throw new Error('nothing_to_continue');
+    // 续写：同一气泡追加（variant 与该分支自身序号一致，保持文案同源）
+    const idx = childrenOf(all, conv.id, target.parent_id).findIndex((m) => m.id === target.id);
+    startGenerationRun(conv, target.id, { variant: Math.max(idx, 0) % 2, append: true });
+  },
 
-    activeGenerations.set(conv.id, { stop: () => finish(true) });
-    return { userMessageId, assistantMessageId: assistant.id };
+  async generateResponse(input) {
+    const conversations = loadConversations();
+    const conv = conversations.find((c) => c.id === input.conversationId);
+    if (!conv) throw new Error('conversation_not_found');
+    if (activeGenerations.has(conv.id)) throw new Error('generation_in_progress');
+    const all = loadMessages();
+    const leafId = getActiveLeaf(all, conv.id);
+    const leaf = leafId ? all.find((m) => m.id === leafId) : undefined;
+    if (!leaf || leaf.role !== 'user') throw new Error('nothing_to_generate');
+    const variant = childrenOf(all, conv.id, leaf.id).length % 2;
+    const assistant = newAssistantPlaceholder(conv.id, leaf.id);
+    all.push(assistant);
+    save('messages', all);
+    setActiveLeafId(conv.id, assistant.id);
+    startGenerationRun(conv, assistant.id, { variant });
+    return { assistantMessageId: assistant.id };
   },
 
   async stopGeneration(conversationId) {

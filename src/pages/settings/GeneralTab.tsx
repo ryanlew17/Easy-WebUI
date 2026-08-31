@@ -334,6 +334,7 @@ export function GeneralTab() {
     ['Enter', t('settings.shortcuts.send')],
     ['Shift+Enter', t('settings.shortcuts.newline')],
     ['Ctrl/Cmd+Enter', t('settings.shortcuts.sendAlt')],
+    ['Ctrl/Cmd+R', t('settings.shortcuts.generateResponse')],
   ];
 
   return (
@@ -516,7 +517,7 @@ export function GeneralTab() {
         <Row label={t('settings.general.dataPath')}>
           <div className="flex items-center gap-2">
             <code
-              className="block max-w-xs truncate rounded px-1.5 py-0.5 text-[0.6875rem]"
+              className="block max-w-xs truncate rounded-s px-1.5 py-0.5 text-[0.6875rem]"
               style={{ background: 'var(--code-bg)' }}
               title={systemInfo?.dataPath}
             >
@@ -601,7 +602,7 @@ export function GeneralTab() {
             {t('settings.general.dataPathConfirmBody')}
           </p>
           <code
-            className="mt-2 block break-all rounded px-2 py-1.5 text-[0.6875rem]"
+            className="mt-2 block break-all rounded-s px-2 py-1.5 text-[0.6875rem]"
             style={{ background: 'var(--code-bg)' }}
           >
             {dataDirTarget}

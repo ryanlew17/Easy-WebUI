@@ -13,6 +13,7 @@
  * - top_k / min_p / penalties / stop 不支持，静默丢弃（契约：协议差异内部消化）。
  */
 import type { ChatChunk } from '../../shared/types';
+import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
@@ -57,6 +58,10 @@ export function buildRequest(input: AdapterChatInput): BuiltRequest {
         strict: true,
       },
     };
+  }
+  if (input.reasoningOff) {
+    // 会话关闭思考：reasoning:{effort:'none'}（Responses API 推理档位关闭形态）
+    Object.assign(body, reasoningOffPayload('openai-responses'));
   }
 
   return {

@@ -10,7 +10,7 @@
 
 ## 功能特性
 
-- **12 家预置供应商**（仅作为快捷模板，不预写数据库）：OpenAI、Anthropic、OpenRouter、DeepSeek、Kimi（Moonshot AI）、Bigmodel（智谱 GLM）、Xiaomi MiMo、MiniMax、硅基流动 SiliconFlow、魔搭 ModelScope、火山引擎（Ark）、阿里云百炼——同时支持完全自定义 base_url / 协议格式（`openai-chat` / `openai-responses` / `anthropic`，支持自动探测）。
+- **12 家预置供应商**（仅作为快捷模板，不预写数据库）：OpenAI、Anthropic、OpenRouter、DeepSeek、Kimi (Moonshot AI)、智谱 (Bigmodel)、小米 (Xiaomi MiMo)、MiniMax、硅基流动 (SiliconFlow)、魔搭 (ModelScope)、火山引擎 (Ark)、阿里云百炼 (Alibaba Cloud Bailian)——同时支持完全自定义 base_url / 协议格式（`openai-chat` / `openai-responses` / `anthropic`，支持自动探测）。
 - **流式对话 + 推理过程展示**——SSE 流式输出、三点 typing 指示器、Markdown 增量渲染（GFM 表格、代码高亮），DeepSeek 等模型的 `reasoning_content` 以折叠块展示。支持停止 / 重新生成。
 - **LM Studio 风格参数预设系统**——全局预设之上叠加用户预设，会话级覆盖带高亮标记与一键恢复预设值；涵盖系统提示词、温度、可选回复长度限制、上下文溢出策略（滚动窗口 / 截断中段 / 到达上限停止）、停止字符串、top_k / 重复惩罚 / 存在惩罚 / top_p / min_p 采样开关，以及 JSON Schema 结构化输出。全局预设仅可在设置页编辑，并支持恢复出厂默认。
 - **液态玻璃双主题 UI**——浅色 / 深色 / 跟随系统，玻璃拟态 + 严格的同屏模糊层预算，完整支持 `prefers-reduced-motion` / `prefers-reduced-transparency` 降级。

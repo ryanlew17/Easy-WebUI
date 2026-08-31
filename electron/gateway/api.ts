@@ -21,6 +21,8 @@ export interface AdapterChatInput {
   params: ParamValues;
   stream: boolean;
   signal: AbortSignal;
+  /** true = 会话关闭了思考：buildRequest 混入 shared/reasoning.ts 的 reasoningOffPayload */
+  reasoningOff?: boolean;
   /** 测试可注入更小的空闲超时；默认 60s（sse.DEFAULT_STREAM_IDLE_MS） */
   idleMs?: number;
 }

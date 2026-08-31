@@ -51,12 +51,33 @@
 .param-block-chevron[data-open='true'] {
   transform: rotate(90deg);
 }
+/* 分块折叠：grid-template-rows 0fr↔1fr 双向动画（展开/收起都动），
+ * 内容常驻挂载（控件状态不丢失）；收起时 visibility:hidden 同步移出 Tab 序。
+ * visibility 延迟技巧：关闭沿等动画播完再隐藏；打开沿立即显示。 */
+.param-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.param-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.param-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
 @media (prefers-reduced-motion: no-preference) {
   .param-block-chevron {
-    transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform var(--dur-base) var(--ease-interactive);
   }
-  .param-block-body {
-    animation: easyui-modal-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  .param-collapse {
+    transition:
+      grid-template-rows var(--dur-slow) var(--ease-panel),
+      visibility 0s linear var(--dur-slow);
+  }
+  .param-collapse[data-open='true'] {
+    transition: grid-template-rows var(--dur-slow) var(--ease-panel);
   }
 }
 .param-block-body {
@@ -68,7 +89,7 @@
 .param-dot {
   width: 0.375rem;
   height: 0.375rem;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   flex: none;
 }
@@ -79,7 +100,7 @@
   min-width: 1.375rem;
   min-height: 1.375rem;
   padding: 0;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-s);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -90,19 +111,7 @@
 }
 
 /* ---------- 控件补充 ---------- */
-/* 勾选框（LM Studio 式）：accent 着色，行容器保证 ≥32px 点击区 */
-.param-checkbox {
-  width: 1rem;
-  height: 1rem;
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex: none;
-}
-.param-checkbox:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
+/* 勾选框样式已迁移至 index.css .checkbox（Checkbox 组件，SVG 描边绘制动效） */
 /* 等宽文本域（JSON Schema） */
 .param-mono {
   font-family: var(--font-code, ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace);

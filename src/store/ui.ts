@@ -26,6 +26,8 @@ interface UiState {
   /** 打开中的模态数，用于 Esc 键分派（模态优先于停止生成） */
   modalDepth: number;
   toasts: Toast[];
+  /** 正在播放退场动画的 toast id（data-closing；延迟 --dur-base 后真正移除） */
+  closingToastIds: number[];
 
   setPage: (p: Page) => void;
   openSettings: (tab?: SettingsTab) => void;
@@ -41,6 +43,9 @@ interface UiState {
 let toastSeq = 0;
 const prefs = typeof document !== 'undefined' ? readPrefs() : {};
 
+/** Toast 退场动画时长（与 tokens.css --dur-base 一致；reduced-motion 下动画 0ms，仅多驻留一瞬，无害） */
+const TOAST_EXIT_MS = 200;
+
 export const useUiStore = create<UiState>()((set, get) => ({
   page: 'chat',
   settingsTab: 'providers',
@@ -51,6 +56,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
       : RIGHT_WIDTH_DEFAULT,
   modalDepth: 0,
   toasts: [],
+  closingToastIds: [],
 
   setPage: (page) => set({ page }),
   openSettings: (tab) =>
@@ -73,5 +79,17 @@ export const useUiStore = create<UiState>()((set, get) => ({
     set((s) => ({ toasts: [...s.toasts.slice(-4), { id, kind, text }] }));
     window.setTimeout(() => get().dismissToast(id), 4500);
   },
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  /* 两阶段关闭：先标记 closing 播退场动画，TOAST_EXIT_MS 后真正移除（幂等） */
+  dismissToast: (id) => {
+    const s = get();
+    if (!s.toasts.some((t) => t.id === id)) return;
+    if (s.closingToastIds.includes(id)) return;
+    set((st) => ({ closingToastIds: [...st.closingToastIds, id] }));
+    window.setTimeout(() => {
+      set((st) => ({
+        toasts: st.toasts.filter((t) => t.id !== id),
+        closingToastIds: st.closingToastIds.filter((x) => x !== id),
+      }));
+    }, TOAST_EXIT_MS);
+  },
 }));

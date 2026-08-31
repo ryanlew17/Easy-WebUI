@@ -78,11 +78,14 @@ export function SettingsPage() {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-4">
-          {settingsTab === 'providers' ? <ProvidersTab /> : null}
-          {settingsTab === 'presets' ? <PresetTab /> : null}
-          {settingsTab === 'general' ? <GeneralTab /> : null}
-          {settingsTab === 'backup' ? <BackupTab /> : null}
-          {settingsTab === 'about' ? <AboutTab /> : null}
+          {/* key=tab 触发 .tab-swap 挂载入场（--dur-base），reduced-motion 下无动画 */}
+          <div key={settingsTab} className="tab-swap">
+            {settingsTab === 'providers' ? <ProvidersTab /> : null}
+            {settingsTab === 'presets' ? <PresetTab /> : null}
+            {settingsTab === 'general' ? <GeneralTab /> : null}
+            {settingsTab === 'backup' ? <BackupTab /> : null}
+            {settingsTab === 'about' ? <AboutTab /> : null}
+          </div>
         </div>
       </div>
     </div>

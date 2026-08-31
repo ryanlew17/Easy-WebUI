@@ -104,7 +104,7 @@ function CodeBlock({ className, code }: { className?: string; code: string }) {
         onClick={() => void onCopy()}
         aria-label={t('aria.copyCode')}
         className="btn btn-surface absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/code:opacity-100"
-        style={{ minHeight: '1.625rem', minWidth: '1.625rem', padding: '0 0.5rem', fontSize: '0.6875rem', background: 'var(--row-bg-active)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+        style={{ minHeight: '1.625rem', minWidth: '1.625rem', padding: '0 0.5rem', fontSize: '0.6875rem', background: 'var(--row-bg-active)' }}
       >
         {copied ? t('common.copied') : t('common.copy')}
       </button>
