@@ -74,8 +74,8 @@ export function IconRegenerate({ size = 14 }: IconProps) {
 /** 续写（箭头推向右缘竖线 = 继续往后写） */
 export function IconContinue({ size = 14 }: IconProps) {
   return base(size, [
-    <path key="a" d="M2.5 8h8M7 4.5L10.5 8 7 11.5" />,
-    <path key="b" d="M13.5 3.5v9" />,
+    <path key="a" d="M3 8h8.5M7.5 4l4 4-4 4" />,
+    <path key="b" d="M13.5 2.5v11" />,
   ]);
 }
 
@@ -110,21 +110,61 @@ export function IconBulb({ size = 14 }: IconProps) {
   ]);
 }
 
+/** 置顶（图钉；原内联 path 墨迹偏右 1.8 单位，经 translate 校正居中） */
+export function IconPin({ size = 12 }: IconProps) {
+  return base(
+    size,
+    <g transform="translate(-1.84 0)">
+      <path d="M9.828 1.172a2 2 0 012.828 0l2.172 2.172a2 2 0 010 2.828l-1.414 1.414-5-5L9.828 1.172zM7.757 4.343l5 5-2.121.707-3.536 5.303-2.121-2.121 2.121-3.536-2.829-2.828 3.486-3.525z" />
+    </g>,
+  );
+}
+
+/** ✨（生成标题）。四芒星几何居中（墨迹 12×12，中心 8,8） */
+export function IconSparkle({ size = 12 }: IconProps) {
+  return base(size, <path d="M8 2l1.6 4.4L14 8l-4.4 1.6L8 14l-1.6-4.4L2 8l4.4-1.6L8 2z" />);
+}
+
+/** 文档（预设分块） */
+export function IconDoc({ size = 13 }: IconProps) {
+  return base(size, <path d="M3 2.5h7.5L13 5v8.5H3V2.5zM10 2.5V5h2.5" />);
+}
+
+/** 文档带行（系统提示词分块） */
+export function IconNote({ size = 13 }: IconProps) {
+  return base(size, <path d="M3 2.5h10v11H3V2.5zM5.5 5.5h5M5.5 8h5M5.5 10.5h3" />);
+}
+
+/** 滑杆组（设置分块） */
+export function IconSliders({ size = 13 }: IconProps) {
+  return base(size, <path d="M2.5 4.5h11M2.5 11.5h11M6 2.8v3.4M10 9.8v3.4" />);
+}
+
+/** 花括号（结构化输出分块） */
+export function IconBraces({ size = 13 }: IconProps) {
+  return base(
+    size,
+    <path d="M5.5 3C4 3 3.5 4 3.5 5v1.5c0 .8-.5 1.5-1.5 1.5 1 0 1.5.7 1.5 1.5V11c0 1 .5 2 2 2M10.5 3c1.5 0 2 1 2 2v1.5c0 .8.5 1.5 1.5 1.5-1 0-1.5.7-1.5 1.5V11c0 1-.5 2-2 2" />,
+  );
+}
+
 /** 上一分支 ‹ */
 export function IconChevronLeft({ size = 12 }: IconProps) {
-  return base(size, <path d="M10 3L5 8l5 5" />);
+  return base(size, <path d="M10.5 3.5L5.5 8l5 4.5" />);
 }
 
 /** 下一分支 › */
 export function IconChevronRight({ size = 12 }: IconProps) {
-  return base(size, <path d="M6 3l5 5-5 5" />);
+  return base(size, <path d="M5.5 3.5l5 4.5-5 4.5" />);
 }
 
-/** 速率（仪表盘；统计行 tok/s） */
+/** 速率表盘（统计行 tok/s）。弧+底线+针在 16 视口内几何居中（墨迹中心 8,8），
+ *  与统计行其余图标基线一致 —— 此前半圆画在下半部，首个图标视觉偏低错位 */
 export function IconGauge({ size = 12 }: IconProps) {
   return base(size, [
-    <path key="a" d="M2.5 12.5a5.5 5.5 0 1 1 11 0" />,
-    <path key="b" d="M8 12.5l2.5-4" />,
+    <path key="a" d="M2.5 11a5.5 5.5 0 1 1 11 0" />,
+    <path key="b" d="M5 11h6" />,
+    <path key="c" d="M8 11l2.4-3.9" />,
   ]);
 }
 

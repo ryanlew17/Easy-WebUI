@@ -24,15 +24,15 @@ Design doc: [docs/kimi.md](./docs/kimi.md) · Cross-process contract: [docs/impl
 
 ## Screenshots
 
-| Chat (light, 中文) | Chat (dark, English) |
+| Chat (light, 中文) | Chat (dark, 中文) |
 | --- | --- |
-| ![Chat light](docs/screenshots/09-chat-done-params.png) | ![Chat dark](docs/screenshots/12-chat-dark-en.png) |
+| ![Chat light](docs/screenshots/05-chat-light-zh.png) | ![Chat dark](docs/screenshots/07-chat-dark-zh.png) |
 
-| Model picker | Add provider (12 presets) |
+| Model picker (liquid-glass blur) | Add provider (12 presets) |
 | --- | --- |
-| ![Model picker](docs/screenshots/07-model-picker.png) | ![Add provider](docs/screenshots/03-provider-modal-presets.png) |
+| ![Model picker](docs/screenshots/04-model-picker-blur-zh.png) | ![Add provider](docs/screenshots/03-provider-modal-light-zh.png) |
 
-More in [docs/screenshots/](./docs/screenshots/), including the packaged Electron app.
+More in [docs/screenshots/](./docs/screenshots/) — welcome page, settings, the streaming "thinking…" state, and the multi-line composer with the liquid-glass "Generate Response" pill floating above it, 8 shots in total.
 
 ## Tech Stack
 

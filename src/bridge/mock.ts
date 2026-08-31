@@ -842,34 +842,27 @@ export const mockApi: EasyUiApi = {
         if (m.conversation_id === convId && m.parent_id === id) collect(m.id);
       }
     };
-    let nearestSurvivor: string | null = null;
+    let survivorAnc: string | null = null;
     for (const id of input.ids) {
       const node = byId.get(id);
       if (!node || node.conversation_id !== convId) continue;
-      // 激活叶回退点：被删节点的最近存活祖先（取最深的那个候选）
+      // 激活叶回退点：被删节点的最近存活祖先（多目标任取其一，UI 删除入口同层）
       let anc = node.parent_id;
-      let candidate: string | null = null;
       while (anc) {
-        const a = byId.get(anc);
-        if (!a || doomed.has(anc) || input.ids.includes(anc)) {
-          anc = a?.parent_id ?? null;
-          continue;
-        }
-        candidate = deepestLeaf(all, convId, anc);
-        break;
+        if (!doomed.has(anc) && !input.ids.includes(anc)) break;
+        anc = byId.get(anc)?.parent_id ?? null;
       }
-      if (candidate && (!nearestSurvivor || candidate.length >= nearestSurvivor.length)) {
-        nearestSurvivor = candidate;
-      }
+      if (anc) survivorAnc = anc;
       collect(id);
     }
-    save(
-      'messages',
-      all.filter((m) => !doomed.has(m.id)),
-    );
-    // 激活叶在被删子树内（或已失效）时回退
+    const remaining = all.filter((m) => !doomed.has(m.id));
+    save('messages', remaining);
+    // 激活叶在被删子树内时：回退到存活祖先后，沿"最新子"下钻到剩余分支的最深后代
+    // （与 DAO deleteWithDescendants 同语义；下钻必须用删完后的剩余集合）
     const leaf = loadActiveLeaves()[convId];
-    if (leaf && doomed.has(leaf)) setActiveLeafId(convId, nearestSurvivor);
+    if (leaf && doomed.has(leaf)) {
+      setActiveLeafId(convId, survivorAnc ? deepestLeaf(remaining, convId, survivorAnc) : null);
+    }
     return resolvePath(convId);
   },
 

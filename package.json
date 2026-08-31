@@ -1,6 +1,6 @@
 {
   "name": "easy-webui",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Easy WebUI — local-first multi-provider LLM chat client",
   "main": "dist-electron/electron/main.js",
@@ -9,6 +9,7 @@
     "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build": "tsc -p tsconfig.web.json --noEmit && vite build && tsc -p tsconfig.electron.json && esbuild electron/preload.ts --bundle --platform=node --external:electron --format=cjs --outfile=dist-electron/electron/preload.js",
     "test": "vitest run",
+    "shot": "node scripts/shot.mjs",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "engines": {

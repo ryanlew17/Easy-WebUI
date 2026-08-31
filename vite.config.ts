@@ -30,5 +30,29 @@ export default defineConfig({
     },
   },
   server: { port: 5173 },
-  build: { outDir: 'dist' },
+  /*
+   * CSS 压缩 targets 双保险（修复：生产构建丢失无前缀 backdrop-filter 致安装版玻璃模糊全失效）：
+   * - 压缩步骤（cssMinify 默认 lightningcss）以 build.cssTarget 为准
+   *   （优先级高于 css.lightningcss.targets，缺省回落 build.target 的旧浏览器档 ——
+   *   该档会误把无前缀 backdrop-filter 当冗余声明丢掉，只留 -webkit 版，
+   *   而 Electron 44（Chrome 152）已不支持 -webkit-backdrop-filter）；
+   * - 显式现代浏览器档后，LightningCSS 认定各目标均支持无前缀 backdrop-filter，
+   *   压缩产物保留无前缀版（Safari ≥16 亦无需自动补 -webkit 前缀）；
+   * - css.lightningcss.targets 同步声明同一档，作为压缩器行为变更时的兜底。
+   * 注意：css.transformer 必须保持 postcss（Tailwind 依赖），不可切 lightningcss。
+   */
+  css: {
+    lightningcss: {
+      targets: {
+        chrome: 120 << 16,
+        edge: 120 << 16,
+        safari: 16 << 16,
+        firefox: 115 << 16,
+      },
+    },
+  },
+  build: {
+    outDir: 'dist',
+    cssTarget: ['chrome120', 'edge120', 'safari16', 'firefox115'],
+  },
 });

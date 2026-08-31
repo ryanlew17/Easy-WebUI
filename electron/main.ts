@@ -20,12 +20,14 @@ import { createCryptoService } from './crypto';
 import { createBackupService } from './backup';
 import { ChatOrchestrator } from './chat';
 import { registerIpcHandlers } from './ipc';
+import { defaultWindowSize, loadWindowState, saveWindowState } from './window-state';
 import { EVT } from '../shared/ipc';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 
 let win: BrowserWindow | null = null;
+let dataDirForState = ''; // 窗口状态记忆的落盘目录（whenReady 里赋值）
 
 /**
  * CSP：生产环境渲染层由 index.html 的 meta 提供（file:// 协议不走响应头）；
@@ -45,9 +47,10 @@ function setupCspHeader(): void {
 }
 
 function createWindow(): void {
+  const saved = dataDirForState ? loadWindowState(dataDirForState) : null;
+  const size = saved ?? defaultWindowSize();
   win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    ...size,
     minWidth: 960, // kimi.md §1.3：响应式只保证 960px 可用
     minHeight: 600,
     title: 'Easy WebUI',
@@ -67,6 +70,26 @@ function createWindow(): void {
     win = null;
   });
 
+  /* 窗口状态记忆：防抖落盘尺寸/位置（最大化态存 normalBounds），关闭时再存一次 */
+  if (dataDirForState) {
+    let saveTimer: NodeJS.Timeout | null = null;
+    const persist = (): void => {
+      if (!win) return;
+      saveWindowState(dataDirForState, win.getNormalBounds(), win.isMaximized());
+    };
+    const persistDebounced = (): void => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(persist, 500);
+    };
+    win.on('resize', persistDebounced);
+    win.on('move', persistDebounced);
+    win.on('close', () => {
+      if (saveTimer) clearTimeout(saveTimer);
+      persist();
+    });
+    if (saved?.maximized) win.maximize();
+  }
+
   // 禁用 Chromium/Electron 默认缩放：缩放只允许走「设置-通用-外观」的应用内
   // CSS zoom（web 与 Electron 同一代码路径）。setVisualZoomLevelLimits 锁死 pinch
   // 视觉缩放；应用菜单置空以摘掉默认菜单的 Ctrl+/-/0 缩放加速器
@@ -85,6 +108,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   const resolution = resolveDataDir(app);
   const dataDir = resolution.dir;
+  dataDirForState = dataDir;
   initLogger(dataDir);
   // 便携版根目录不可写 → 已回退 userData/data（source 仍记 'portable'）
   if (

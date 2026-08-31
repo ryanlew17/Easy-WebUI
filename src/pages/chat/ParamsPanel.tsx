@@ -51,9 +51,11 @@ export function ParamsPanel({ conv }: { conv: Conversation }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-      <FieldRow label={t('params.model')}>
-        <ModelPicker providerId={conv.provider_id} model={conv.model} onSelect={onModelSelect} />
-      </FieldRow>
+      <div className="param-block mb-1.5" style={{ padding: '0.25rem 0.625rem' }}>
+        <FieldRow label={t('params.model')}>
+          <ModelPicker providerId={conv.provider_id} model={conv.model} onSelect={onModelSelect} />
+        </FieldRow>
+      </div>
 
       <PresetBlock conv={conv} />
 
