@@ -20,6 +20,7 @@ import { createCryptoService } from './crypto';
 import { createBackupService } from './backup';
 import { ChatOrchestrator } from './chat';
 import { registerIpcHandlers } from './ipc';
+import { EVT } from '../shared/ipc';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
@@ -123,6 +124,7 @@ app.whenReady().then(() => {
   const updater = createUpdater({
     send: (channel, payload) => win?.webContents.send(channel, payload),
     getVersion: () => app.getVersion(),
+    isPackaged: () => app.isPackaged,
     getBeta: () => settings.get().update_beta,
     logger,
   });
@@ -150,13 +152,29 @@ app.whenReady().then(() => {
     getWindow: () => win,
   });
 
-  // 自动检查更新（wiring point 演示）：仅记录日志，不向渲染进程推事件
+  // 自动检查更新（settings.auto_update）：发现新版本 → 广播 update:available
+  // （渲染进程全局监听弹通知气泡；About 页挂载后经 updateGetState 同步状态并自动下载）。
+  // 下载不在这里自动触发 —— 静默拉包占用带宽，交给 About 页状态机在用户知情下进行。
   if (settings.get().auto_update) {
     updater
       .check()
-      .then((r) => logger.info('auto update check result', r))
+      .then((r) => {
+        logger.info('auto update check result', { status: r.status });
+        if (r.status === 'available') {
+          win?.webContents.send(EVT.updateAvailable, r.info);
+        }
+      })
       .catch((e) => logger.warn('auto update check failed', e instanceof Error ? e.message : e));
   }
+
+  // 退出前关闭 DB 句柄（quitAndInstall 走同一退出路径；better-sqlite3 同步 close 安全）
+  app.on('before-quit', () => {
+    try {
+      db.close();
+    } catch {
+      /* 已关闭则忽略 */
+    }
+  });
 
   setupCspHeader();
   createWindow();

@@ -92,7 +92,10 @@ const api: EasyUiApi = {
   updateCheck: () => invoke(IPC.updateCheck) as ReturnType<EasyUiApi['updateCheck']>,
   updateDownload: () => invoke(IPC.updateDownload) as ReturnType<EasyUiApi['updateDownload']>,
   updateInstall: () => invoke(IPC.updateInstall) as ReturnType<EasyUiApi['updateInstall']>,
+  updateGetState: () =>
+    invoke(IPC.updateGetState) as ReturnType<EasyUiApi['updateGetState']>,
   onUpdateProgress: subscribe(EVT.updateProgress),
+  onUpdateAvailable: subscribe(EVT.updateAvailable),
 
   // —— 备份 ——
   listBackups: () => invoke(IPC.listBackups) as ReturnType<EasyUiApi['listBackups']>,

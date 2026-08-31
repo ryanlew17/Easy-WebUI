@@ -47,6 +47,21 @@ try {
   console.log('PACKAGED systemInfo =', JSON.stringify(info));
   const providers = await page.evaluate(() => window.easyui.listProviders());
   console.log('PACKAGED providers =', JSON.stringify(providers));
+
+  // 在线升级真实链路：打包含 publish 配置 → autoUpdater 请求 GitHub。
+  // 仓库尚无 Release 时应答 unavailable/check_failed（证明 provider 接线+网络+错误映射全通），
+  // 绝不 reject 到渲染进程。
+  const chk = await page.evaluate(() => window.easyui.updateCheck());
+  console.log('PACKAGED updateCheck =', JSON.stringify(chk));
+  if (chk?.status === 'available' || chk?.status === 'none') {
+    console.log('PACKAGED update channel live（仓库已有 Release）');
+  } else if (chk?.status === 'unavailable' && typeof chk.reason === 'string') {
+    console.log(`PACKAGED update wired（reason=${chk.reason}，仓库尚无 Release 或网络受限）`);
+  } else {
+    throw new Error('updateCheck 返回形状非法: ' + JSON.stringify(chk));
+  }
+  const ustate = await page.evaluate(() => window.easyui.updateGetState());
+  console.log('PACKAGED updateGetState =', JSON.stringify(ustate));
   await sleep(1500);
   await page.screenshot({ path: 'docs/screenshots/14-electron-packaged.png' });
   console.log('PACKAGED_APP_OK');

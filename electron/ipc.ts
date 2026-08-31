@@ -508,10 +508,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     await shell.openExternal(url);
   });
 
-  /* —— 在线升级（0.1.1 桩实现） —— */
+  /* —— 在线升级 —— */
   handle(IPC.updateCheck, () => deps.updater.check());
   handle(IPC.updateDownload, () => deps.updater.download());
   handle(IPC.updateInstall, () => deps.updater.install());
+  handle(IPC.updateGetState, () => deps.updater.getState());
 
   /* —— 备份 —— */
   handle(IPC.listBackups, () => backup.listBackups());

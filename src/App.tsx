@@ -64,6 +64,12 @@ export default function App() {
     const offTitleFailed = api.onTitleFailed(() =>
       useUiStore.getState().toast('warning', t('toast.titleFailedAuto')),
     );
+    // 启动自动检查发现新版本（About 页未挂载时由此通知；About 页自身另有监听做状态机）
+    const offUpdateAvailable = api.onUpdateAvailable((info) =>
+      useUiStore
+        .getState()
+        .toast('success', t('settings.about.updateAvailableToast', { version: info.version })),
+    );
 
     return () => {
       offDelta();
@@ -72,6 +78,7 @@ export default function App() {
       offCheck();
       offTitleUpdated();
       offTitleFailed();
+      offUpdateAvailable();
     };
   }, [t]);
 
