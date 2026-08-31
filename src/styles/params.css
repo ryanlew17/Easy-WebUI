@@ -1,0 +1,120 @@
+/*
+ * 参数面板 / 预设（LM Studio 式分块）样式 —— 独立文件，tokens 取自 tokens.css。
+ * 只新增类，不改动既有令牌与工具类。
+ */
+
+/* ---------- 可折叠分块 ---------- */
+.param-block {
+  border-bottom: 0.5px solid var(--separator);
+  padding: 0.125rem 0;
+}
+.param-block:last-child {
+  border-bottom: none;
+}
+.param-block-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+}
+.param-block-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  min-height: 2rem; /* ≥32px 点击区 */
+  padding: 0.375rem 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--radius-control);
+}
+.param-block-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+.param-block-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.param-block-chevron {
+  flex: none;
+  color: var(--text-tertiary);
+}
+.param-block-chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .param-block-chevron {
+    transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .param-block-body {
+    animation: easyui-modal-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+.param-block-body {
+  padding: 0.125rem 0 0.75rem;
+}
+
+/* ---------- override 高亮与重置 ---------- */
+/* accent 小圆点：该参数（组）与预设基线不一致 */
+.param-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+/* 垃圾桶/小图标按钮（比 .icon-btn 更紧凑，适配 label 行） */
+.param-icon-btn {
+  width: 1.375rem;
+  height: 1.375rem;
+  min-width: 1.375rem;
+  min-height: 1.375rem;
+  padding: 0;
+  border-radius: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+.param-icon-btn:hover:not(:disabled) {
+  color: var(--danger-text);
+}
+
+/* ---------- 控件补充 ---------- */
+/* 勾选框（LM Studio 式）：accent 着色，行容器保证 ≥32px 点击区 */
+.param-checkbox {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+.param-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+/* 等宽文本域（JSON Schema） */
+.param-mono {
+  font-family: var(--font-code, ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+/* 勾选行（label + checkbox 横排） */
+.param-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0.375rem 0;
+}

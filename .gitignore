@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+release/
+out/
+*.tsbuildinfo
+
+# Runtime data & logs (local-first app data, never commit)
+data/
+logs/
+*.log
+
+# Test / cache artifacts
+coverage/
+.cache/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# OS junk
+.DS_Store
+Thumbs.db

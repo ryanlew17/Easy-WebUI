@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP（仅生产生效）：default-src 'self' 会连带禁止 inline script，
+      因此下方防 FOUC 启动脚本以 sha256 哈希白名单放行（script-src 未回落到 unsafe-inline）。
+      注意：若修改下方内联脚本内容（含任何空白），必须重新计算哈希，命令见 README「CSP hash」。
+      dev 模式下 vite.config.ts 的 stripCspInDev 插件会移除此 meta（HMR / react preamble 需要）。
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-WoE9wgpAUH0Q2zvlQqBQ36hi2DDcN8v7sp8m1ymMQ/8='; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <title>Easy WebUI</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!--
+      防 FOUC 启动脚本：在挂载前同步读取 cookie「easyui_prefs」中的 theme/lang 与外观六项
+      （zoom/font_ui/font_code/code_theme/font_ui_size/font_code_size），设置
+      document.documentElement 的 dataset.theme / lang / style.zoom / --font-ui / --font-code /
+      dataset.codeTheme / style.fontSize / --font-code-size；cookie 缺失/异常时回退 localStorage。
+      字体值过字符白名单（与 shared/appearance.ts 一致）；字号 parseInt 后按值域
+      10–24 / 6–40 校验，非法忽略。
+    -->
+    <script>(function(){function p(){try{var m=document.cookie.match(/(?:^|;\s*)easyui_prefs=([^;]*)/);if(m)return JSON.parse(decodeURIComponent(m[1]));}catch(e){}try{var r=localStorage.getItem("easyui_prefs");if(r)return JSON.parse(r);}catch(e){}return null}var o=p()||{};var t=o.theme;if(t!=="light"&&t!=="dark"){try{t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";}catch(e){t="dark";}}var l=o.lang==="en-US"?"en-US":"zh-CN";document.documentElement.dataset.theme=t;document.documentElement.lang=l;var z=typeof o.zoom==="number"&&isFinite(o.zoom)?Math.min(2.5,Math.max(0.5,o.zoom)):1;if(z!==1){document.documentElement.style.zoom=String(z);document.documentElement.style.setProperty("--app-zoom",String(z));}var f=/^[A-Za-z0-9 ,.'"-]*$/;if(typeof o.font_ui==="string"&&o.font_ui&&f.test(o.font_ui))document.documentElement.style.setProperty("--font-ui",o.font_ui);if(typeof o.font_code==="string"&&o.font_code&&f.test(o.font_code))document.documentElement.style.setProperty("--font-code",o.font_code);if(o.code_theme==="light"||o.code_theme==="dark")document.documentElement.dataset.codeTheme=o.code_theme;var us=parseInt(o.font_ui_size,10);if(isFinite(us)&&us>=10&&us<=24)document.documentElement.style.fontSize=us+"px";var cs=parseInt(o.font_code_size,10);if(isFinite(cs)&&cs>=6&&cs<=40)document.documentElement.style.setProperty("--font-code-size",cs+"px");})();</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

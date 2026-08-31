@@ -1,0 +1,62 @@
+/**
+ * LM Studio 式可折叠分块：header = 图标 + 标题 + 右侧操作区 + chevron。
+ * 折叠动效与面板规范一致（300ms cubic-bezier(0.22,1,0.36,1)，尊重 reduced-motion，
+ * 见 styles/params.css）。header 用 div 容器 + 独立 toggle 按钮，避免按钮嵌套。
+ */
+import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+
+export function ParamBlock({
+  icon,
+  title,
+  children,
+  defaultOpen = true,
+  actions,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  /** header 右侧操作区（不参与折叠点击） */
+  actions?: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="param-block">
+      <div className="param-block-header">
+        <button
+          type="button"
+          className="param-block-toggle"
+          aria-expanded={open}
+          aria-label={`${title} — ${open ? t('common.collapse') : t('common.expand')}`}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="param-block-icon" aria-hidden="true">
+            {icon}
+          </span>
+          <span className="param-block-title">{title}</span>
+          <svg
+            className="param-block-chevron"
+            data-open={open ? 'true' : 'false'}
+            width="10"
+            height="10"
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 2l4 4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        {actions ? <div className="flex flex-none items-center gap-1">{actions}</div> : null}
+      </div>
+      {open ? <div className="param-block-body">{children}</div> : null}
+    </section>
+  );
+}

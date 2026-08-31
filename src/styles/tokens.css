@@ -1,0 +1,301 @@
+/*
+ * 设计令牌（kimi.md §5.1 + 契约 §7）：液态玻璃 + 双主题。
+ * - 尺寸一律 rem（根字号 16px），仅边框线宽允许 px —— kimi.md §5.3。
+ * - data-theme 只有 light/dark 两个具体值；"跟随系统"由 JS 媒体查询解析后落到具体值。
+ * - 性能红线：同屏玻璃模糊层 ≤ 5（左栏顶栏 / 消息流顶栏 / 输入坞 / 右栏顶栏 / 模态框），
+ *   列表行与消息气泡一律用半透明纯色（--row-bg 系），不 blur。
+ */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  /* 强玻璃：浮层/模态面板专用（防背景文字透底），不计入常规态 ≤5 层预算。
+     0.92 高不透明：即使个别环境 backdrop-filter 失效也不透字。 */
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --glass-blur-strong: 40px;
+
+  --text-primary: rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(0, 0, 0, 0.55);
+  --text-tertiary: rgba(0, 0, 0, 0.38);
+
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --on-accent: #ffffff;
+
+  /* 纯色用于圆点/图标；*-text 变体保证浅底上 ≥ 4.5:1（WCAG AA，kimi.md §9） */
+  --danger: #ff3b30;
+  --danger-text: #d70015;
+  --success: #34c759;
+  --success-text: #248a3d;
+  --warning: #ff9500;
+  --warning-text: #9a5b00;
+  --warning-bg: rgba(255, 204, 0, 0.16);
+
+  --bg-base: #f2f2f7;
+  /* 列表行 / 气泡 / 卡片：半透明纯色，不走 blur（性能红线） */
+  --row-bg: rgba(255, 255, 255, 0.72);
+  --row-bg-hover: rgba(255, 255, 255, 0.88);
+  --row-bg-active: rgba(255, 255, 255, 0.96);
+  --bubble-user-bg: rgba(10, 132, 255, 0.12);
+  --separator: rgba(60, 60, 67, 0.12);
+  --code-bg: rgba(118, 118, 128, 0.12);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --overlay-bg: rgba(0, 0, 0, 0.28);
+
+  /* 窗口背景：柔和多段径向渐变（浅），供玻璃"折射" */
+  --bg-gradient:
+    radial-gradient(at 12% 18%, rgba(10, 132, 255, 0.16), transparent 55%),
+    radial-gradient(at 86% 8%, rgba(191, 90, 242, 0.13), transparent 52%),
+    radial-gradient(at 72% 88%, rgba(48, 209, 88, 0.11), transparent 55%),
+    radial-gradient(at 22% 92%, rgba(255, 159, 10, 0.09), transparent 50%);
+  --noise-opacity: 0.028;
+
+  --radius-panel: 1rem; /* 16px 面板级 */
+  --radius-control: 0.75rem; /* 12px 控件级 */
+  --radius-pill: 999px; /* 胶囊 */
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --glass-bg: rgba(30, 30, 32, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-bg-strong: rgba(30, 30, 32, 0.9);
+  --glass-blur-strong: 40px;
+
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.42);
+
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.24);
+  --on-accent: #ffffff;
+
+  --danger: #ff453a;
+  --danger-text: #ff6961;
+  --success: #30d158;
+  --success-text: #34de60;
+  --warning: #ffd60a;
+  --warning-text: #ffd60a;
+  --warning-bg: rgba(255, 214, 10, 0.12);
+
+  --bg-base: #0b0b0f;
+  --row-bg: rgba(44, 44, 48, 0.72);
+  --row-bg-hover: rgba(56, 56, 60, 0.78);
+  --row-bg-active: rgba(64, 64, 68, 0.85);
+  --bubble-user-bg: rgba(10, 132, 255, 0.25);
+  --separator: rgba(255, 255, 255, 0.1);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(28, 28, 30, 0.8);
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+
+  --bg-gradient:
+    radial-gradient(at 12% 18%, rgba(10, 132, 255, 0.28), transparent 55%),
+    radial-gradient(at 86% 8%, rgba(191, 90, 242, 0.22), transparent 52%),
+    radial-gradient(at 72% 88%, rgba(48, 209, 88, 0.16), transparent 55%),
+    radial-gradient(at 22% 92%, rgba(255, 159, 10, 0.13), transparent 50%);
+  --noise-opacity: 0.05;
+
+  --radius-panel: 1rem;
+  --radius-control: 0.75rem;
+  --radius-pill: 999px;
+}
+
+/*
+ * 细噪点（SVG feTurbulence data-URI，纯代码生成，无外链图 —— 契约 §7）。
+ * 两主题共用一张，靠 --noise-opacity 控制强度。
+ */
+:root {
+  --noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
+}
+
+/* backdrop-filter 降级：不支持时提高不透明度（kimi.md §5.1）。
+   强玻璃直接逼近不透明（0.97），彻底杜绝文字透底。 */
+@supports not (backdrop-filter: blur(1px)) {
+  :root[data-theme='light'] {
+    --glass-bg: rgba(255, 255, 255, 0.92);
+    --glass-bg-strong: rgba(255, 255, 255, 0.97);
+  }
+  :root[data-theme='dark'] {
+    --glass-bg: rgba(30, 30, 32, 0.92);
+    --glass-bg-strong: rgba(30, 30, 32, 0.97);
+  }
+}
+
+/* 用户系统级"降低透明度"偏好：强玻璃直接接近不透明，可读性优先 */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-theme='light'] {
+    --glass-bg-strong: rgba(255, 255, 255, 0.97);
+  }
+  :root[data-theme='dark'] {
+    --glass-bg-strong: rgba(30, 30, 32, 0.97);
+  }
+}
+
+/* ---------- 玻璃工具类 ---------- */
+
+/* 面板/模态级玻璃（16px 圆角 + 双主题阴影）。同屏 ≤5 处使用。 */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 顶栏/输入坞级玻璃：无圆角无投影，仅发丝分隔线 */
+.glass-bar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-bottom: 0.5px solid var(--glass-border);
+}
+
+/*
+ * 强玻璃（临时态，防背景文字透底）：
+ * - .glass-strong：模态面板。强背景 + 强模糊 + 面板圆角/阴影。
+ * - .glass-pop：一切浮层（下拉、弹出菜单、Toast、tooltip 类）。
+ *   强背景 + 强模糊 + 0.5px 发丝边 + 控件圆角 + 玻璃阴影。
+ * 模态/浮层出现时常规玻璃层被遮罩盖住，故不计入常规态 ≤5 层预算。
+ */
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--glass-shadow);
+}
+.glass-pop {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 模态遮罩：把模态后方内容压虚，是模态可读性的关键 */
+.modal-overlay {
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+}
+
+/* 可交互玻璃（卡片/按钮）：悬浮亮度 +4%、位移 -1px，Apple 缓动 200ms */
+@media (prefers-reduced-motion: no-preference) {
+  .glass-interactive {
+    transition:
+      transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+      filter 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .glass-interactive:hover {
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+  }
+}
+
+/* ---------- 交错入场（空状态/引导卡片，仅首屏一次：靠只挂载一次实现） ---------- */
+@keyframes easyui-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stagger-in {
+    opacity: 0;
+    animation: easyui-stagger-in 600ms ease-out forwards;
+    animation-delay: calc(var(--stagger, 0) * 90ms);
+  }
+}
+
+/* ---------- 下拉浮层入场：150ms 淡入 + 轻微下移（控件级动效，非面板级 300ms） ---------- */
+@keyframes easyui-select-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .select-pop-in {
+    animation: easyui-select-pop-in 150ms ease-out;
+  }
+}
+
+/* ---------- 三点 typing 指示器 ---------- */@keyframes easyui-typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .typing-dot {
+    animation: easyui-typing-dot 1.2s ease-in-out infinite;
+    animation-delay: calc(var(--dot, 0) * 160ms);
+  }
+}
+
+/* ---------- 面板/模态动效 300ms cubic-bezier(0.22,1,0.36,1) ---------- */
+@keyframes easyui-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes easyui-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .modal-panel {
+    animation: easyui-modal-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .modal-overlay {
+    animation: easyui-overlay-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* 主题切换过渡 300ms（kimi.md §5.2）：仅颜色系属性，避免布局抖动 */
+  body,
+  .glass,
+  .glass-bar,
+  .glass-strong,
+  .glass-pop,
+  .row-surface,
+  .btn,
+  .input-surface {
+    transition:
+      background-color 300ms ease,
+      border-color 300ms ease,
+      color 300ms ease;
+  }
+}
