@@ -1,11 +1,14 @@
 /**
- * 关于标签页（v0.1.1）：
+ * 关于标签页（v0.1.1+ 真实升级链路）：
  * - 卡片一「关于」：应用标识（图标 + 名称 + tagline）、版本 / 开源协议 / 作者 / GitHub 仓库；
- * - 卡片二「在线升级」（Electron 独占语义）：检查更新 → 展示更新块 → 下载（进度事件
- *   onUpdateProgress）→ 安装前 Modal 二次确认；web 预览下控件全部禁用并提示桌面独占。
- * 状态机纯本地 useState：idle → checking →（available?）→ idle/downloading → ready →（安装）。
+ * - 卡片二「在线升级」（Electron 独占）：检查更新 → 发现新版本即自动下载（进度事件
+ *   onUpdateProgress）→ 校验通过 → 安装前 Modal 二次确认；web 预览下控件全部禁用并提示桌面独占。
+ * 状态机（本地 useState + 主进程权威态 updateGetState 同步）：
+ * idle → checking → available（自动转 downloading）→ downloading → ready(downloaded) → 安装。
+ * 挂载时若主进程已处于 available/downloading/downloaded（如启动自动检查发现新版本），
+ * 经 updateGetState 恢复 UI；available 态同样自动续上自动下载。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UpdateInfo } from '@shared/types';
 import { getApi } from '../../bridge';
@@ -13,6 +16,9 @@ import { useSettingsStore } from '../../store/settings';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
 import { Toggle } from '../../components/controls';
+
+/** GitHub 仓库（与 package.json build.publish 一致） */
+export const REPO_URL = 'https://github.com/ryanlew17/Easy-WebUI';
 
 /** 与 GeneralTab 同款左右 Row（label + hint / 右侧控件） */
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -40,8 +46,34 @@ export function AboutTab() {
   const [dlState, setDlState] = useState<DownloadState>('idle');
   const [percent, setPercent] = useState(0);
   const [confirmingInstall, setConfirmingInstall] = useState(false);
+  /** 防止事件监听/状态同步/手动检查多路并发触发重复下载 */
+  const downloadBusy = useRef(false);
 
   const isElectron = !!systemInfo?.isElectron;
+
+  const startDownload = async (): Promise<void> => {
+    if (downloadBusy.current) return;
+    downloadBusy.current = true;
+    setDlState('downloading');
+    setPercent(0);
+    try {
+      await getApi().updateDownload();
+      setPercent(100);
+      setDlState('ready');
+    } catch {
+      toast('warning', t('settings.about.downloadFailedToast'));
+      setDlState('idle');
+    } finally {
+      downloadBusy.current = false;
+    }
+  };
+
+  /** 发现新版本（手动检查 / 启动自检事件 / 状态同步共用）：更新块上屏 + 自动开始下载 */
+  const adoptAvailable = (info: UpdateInfo): void => {
+    setUpdateInfo(info);
+    setDlState('downloading');
+    void startDownload();
+  };
 
   // 下载进度事件订阅（Electron 才有意义）；组件卸载时取消订阅
   useEffect(() => {
@@ -49,9 +81,42 @@ export function AboutTab() {
     return getApi().onUpdateProgress((p) => setPercent(Math.max(0, Math.min(100, Math.round(p.percent)))));
   }, [isElectron]);
 
+  // 启动自动检查广播：About 页已挂载时直接接管状态机（未挂载时 App.tsx 的全局监听弹气泡）
+  useEffect(() => {
+    if (!isElectron) return undefined;
+    return getApi().onUpdateAvailable((info) => adoptAvailable(info));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isElectron]);
+
+  // 挂载同步主进程权威态：错过 update:available 事件也能恢复（available 态自动续下载）
+  useEffect(() => {
+    if (!isElectron) return undefined;
+    let cancelled = false;
+    void getApi()
+      .updateGetState()
+      .then((s) => {
+        if (cancelled || s.phase === 'idle') return;
+        if (s.phase === 'available') adoptAvailable(s.info);
+        else {
+          setUpdateInfo(s.info);
+          if (s.phase === 'downloaded') {
+            setPercent(100);
+            setDlState('ready');
+          } else {
+            setDlState('downloading');
+          }
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isElectron]);
+
   const openGithub = async (): Promise<void> => {
     try {
-      await getApi().openExternal('https://github.com/easy-webui/easy-webui');
+      await getApi().openExternal(REPO_URL);
     } catch {
       toast('warning', t('toast.errorGeneric'));
     }
@@ -66,10 +131,8 @@ export function AboutTab() {
         toast('info', t('settings.about.updateNoneToast'));
       } else if (res.status === 'available') {
         toast('success', t('settings.about.updateAvailableToast', { version: res.info.version }));
-        setUpdateInfo(res.info);
-        setDlState('idle');
-        setPercent(0);
-      } else if (res.reason === 'not_configured') {
+        adoptAvailable(res.info);
+      } else if (res.reason === 'not_configured' || res.reason === 'dev_mode') {
         toast('info', t('settings.about.updateNotConfiguredToast'));
       } else {
         toast('warning', t('settings.about.updateFailedToast'));
@@ -81,23 +144,9 @@ export function AboutTab() {
     }
   };
 
-  const onDownload = async (): Promise<void> => {
-    if (dlState !== 'idle') return;
-    setDlState('downloading');
-    setPercent(0);
-    try {
-      await getApi().updateDownload();
-      setPercent(100);
-      setDlState('ready');
-    } catch {
-      toast('warning', t('settings.about.downloadFailedToast'));
-      setDlState('idle');
-    }
-  };
-
   const onInstall = async (): Promise<void> => {
     try {
-      // 真实实现将退出应用并完成安装，resolve 后无后续
+      // quitAndInstall 将退出应用并完成安装，resolve 后无后续
       await getApi().updateInstall();
     } catch {
       toast('warning', t('settings.about.installUnsupported'));
@@ -271,12 +320,13 @@ export function AboutTab() {
                   </div>
                 ) : (
                   <div className="mt-3">
+                    {/* 发现新版本即自动下载；此按钮仅在下载失败后作为重试出现 */}
                     <button
                       type="button"
                       className="btn btn-accent"
                       disabled={dlState === 'downloading'}
                       aria-label={t('settings.about.download')}
-                      onClick={() => void onDownload()}
+                      onClick={() => void startDownload()}
                     >
                       {dlState === 'downloading'
                         ? t('settings.about.downloading', { percent })

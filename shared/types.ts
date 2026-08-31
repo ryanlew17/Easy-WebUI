@@ -187,6 +187,11 @@ export interface UpdateProgress {
 /** 下载并校验完成；失败 reject（错误码跨进程编码见 shared/errors.ts） */
 export type UpdateDownloadResult = { verified: true };
 
+/** 升级状态机（主进程权威态；渲染进程经 updateGetState 同步挂载前错过的进度） */
+export type UpdateState =
+  | { phase: 'idle' }
+  | { phase: 'available' | 'downloading' | 'downloaded'; info: UpdateInfo };
+
 export interface BackupFileInfo {
   filename: string;
   path: string;
@@ -332,15 +337,19 @@ export interface EasyUiApi {
   /** 用系统浏览器打开 http(s) 外链（关于页 GitHub 链接）；web mock 用 window.open */
   openExternal(url: string): Promise<void>;
 
-  // —— 在线升级（Electron 独占，0.1.1 桩实现；web mock：updateCheck→unavailable/web_preview） ——
+  // —— 在线升级（Electron 独占；web mock 恒 unavailable/web_preview） ——
   /** 检查更新；网络/配置失败不 reject——以 status 表达，只有参数级错误才 reject */
   updateCheck(): Promise<UpdateCheckResult>;
   /** 拉取已发现的更新包并校验；进度经 onUpdateProgress 推送，完成 resolve {verified:true} */
   updateDownload(): Promise<UpdateDownloadResult>;
-  /** 安装已下载的更新（真实实现 = quitAndInstall；桩实现 no-op resolve） */
+  /** 安装已下载的更新（quitAndInstall，静默安装并重启）；失败 reject */
   updateInstall(): Promise<void>;
+  /** 主进程权威升级状态（About 页挂载时同步，错过 update:available 事件也能恢复 UI） */
+  updateGetState(): Promise<UpdateState>;
   /** 下载进度事件订阅，返回取消订阅函数 */
   onUpdateProgress(cb: (p: UpdateProgress) => void): () => void;
+  /** 启动自动检查发现新版本时广播（About 页未挂载时由全局监听弹通知气泡） */
+  onUpdateAvailable(cb: (info: UpdateInfo) => void): () => void;
 
   // —— 备份 ——
   listBackups(): Promise<BackupFileInfo[]>;

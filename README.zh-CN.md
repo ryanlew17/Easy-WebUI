@@ -18,7 +18,7 @@
 - **密钥加密存储**——经 Electron `safeStorage`（DPAPI / Keychain / libsecret）加密；无系统密钥环时回退到机器指纹 scrypt + AES-256-GCM。渲染进程只能看到 `has_key` 布尔值。
 - **加密备份 / 恢复**——一键 zip 备份；含密钥备份使用独立密码（scrypt + AES-256-GCM）保护。恢复支持合并 / 覆盖两种模式。
 - **数据位置自管**——便携版数据固定在 exe 旁 `data/` 工作目录，安装版默认存于用户目录（重装 / 覆盖安装不丢数据，卸载也不删除）；支持自选存储路径并自动迁移全部数据（含备份），迁移后重启生效；旧版本遗留数据（安装目录、%Temp% 解包目录）在首次启动时自动抢救迁移；存储布局带版本标记，大版本升级可自动迁移结构。
-- **关于与在线升级（接口预留）**——「设置 → 关于」提供版本 / 协议 / 作者 / GitHub 信息卡与在线升级卡（检查更新、自动更新与 Beta 通道开关、发现新版本后下载与校验、更新摘要 + 备份警告、确认安装）。当前为桩实现，项目发布到 GitHub 后接入 electron-updater 即生效（接线点见 `electron/updater.ts`）。
+- **关于与在线升级**——「设置 → 关于」提供版本 / 协议 / 作者 / GitHub 信息卡与在线升级卡：检查更新走 GitHub Releases 通道（electron-updater；Beta 开关映射 GitHub 预发布），发现新版本即自动下载并按 latest.yml 的 sha512 自动校验，随后展示固定高度可滚动的版本摘要 + 数据备份警告，确认后静默安装并自动重启；启动时按「自动检查更新」开关自检，发现新版本以通知气泡提示。web 预览下升级卡为桌面独占禁用态。
 - **中英双语**——简体中文 / English，支持跟随系统语言。
 - **模型管理**——拉取远程模型列表、单模型连通性检测（延迟 + 状态）、一键全部检测。
 
@@ -111,10 +111,23 @@ docs/                # kimi.md（设计）、impl-contract.md（IPC 契约）、
 
 ## 数据目录
 
-- **便携模式优先**：打包后为可执行文件旁的 `data/`；开发期为项目根目录 `data/`（已 gitignore）。
-- 不可写（如 Program Files）时回退 `app.getPath('userData')/data`，实际路径经 `getSystemInfo()` 展示。
+- **便携版**：exe 旁 `data/` 工作目录（经 `PORTABLE_EXECUTABLE_DIR` 定位便携 exe 真实所在目录，不受 %Temp% 解包影响）；自定义路径指针 `easywebui-data-dir.json` 同在 exe 旁。
+- **安装版**：默认 `%APPDATA%/easy-webui/data`（重装 / 覆盖安装 / 卸载均不删除）。
+- **自定义路径**：设置 → 通用 → 数据存储路径 → 更改…，自动迁移全部数据，重启后生效。
+- **版本升级迁移**：旧版本遗留数据（安装目录、%Temp% 解包目录）在首次启动时自动抢救迁移；`storage-layout.json` 记录存储布局版本，大版本结构变更自动升级。
 - 结构：`easyui.db`（WAL）、`keyring.bin`（回退加密盐，600 权限）、`backups/`（备份 zip）、
   `logs/app.log`（按日轮转，保留 7 天）。
+
+## 发布新版本（在线升级通道）
+
+升级通道 = GitHub Releases（`build.publish` 已指向 `ryanlew17/Easy-WebUI`）：
+
+1.  bump `version` → `npm run build` → `npx electron-builder --win`；
+2.  GitHub 新建 Release（tag `vX.Y.Z`；Beta 版勾选 **Set as a pre-release**，仅 Beta 通道用户能检出）；
+3.  上传 `release/latest.yml`、`EasyWebUI_X.Y.Z_Setup.exe`、`EasyWebUI_X.Y.Z_Setup.exe.blockmap`
+    （升级只吃安装版；便携版不进升级通道，靠整包替换 + 数据在 exe 旁天然保留）；
+4.  用户端链路：启动自检 / 手动检查 → 发现新版本自动下载 → 按 `latest.yml` 的 sha512 校验 →
+    版本摘要 + 备份警告 → 确认后静默安装并自动重启。
 
 ## 安全与隐私
 

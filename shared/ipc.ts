@@ -47,6 +47,7 @@ export const IPC = {
   updateCheck: 'update:check',
   updateDownload: 'update:download',
   updateInstall: 'update:install',
+  updateGetState: 'update:get-state',
 
   listBackups: 'backups:list',
   createBackup: 'backups:create',
@@ -65,6 +66,7 @@ export const EVT = {
   titleUpdated: 'title:updated',
   titleFailed: 'title:failed',
   updateProgress: 'update:progress',
+  updateAvailable: 'update:available',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

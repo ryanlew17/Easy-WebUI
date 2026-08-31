@@ -18,7 +18,7 @@ Design doc: [docs/kimi.md](./docs/kimi.md) · Cross-process contract: [docs/impl
 - **Encrypted key storage** — keys are encrypted via Electron `safeStorage` (DPAPI / Keychain / libsecret); a machine-fingerprint scrypt + AES-256-GCM fallback covers systems without a keyring. The renderer only ever sees a `has_key` boolean.
 - **Encrypted backup & restore** — one-click zip backups; key-including backups are protected by an independent password (scrypt + AES-256-GCM). Merge or overwrite restore.
 - **Self-managed data location** — the portable build keeps data in a `data/` workspace next to the exe; the installed build defaults to the per-user directory (reinstalling or overwrite-installing never wipes it, and uninstall leaves it alone). A custom location can be picked with automatic migration of all data (backups included), effective after restart; legacy data from older versions (install dir, %Temp% extraction dirs) is rescued automatically on first launch; the storage layout carries a version marker so future upgrades can migrate structure.
-- **About page & online updates (interface stub)** — Settings → About ships an info card (version / license / author / GitHub) and an update card (check now, auto-update and Beta-channel toggles, download + verification on new versions, release-notes summary with backup warning, confirmed install). It is a wired-up stub today; once the project is published to GitHub, connecting electron-updater makes it live (see `electron/updater.ts`).
+- **About page & online updates** — Settings → About ships an info card (version / license / author / GitHub) and a live update card: checks against the GitHub Releases channel (electron-updater; the Beta toggle maps to GitHub pre-releases), auto-downloads new versions with automatic sha512 verification from latest.yml, then shows a fixed-height scrollable release summary with a data-backup warning, and installs silently with a restart on confirm. Startup self-checks when "auto check" is on and announces new versions via toast. The update card renders disabled in the web preview (desktop-only).
 - **Bilingual UI** — 简体中文 / English, with system-locale detection.
 - **Model management** — fetch remote model lists, per-model connectivity checks (latency + status), batch "test all".
 
@@ -113,12 +113,31 @@ renderer never sees keys or ciphertext (`Provider` only carries a `has_key` bool
 
 ## Data Directory
 
-- **Portable-first**: when packaged, `data/` next to the executable; in development,
-  `data/` at the project root (gitignored).
-- Falls back to `app.getPath('userData')/data` when the portable location is not writable
-  (e.g. Program Files); the actual path is shown via `getSystemInfo()`.
+- **Portable build**: a `data/` workspace next to the exe (located via `PORTABLE_EXECUTABLE_DIR`,
+  immune to the %Temp% extraction dir); a custom-location pointer file
+  `easywebui-data-dir.json` lives next to the exe too.
+- **Installed build**: defaults to `%APPDATA%/easy-webui/data` — reinstalling, overwrite-installing
+  and uninstalling never touch it.
+- **Custom location**: Settings → General → Data storage path → Change…; all data is migrated
+  automatically and takes effect after a restart.
+- **Upgrade migration**: legacy data from older versions (install dir, %Temp% extraction dirs) is
+  rescued automatically on first launch; `storage-layout.json` carries a storage-layout version so
+  future structural upgrades migrate automatically.
 - Layout: `easyui.db` (WAL), `keyring.bin` (fallback-encryption salt, mode 600),
   `backups/` (backup zips), `logs/app.log` (daily rotation, 7-day retention).
+
+## Releasing a New Version (update channel)
+
+The update channel is GitHub Releases (`build.publish` points to `ryanlew17/Easy-WebUI`):
+
+1. Bump `version` → `npm run build` → `npx electron-builder --win`;
+2. Create a GitHub Release with tag `vX.Y.Z` (tick **Set as a pre-release** for betas — only
+   Beta-channel users will see it);
+3. Upload `release/latest.yml`, `EasyWebUI_X.Y.Z_Setup.exe` and
+   `EasyWebUI_X.Y.Z_Setup.exe.blockmap` (updates consume the installer; the portable build is
+   replaced wholesale and keeps its data next to the exe);
+4. Client flow: startup/manual check → auto-download on new version → sha512 verification against
+   `latest.yml` → release summary + backup warning → silent install and restart on confirm.
 
 ## Security & Privacy
 

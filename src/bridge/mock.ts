@@ -26,6 +26,7 @@ import type {
   UpdateCheckResult,
   UpdateDownloadResult,
   UpdateProgress,
+  UpdateState,
 } from '@shared/types';
 import { DEFAULT_SETTINGS } from '@shared/types';
 import {
@@ -843,7 +844,13 @@ export const mockApi: EasyUiApi = {
     /* web mock：无后续（真实实现将退出应用） */
   },
 
+  /* web mock 无持久升级状态：About 页挂载同步恒 idle；update:available 事件在 web 不广播 */
+  async updateGetState(): Promise<UpdateState> {
+    return { phase: 'idle' };
+  },
+
   onUpdateProgress: (cb) => updateProgressEvent.on(cb),
+  onUpdateAvailable: () => () => undefined,
 
   /* —— 备份（桩） —— */
 

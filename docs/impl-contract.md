@@ -315,9 +315,24 @@ npm run dev            # 浏览器打开即三栏 UI，mock 下可完整走通�
 
 参数 ⓘ 说明一律用 `InfoTip`：hover/focus/click 三态显隐；浮层 `createPortal` 到 body + fixed 定位（宿主滚动容器 overflow-y-auto 会裁切容器内绝对定位浮层），按视口余量自动上/下翻转，横向钳制视口内；钉住态 Esc/点外关闭。
 
-### 10.4 关于页与在线升级（0.1.1 为桩 + 接口预留）
+### 10.4 关于页与在线升级（v0.1.1 起为真实实现，GitHub Releases 通道）
 
-- 设置第五个 tab `about`：版本/协议/作者/GitHub（占位信息）+ 在线升级卡。
-- 升级卡状态机：`checking → available(updateInfo) → downloading(onUpdateProgress) → ready → install`；`none`/`unavailable`/失败一律通知气泡。ready 态必须带备份警告文案与安装确认弹窗。
-- IPC：`update:check / update:download / update:install` + `EVT.updateProgress`；web mock 默认 `unavailable/web_preview`，`localStorage.easyui_mock_update='1'` 可演示完整链路；Electron 桩 `EASYUI_MOCK_UPDATE=1` 同理。真实实现接线点注释在 `electron/updater.ts` 头（electron-updater + GitHub provider + allowPrerelease←update_beta + quitAndInstall）。
+- 设置第五个 tab `about`：版本/协议/作者/GitHub + 在线升级卡。
+- 升级卡状态机：`checking → available（自动转 downloading）→ downloading → downloaded → install`；
+  `none`/`unavailable`/失败一律通知气泡。下载完成态必须带备份警告文案与安装确认弹窗。
+- 主进程权威状态机（`updater.getState()`，IPC `update:get-state`）：About 页挂载时同步，
+  错过 `update:available` 事件也能恢复 UI；available 态自动续下载。
+- 主进程 electron/updater.ts：真实通道 = electron-updater + GitHub provider
+  （`build.publish` → `ryanlew17/Easy-WebUI`，打包嵌入 app-update.yml）；
+  `autoDownload=false`（下载由渲染层触发），`allowPrerelease ← settings.update_beta`；
+  sha512 校验内建于 downloadUpdate；install = `quitAndInstall(true, true)`（静默 + 重启，
+  DB 由 main.ts 的 before-quit 钩子关闭）。版本比较用本文件的 compareSemver（导出于 updater.ts）。
+- 启动自检：`settings.auto_update` 开启时 check()，发现 available → 广播 `update:available`
+  （App.tsx 全局监听弹气泡；下载不在主进程自动触发，带宽动作须用户知情 —— About 页状态机接管）。
+- 运行形态分支：打包版真实流程；dev/未打包 → `unavailable/dev_mode`；
+  `EASYUI_MOCK_UPDATE=1` → mock 演示通道（虚构 patch+1 + 2s 假进度），vitest 同通道可测
+  （electron-updater 懒加载 require，测试环境永不拉起 electron）。
+- web mock：`localStorage.easyui_mock_update='1'` 演示完整链路；默认 `unavailable/web_preview`。
 - 外链：`system:open-external` 仅放行 http(s)（zod `openExternalSchema`）。
+- 发布流程：见 README「发布新版本（在线升级通道）」——Release 需上传 latest.yml +
+  Setup.exe + blockmap；beta = GitHub pre-release 勾选。
