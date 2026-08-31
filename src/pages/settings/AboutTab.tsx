@@ -185,7 +185,7 @@ export function AboutTab() {
         <Row label={t('settings.about.github')}>
           <div className="flex items-center gap-2">
             <code
-              className="block max-w-[16rem] truncate rounded px-1.5 py-0.5 text-[0.6875rem]"
+              className="block max-w-[16rem] truncate rounded-s px-1.5 py-0.5 text-[0.6875rem]"
               style={{ background: 'var(--code-bg)' }}
               title={t('settings.about.githubValue')}
             >

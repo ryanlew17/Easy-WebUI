@@ -18,7 +18,7 @@ function TypingIndicator() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="typing-dot inline-block h-1.5 w-1.5 rounded-full"
+          className="typing-dot inline-block h-1.5 w-1.5 rounded-pill"
           style={{ background: 'var(--text-secondary)', ['--dot' as never]: i }}
         />
       ))}
@@ -125,7 +125,7 @@ export function MessageBubble({ msg, streaming, generating, onRetry, onEditResen
   };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`msg-in flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`group max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         <div
           className="row-surface px-3.5 py-2.5"

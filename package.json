@@ -1,6 +1,6 @@
 {
   "name": "easy-webui",
-  "version": "0.1.2-beta.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Easy WebUI — local-first multi-provider LLM chat client",
   "main": "dist-electron/electron/main.js",

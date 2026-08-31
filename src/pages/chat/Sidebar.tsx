@@ -135,7 +135,7 @@ function ConversationRow({
           <button
             type="button"
             onClick={onSelect}
-            className="min-w-0 flex-1 rounded text-left"
+            className="min-w-0 flex-1 rounded-s text-left"
             style={{ minHeight: '2rem' }}
             aria-current={active}
           >

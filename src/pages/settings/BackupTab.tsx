@@ -210,7 +210,7 @@ function RestoreModal({ path, onClose }: { path: string; onClose: () => void }) 
               {t('settings.backup.restoreFile')}
             </span>
             <code
-              className="block break-all rounded px-2 py-1.5 text-[0.6875rem]"
+              className="block break-all rounded-s px-2 py-1.5 text-[0.6875rem]"
               style={{ background: 'var(--code-bg)' }}
             >
               {path}

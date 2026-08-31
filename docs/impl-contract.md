@@ -236,14 +236,14 @@ return versioned ? `${base}${path}` : `${base}/v1${path}`;
 | anthropic | Anthropic | `https://api.anthropic.com` | anthropic |
 | openrouter | OpenRouter | `https://openrouter.ai/api` | openai-chat |
 | deepseek | DeepSeek | `https://api.deepseek.com` | openai-chat |
-| kimi | Kimi（Moonshot AI） | `https://api.moonshot.cn` | openai-chat |
-| bigmodel | Bigmodel（智谱 GLM） | `https://open.bigmodel.cn/api/paas/v4` | openai-chat |
-| xiaomimimo | Xiaomi MiMo | `https://api.xiaomimimo.com/v1` | openai-chat |
+| kimi | Kimi (Moonshot AI) | `https://api.moonshot.cn` | openai-chat |
+| bigmodel | 智谱 (Bigmodel) | `https://open.bigmodel.cn/api/paas/v4` | openai-chat |
+| xiaomimimo | 小米 (Xiaomi MiMo) | `https://api.xiaomimimo.com/v1` | openai-chat |
 | minimax | MiniMax | `https://api.minimaxi.com/v1` | openai-chat |
-| siliconflow | 硅基流动 SiliconFlow | `https://api.siliconflow.cn/v1` | openai-chat |
-| modelscope | 魔搭 ModelScope | `https://api-inference.modelscope.cn/v1` | openai-chat |
-| volcengine | 火山引擎（Ark） | `https://ark.cn-beijing.volces.com/api/v3` | openai-chat |
-| alibailian | 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | openai-chat |
+| siliconflow | 硅基流动 (SiliconFlow) | `https://api.siliconflow.cn/v1` | openai-chat |
+| modelscope | 魔搭 (ModelScope) | `https://api-inference.modelscope.cn/v1` | openai-chat |
+| volcengine | 火山引擎 (Ark) | `https://ark.cn-beijing.volces.com/api/v3` | openai-chat |
+| alibailian | 阿里云百炼 (Alibaba Cloud Bailian) | `https://dashscope.aliyuncs.com/compatible-mode/v1` | openai-chat |
 
 预置只作为"新增平台"表单的快捷模板（点选后自动填充 base_url/format，名称可改），**不预写数据库**。
 

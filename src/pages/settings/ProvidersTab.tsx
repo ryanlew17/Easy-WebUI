@@ -35,7 +35,7 @@ function StatusDot({ model }: { model: ProviderModel }) {
   return (
     <span className="inline-flex flex-none items-center gap-1.5" title={label} aria-label={label}>
       <span
-        className="inline-block h-2 w-2 rounded-full"
+        className="inline-block h-2 w-2 rounded-pill"
         style={{ background: color }}
         aria-hidden="true"
       />

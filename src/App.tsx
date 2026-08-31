@@ -118,7 +118,10 @@ export default function App() {
 
   return (
     <div className="h-full w-full overflow-hidden">
-      {page === 'chat' ? <ChatPage /> : <SettingsPage />}
+      {/* key 切换触发 .page-swap 挂载入场（--dur-slow 面板缓动，reduced-motion 下无动画） */}
+      <div key={page} className="page-swap h-full w-full">
+        {page === 'chat' ? <ChatPage /> : <SettingsPage />}
+      </div>
       <ToastHost />
     </div>
   );
