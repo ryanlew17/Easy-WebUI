@@ -6,7 +6,7 @@
 
 @layer base {
   html {
-    font-size: 16px; /* rem 基准（kimi.md §5.3） */
+    font-size: 16px; /* rem 基准（prd.md §5.3） */
     /* CSS zoom（外观-界面缩放）视口补偿：zoom 不缩放 vw/vh 的解析，
        100vw 只占窗口的 z 倍 —— 显式尺寸 = 视口 / z，抵消后填满窗口。 */
     width: calc(100vw / var(--app-zoom, 1));
@@ -95,7 +95,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
-    min-height: 2rem; /* ≥32px 点击区（kimi.md §5.3） */
+    min-height: 2rem; /* ≥32px 点击区（prd.md §5.3） */
     min-width: 2rem;
     padding: 0 0.75rem;
     border-radius: var(--radius-control);
@@ -397,7 +397,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    min-height: 2rem; /* ≥32px 点击区（kimi.md §5.3） */
+    min-height: 2rem; /* ≥32px 点击区（prd.md §5.3） */
     padding: 0.25rem 0.625rem;
     border-radius: calc(var(--radius-l) - 0.25rem);
     font-size: 0.8125rem;

@@ -1,5 +1,5 @@
 /**
- * 主进程日志（kimi.md §8.2）：data/logs/app.log，按日轮转，保留 7 天。
+ * 主进程日志（prd.md §8.2）：data/logs/app.log，按日轮转，保留 7 天。
  * 纯 fs 实现：写入前检查日期是否跨天，跨天则把 app.log 改名为
  * app-YYYY-MM-DD.log 并新开；启动时清理 7 天前的滚动文件。
  * 所有消息统一过 redactString，Header/body 中的密钥不会进日志。

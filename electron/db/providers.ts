@@ -123,7 +123,7 @@ export function createProvidersDao(db: DB) {
       return rowToProvider(next);
     },
 
-    /** 更新某个模型的 last_check（连接检测结果持久化，kimi.md §3.2） */
+    /** 更新某个模型的 last_check（连接检测结果持久化，prd.md §3.2） */
     updateModelCheck(id: string, modelId: string, check: ProviderModel['last_check']): void {
       const row = this.getRow(id);
       if (!row) return;

@@ -163,7 +163,7 @@
   --noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
 }
 
-/* backdrop-filter 降级：不支持时提高不透明度（kimi.md §5.1）。
+/* backdrop-filter 降级：不支持时提高不透明度（prd.md §5.1）。
    浮层/模态直接逼近不透明（0.97），彻底杜绝文字透底。 */
 @supports not (backdrop-filter: blur(1px)) {
   :root[data-theme='light'] {
@@ -390,7 +390,7 @@
   .modal-overlay[data-closing='true'] {
     animation: easyui-overlay-out var(--dur-base) var(--ease-panel) forwards;
   }
-  /* 主题切换过渡（kimi.md §5.2）：仅颜色系属性，避免布局抖动 */
+  /* 主题切换过渡（prd.md §5.2）：仅颜色系属性，避免布局抖动 */
   body,
   .glass,
   .glass-bar,

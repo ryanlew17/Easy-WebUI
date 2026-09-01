@@ -1,5 +1,5 @@
 /**
- * 主题应用（kimi.md §5.2）：
+ * 主题应用（prd.md §5.2）：
  * - 三档 light / dark / system；system 档用 JS 媒体查询解析成具体值再写 data-theme；
  * - system 档下监听系统主题变化，实时跟随；
  * - data-theme 属性是 tokens.css 的唯一入口；切换过渡由 CSS（prefers-reduced-motion 感知）承担。

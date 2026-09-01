@@ -89,7 +89,7 @@ export function Modal({
   }, []);
 
   useEffect(() => {
-    // 初始焦点进面板，保证可 Tab 到达（kimi.md §9 可访问性）
+    // 初始焦点进面板，保证可 Tab 到达（prd.md §9 可访问性）
     const el = panelRef.current;
     if (!el) return;
     const focusable = el.querySelector<HTMLElement>(

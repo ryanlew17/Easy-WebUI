@@ -1,5 +1,5 @@
 /**
- * openai-responses 适配器（契约 §5 / kimi.md §6.2）：Responses API。
+ * openai-responses 适配器（契约 §5 / prd.md §6.2）：Responses API。
  * - system 角色抽为顶层 instructions 字段；
  * - input 项：{ role, content: [{ type, text }] }；user 用 input_text，
  *   assistant 用 output_text（Responses API 文档形态；契约只写了 input_text，

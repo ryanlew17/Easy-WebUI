@@ -1,5 +1,5 @@
 /**
- * 错误归类（kimi.md §9 三段式错误文案的"可能原因/建议操作"映射）。
+ * 错误归类（prd.md §9 三段式错误文案的"可能原因/建议操作"映射）。
  * 输入为主进程已脱敏的 ApiError；输出为 i18n 键后缀，UI 负责拼三段。
  *
  * parseIpcError（shared/errors.ts，本文件 re-export）：一切 invoke 拒绝 /

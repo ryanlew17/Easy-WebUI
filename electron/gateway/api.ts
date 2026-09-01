@@ -1,5 +1,5 @@
 /**
- * 适配层公共类型。注意与 kimi.md §6 的 ChatRequest 的差异：
+ * 适配层公共类型。注意与 prd.md §6 的 ChatRequest 的差异：
  * 适配器只接受"已解析"的字段（baseUrl/apiKey），providerId → 密钥的解析
  * 在编排层（electron/chat.ts）完成——这样适配层不含 DB 依赖，可纯单测。
  *

@@ -1,7 +1,7 @@
 # Easy WebUI — 实现契约（供实施子代理遵循）
 
-> 本文件是 `kimi.md` 的可执行化补充。冲突时以 `kimi.md` 为准；本文件规定的是**跨进程接口与共享类型**，两端（electron/ 与 src/）必须严格一致。
-> 项目根目录 = `E:\AI_Coding\Web_Dev\Frontend\EasyWebUI`（kimi.md 所在处），不要再建 `easy-webui/` 子目录。
+> 本文件是 `prd.md`（产品需求文档）的可执行化补充。冲突时以 `prd.md` 为准；本文件规定的是**跨进程接口与共享类型**，两端（electron/ 与 src/）必须严格一致。
+> 项目根目录 = `E:\AI_Coding\Web_Dev\Frontend\EasyWebUI`（prd.md 所在处）。
 
 ---
 
@@ -187,7 +187,7 @@ export interface EasyUiApi {
   deleteParamPreset(id: string): Promise<void>;
 
   // —— 对话生成 ——
-  /** 发送用户消息并开始生成。主进程：落库 user 消息→裁剪组装→调适配层→流式回推→落库 assistant 消息（partial/error 语义见 kimi.md §4.4）。返回值含 userMessageId 与 assistantMessageId。 */
+  /** 发送用户消息并开始生成。主进程：落库 user 消息→裁剪组装→调适配层→流式回推→落库 assistant 消息（partial/error 语义见 prd.md §4.4）。返回值含 userMessageId 与 assistantMessageId。 */
   sendMessage(input: { conversationId: string; content: string; regenerate?: boolean; fromMessageId?: string }): Promise<{ userMessageId: string | null; assistantMessageId: string }>;
   stopGeneration(conversationId: string): Promise<void>;
   /** 事件订阅，均返回取消订阅函数 */
@@ -219,7 +219,7 @@ export interface EasyUiApi {
 
 ## 3. URL 拼接规则（适配层核心，写代码注释说明取舍）
 
-kimi.md 写的是 `{base}/v1/chat/completions`，但大量国内服务商 base 已含版本段（`/v1` `/v3` `/v4`）或 Anthropic 兼容前缀（`/anthropic`）。按"最小惊讶原则"实现 `joinUrl(base, path)`：
+早期设计稿写的是 `{base}/v1/chat/completions`，但大量国内服务商 base 已含版本段（`/v1` `/v3` `/v4`）或 Anthropic 兼容前缀（`/anthropic`）。按"最小惊讶原则"实现 `joinUrl(base, path)`（规则已收录进 prd.md §6.5）：
 
 ```
 const base = rawBase.replace(/\/+$/, '');
@@ -267,13 +267,13 @@ return versioned ? `${base}${path}` : `${base}/v1${path}`;
 - 目的：`npm run dev` 纯浏览器可完整演示 UI；UI 代码只依赖 `getApi()`，不感知差异。
 - mock 演示回复需中英各一段，按当前 i18n 语言选择。
 
-## 7. UI 设计综合约束（来自设计调研，叠加在 kimi.md §5 之上）
+## 7. UI 设计综合约束（来自设计调研，叠加在 prd.md §5 之上）
 
 - 玻璃模糊层同屏 ≤5：左栏顶栏、消息流顶栏、输入坞、右栏顶栏、模态框；**列表行/气泡不用 blur**，用半透明纯色。
 - 发丝边框：栏间分隔用 `0.5px` `var(--glass-border)`，禁止卡片套卡片；用留白+字重+分隔线分层。
 - 动效（全部尊重 `prefers-reduced-motion`）：
   - 按钮 150ms 颜色过渡 + `active: scale(0.98)`；
-  - 悬浮态按 kimi.md：亮度+4%、位移 -1px、200ms `cubic-bezier(0.32,0.72,0,1)`；
+  - 悬浮态按 prd.md §5.1：亮度 +4%、200ms `var(--ease-interactive)`；
   - 面板折叠/模态出现 300ms `cubic-bezier(0.22,1,0.36,1)`；
   - 空状态/引导卡片用交错入场：元素 `opacity:0→1, translateY(8px→0)`，`transition-delay: calc(var(--stagger) * 90ms)`，仅首屏一次；
   - 流式编排：发送 → 助手气泡内三点 typing 指示器 → 首个 delta 到达替换为正文（渲染节流 50ms）→ 完成。

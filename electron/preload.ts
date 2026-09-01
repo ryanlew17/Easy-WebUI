@@ -1,5 +1,5 @@
 /**
- * preload：contextBridge 暴露 window.easyui（kimi.md §2.2 约束 4）。
+ * preload：contextBridge 暴露 window.easyui（prd.md §2.2 约束 4）。
  * 方法集与契约 §2 完全一致；事件订阅返回取消订阅函数。
  * 注意：nodeIntegration:false + contextIsolation:true，这里只做白名单转发。
  */

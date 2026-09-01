@@ -1,5 +1,5 @@
 /**
- * 空状态（kimi.md §9）：无平台引导卡片 / 无会话快捷开始卡片。
+ * 空状态（prd.md §9）：无平台引导卡片 / 无会话快捷开始卡片。
  * 交错入场：--stagger × 90ms（tokens.css .stagger-in，reduced-motion 下直接显示）。
  */
 import type { CSSProperties } from 'react';

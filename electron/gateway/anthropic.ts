@@ -1,8 +1,8 @@
 /**
- * anthropic 适配器（契约 §5 / kimi.md §6.3）：Messages API。
+ * anthropic 适配器（契约 §5 / prd.md §6.3）：Messages API。
  * - POST {base}/v1/messages；Header：x-api-key + anthropic-version: 2023-06-01；
  * - system 是顶层字符串字段，messages 中不得含 system 角色；
- * - max_tokens 必填：limit_response_length 开用其值，关用 4096 兜底（kimi.md §6.3）；
+ * - max_tokens 必填：limit_response_length 开用其值，关用 4096 兜底（prd.md §6.3）；
  * - temperature 总是；top_p 仅 top_p_enabled；top_k 仅 > 0；stop_sequences 仅非空；
  * - structured output / min_p / presence_penalty / repeat_penalty：Anthropic 协议
  *   不支持，静默省略（契约：协议差异适配层内部消化）；

@@ -1,6 +1,6 @@
 /**
  * 设置页：顶部返回 + 五标签（平台管理 / 预设 / 通用 / 备份 / 关于）。
- * safeStorage 不可用时顶部常驻黄色警告条（kimi.md §8.1）。
+ * safeStorage 不可用时顶部常驻黄色警告条（prd.md §8.1）。
  */
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settings';

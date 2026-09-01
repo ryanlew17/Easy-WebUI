@@ -1,10 +1,10 @@
 /**
- * Provider Gateway 统一出口（kimi.md §6 / 契约 §5）。
+ * Provider Gateway 统一出口（prd.md §6 / 契约 §5）。
  *
  * chat()：按 api_format 分发到三个适配器；实现"流式空闲 60s 重试 1 次"策略。
  *   重试取舍：仅在"本次尝试尚未收到任何 chunk"时才自动重发——这些 API 无法
  *   断点续传，若已收到部分内容再重发会导致渲染进程出现重复文本；已收内容的
- *   场景直接报 stream_idle_timeout，由 UI 给"重试"按钮（kimi.md §4.4）。
+ *   场景直接报 stream_idle_timeout，由 UI 给"重试"按钮（prd.md §4.4）。
  *
  * testModel / testAllModels：最小开销 ping（max_tokens=1，非流式），
  * 结果（含脱敏 error）供 §3.2 连接检测持久化。
@@ -81,7 +81,7 @@ export async function* chat(req: GatewayChatRequest): AsyncGenerator<ChatChunk> 
   }
 }
 
-/** 单模型连通性检测（kimi.md §3.2）：ping + max_tokens=1，非流式 */
+/** 单模型连通性检测（prd.md §3.2）：ping + max_tokens=1，非流式 */
 export async function testModel(input: {
   baseUrl: string;
   apiFormat: ApiFormat;
@@ -129,7 +129,7 @@ export async function testModel(input: {
   }
 }
 
-/** 全部检测（并发=4，kimi.md §3.2）；每完成一个经 onEach 回报 */
+/** 全部检测（并发=4，prd.md §3.2）；每完成一个经 onEach 回报 */
 export async function testAllModels(input: {
   baseUrl: string;
   apiFormat: ApiFormat;

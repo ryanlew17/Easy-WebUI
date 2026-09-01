@@ -21,7 +21,7 @@ export interface ScryptParams {
   p: number;
 }
 
-/** 备份密码 KDF 参数（kimi.md §7.3：scrypt N=2^15, r=8, p=1） */
+/** 备份密码 KDF 参数（prd.md §7.3：scrypt N=2^15, r=8, p=1） */
 export const BACKUP_KDF: ScryptParams = { N: 2 ** 15, r: 8, p: 1 };
 
 const NONCE_LEN = 12; // AES-GCM 标准 96-bit nonce

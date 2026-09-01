@@ -1,5 +1,5 @@
 /**
- * 新增/编辑平台模态框（kimi.md §3.2）：
+ * 新增/编辑平台模态框（prd.md §3.2）：
  * - 预置供应商快捷选择（12 家，点选自动填充 base_url + api_format）；
  * - API 密钥：编辑时留空 = 不修改；
  * - 响应格式三选 + 自动探测（失败不阻断保存）；
@@ -91,7 +91,7 @@ export function ProviderModal({
         setDetectNote('fail');
       }
     } catch {
-      setDetectNote('fail'); // 探测失败不阻断（kimi.md §3.3）
+      setDetectNote('fail'); // 探测失败不阻断（prd.md §3.3）
     } finally {
       setDetecting(false);
     }

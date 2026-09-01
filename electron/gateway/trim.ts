@@ -1,5 +1,5 @@
 /**
- * 上下文裁剪（kimi.md §4.3 / 契约 §5）——纯函数，可注入 token 计数器测试。
+ * 上下文裁剪（prd.md §4.3 / 契约 §5）——纯函数，可注入 token 计数器测试。
  *
  * 规则：
  * 1. token 估算默认 js-tiktoken cl100k_base；加载/编码失败回退 ceil(chars/3)（中文偏保守）。
@@ -171,7 +171,7 @@ export function trimMessages(opts: {
     }
   }
 
-  // 单条仍超预算 → 截断（kimi.md §4.3 第 4 条）
+  // 单条仍超预算 → 截断（prd.md §4.3 第 4 条）
   if (total > budget && convo.length === 1) {
     const others = systems.reduce((s, m) => s + m.token_count, 0);
     const room = budget - others;
@@ -235,7 +235,7 @@ function tryLoadEncoder(): Encoder | null {
   return encoderCache;
 }
 
-/** 默认估算器：cl100k_base；任何失败回退 ceil(chars/3)（中文偏保守，kimi.md §4.3.1） */
+/** 默认估算器：cl100k_base；任何失败回退 ceil(chars/3)（中文偏保守，prd.md §4.3.1） */
 export const defaultTokenCounter: TokenCounter = (text: string): number => {
   const enc = tryLoadEncoder();
   if (enc) {

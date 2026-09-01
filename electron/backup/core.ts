@@ -1,12 +1,12 @@
 /**
- * 备份数据编排（纯函数层，kimi.md §7.3）——不依赖 better-sqlite3 / adm-zip / electron。
+ * 备份数据编排（纯函数层，prd.md §7.3）——不依赖 better-sqlite3 / adm-zip / electron。
  *
  * 刻意拆出本模块的原因：better-sqlite3 是原生模块，部分环境（如缺编译工具的
  * Windows CI）无法构建；把"导出数据整形、密钥加解密、merge/overwrite 计划"
  * 全部做成纯函数，单元测试无需 sqlite 即可覆盖两种 roundtrip 与恢复语义。
  * zip 读写与 DB 事务在 electron/backup/index.ts 中只做薄封装。
  *
- * 关键安全决策（kimi.md §7.3 硬性要求）：
+ * 关键安全决策（prd.md §7.3 硬性要求）：
  * - 导出文件中 providers.api_key_cipher **永远置 null**——safeStorage 密文绑定
  *   本机，导出无意义；含密钥备份把"解密后的明文列表"用备份密码
  *   scrypt(N=2^15, r=8, p=1) → AES-256-GCM 加密后放入 keys_cipher，
@@ -183,7 +183,7 @@ export function buildBackup(
 ): { data: BackupDataJson; manifest: BackupManifest } {
   const now = opts.now ?? Date.now();
 
-  // providers 中的机器密文一律置 null（绝不允许导出 safeStorage 密文，kimi.md §7.3.4）
+  // providers 中的机器密文一律置 null（绝不允许导出 safeStorage 密文，prd.md §7.3.4）
   const providers: ProviderExportRow[] = rows.providers.map((p) => ({
     ...p,
     api_key_cipher: null,

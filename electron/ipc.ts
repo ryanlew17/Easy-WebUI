@@ -1,5 +1,5 @@
 /**
- * IPC handler 注册（kimi.md §2.2：不信任渲染进程传入的任何字段）。
+ * IPC handler 注册（prd.md §2.2：不信任渲染进程传入的任何字段）。
  * - 每个 payload 先过 zod；
  * - 所有 throw 出去的错误统一过 redact()（契约 §2 安全红线）；
  * - Provider 出参无密文（DAO 层已剥离）。

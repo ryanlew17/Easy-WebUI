@@ -1,5 +1,5 @@
 /**
- * UI 轻量偏好持久化（kimi.md §5.4）：
+ * UI 轻量偏好持久化（prd.md §5.4）：
  * - 单 Cookie `easyui_prefs`，值 = encodeURIComponent(JSON.stringify(obj))，<2KB；
  * - 365 天、SameSite=Lax、不设 HttpOnly；绝不含敏感信息；
  * - localStorage 同名 key 兜底（Cookie 异常时不白屏）；

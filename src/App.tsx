@@ -2,7 +2,7 @@
  * 应用壳：
  * - 启动装载：settings（主题/语言即时应用）→ providers + conversations；
  * - 桥事件统一挂载/卸载：onChatDelta/Done/Error/ModelCheck（契约 §2）；
- * - 全局快捷键（kimi.md §9）：Ctrl/Cmd+N 新会话、Ctrl/Cmd+, 设置、Esc 停止生成
+ * - 全局快捷键（prd.md §9）：Ctrl/Cmd+N 新会话、Ctrl/Cmd+, 设置、Esc 停止生成
  *   （模态打开时 Esc 优先关模态，经 ui.modalDepth 协调）。
  */
 import { useEffect } from 'react';

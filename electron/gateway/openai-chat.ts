@@ -1,5 +1,5 @@
 /**
- * openai-chat 适配器（契约 §5 / kimi.md §6.1）：Chat Completions API。
+ * openai-chat 适配器（契约 §5 / prd.md §6.1）：Chat Completions API。
  * - POST {base}/v1/chat/completions，Authorization: Bearer；
  * - 参数映射（params 为 resolveParams 后的生效值）：
  *   temperature 总是发送；top_p 仅 top_p_enabled；max_tokens 仅 limit_response_length 开；
