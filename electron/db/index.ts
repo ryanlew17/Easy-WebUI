@@ -1,5 +1,5 @@
 /**
- * SQLite 数据层入口（prd.md §7.2）：WAL + foreign_keys + schema_migrations 迁移。
+ * SQLite 数据层入口（docs/contracts/db-schema.md）：WAL + foreign_keys + schema_migrations 迁移。
  *
  * schema 版本史：
  * - v1：providers / conversations(params_json 旧 SessionParams) / messages(+reasoning) / settings；

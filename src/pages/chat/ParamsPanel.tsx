@@ -43,7 +43,7 @@ export function ParamsPanel({ conv }: { conv: Conversation }) {
   const onPatch = (p: ParamOverridesPatch): void => patchParams(conv.id, p);
 
   const onModelSelect = (pid: string, mid: string): void => {
-    // 模型切换不回溯历史消息（prd.md §4.2）；provider_id/model 只存顶层字段
+    // 模型切换不回溯历史消息（docs/design/params.md）；provider_id/model 只存顶层字段
     void patch(conv.id, { provider_id: pid, model: mid }).catch(() => undefined);
   };
 

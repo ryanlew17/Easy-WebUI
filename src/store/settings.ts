@@ -40,7 +40,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       api.getSystemInfo().catch(() => null),
     ]);
     set({ settings, systemInfo, loaded: true });
-    // 主题/语言以 Cookie 偏好为优先事实来源（prd.md §5.4：防 FOUC 脚本已按 cookie
+    // 主题/语言以 Cookie 偏好为优先事实来源（docs/design/ui-liquid-glass.md：防 FOUC 脚本已按 cookie
     // 落好初始值）；cookie 缺失时才回退到后端设置。用户主动切换时 update() 会同时
     // 写 cookie（applyTheme/applyLanguage 内部）与后端，两者保持一致。
     const prefs = readPrefs();

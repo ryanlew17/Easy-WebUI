@@ -1,6 +1,6 @@
 /**
- * preload：contextBridge 暴露 window.easyui（prd.md §2.2 约束 4）。
- * 方法集与契约 §2 完全一致；事件订阅返回取消订阅函数。
+ * preload：contextBridge 暴露 window.easyui（docs/architecture.md 关键约束）。
+ * 方法集与 docs/contracts/impl-contract.md（EasyUiApi 契约）完全一致；事件订阅返回取消订阅函数。
  * 注意：nodeIntegration:false + contextIsolation:true，这里只做白名单转发。
  */
 import { contextBridge, ipcRenderer } from 'electron';

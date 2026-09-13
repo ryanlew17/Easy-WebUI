@@ -1,5 +1,5 @@
 /**
- * 通用设置 DAO：settings 键值表（prd.md §7.2 之外另加，契约 §1 GeneralSettings）。
+ * 通用设置 DAO：settings 键值表（docs/contracts/db-schema.md；字段见 docs/contracts/impl-contract.md GeneralSettings）。
  * 单条记录 key='general'，value 为 JSON；读取时与 DEFAULT_SETTINGS 合并，
  * 保证新增字段向后兼容。
  */

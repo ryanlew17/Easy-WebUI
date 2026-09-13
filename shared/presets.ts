@@ -1,7 +1,7 @@
 import type { PresetProvider } from './types';
 
 /**
- * 预置供应商模板（契约 §4，端点已核实）。
+ * 预置供应商模板（docs/contracts/impl-contract.md，预置供应商；端点已核实）。
  * 仅作为"新增平台"表单的快捷填充模板，不预写数据库。
  * 注意 base_url 均不含末尾 '/'；含版本段的（v4/v3/v1 等）由 joinUrl 识别、不再叠加 /v1。
  */

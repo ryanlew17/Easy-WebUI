@@ -1,5 +1,5 @@
 /**
- * Web 预览 Mock 桥（契约 §6）——完整实现 EasyUiApi，只用 Web API
+ * Web 预览 Mock 桥（docs/contracts/impl-contract.md，Mock 桥）——完整实现 EasyUiApi，只用 Web API
  * （localStorage / setInterval / crypto.randomUUID），不 import 任何 node 模块。
  * 目的：`npm run dev` 纯浏览器可完整演示 UI。
  *

@@ -1,5 +1,5 @@
 /**
- * 上下文裁剪测试（prd.md §4.3）：注入固定 token 计数器（1 字符 = 1 token，便于心算），
+ * 上下文裁剪测试（docs/design/context-trim.md）：注入固定 token 计数器（1 字符 = 1 token，便于心算），
  * 验证预算计算、成对丢弃、系统提示保留、单条超长截断、已缓存 token_count 优先。
  */
 import { describe, expect, it } from 'vitest';

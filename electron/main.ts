@@ -51,7 +51,7 @@ function createWindow(): void {
   const size = saved ?? defaultWindowSize();
   win = new BrowserWindow({
     ...size,
-    minWidth: 960, // prd.md §1.3：响应式只保证 960px 可用
+    minWidth: 960, // docs/prd.md 非目标：响应式只保证 960px 可用
     minHeight: 600,
     title: 'Easy WebUI',
     autoHideMenuBar: true,

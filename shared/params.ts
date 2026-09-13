@@ -9,7 +9,7 @@
  *     patch 中值传 null 表示删除该 override 键（垃圾桶按钮 / 重置语义）。
  *   - modifiedKeys：修改判定一律用值比较，不用键存在性（历史等值 override 不显示高亮）。
  *
- * 参数组（一个垃圾桶管多个键，UI 与契约 §1 保持一致）：
+ * 参数组（一个垃圾桶管多个键，UI 与 docs/contracts/impl-contract.md ParamValues 保持一致）：
  *   limit=[limit_response_length,max_tokens]；repeat=[repeat_penalty_enabled,repeat_penalty]；
  *   presence=[presence_penalty_enabled,presence_penalty]；top_p=[top_p_enabled,top_p]；
  *   min_p=[min_p_enabled,min_p]；structured=[structured_output_enabled,structured_output_schema]；

@@ -1,5 +1,5 @@
 /**
- * i18n 初始化（prd.md §5.5）：
+ * i18n 初始化（docs/design/i18n.md）：
  * - 资源静态内联（两份 JSON，无网络加载）；
  * - 默认语言：读 cookie「easyui_prefs」中已解析的 lang；否则系统 locale 命中中文 → zh-CN，否则 en-US；
  * - 用户切换语言后写 cookie（已解析值），与 index.html 防 FOUC 脚本同一格式。

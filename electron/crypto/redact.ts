@@ -1,5 +1,5 @@
 /**
- * redact() —— 日志与错误的统一脱敏（prd.md §8.2、契约 §2 安全红线）。
+ * redact() —— 日志与错误的统一脱敏（docs/design/security.md，日志与脱敏）。
  *
  * 设计：进程内维护"已知密钥注册表"（registerSecret），凡是要离开主进程安全边界的
  * 字符串/对象/Error（日志行、IPC throw、事件 payload）一律先过 redact()，

@@ -1,5 +1,5 @@
 /**
- * 会话页三栏（prd.md §4.1 / §5.3）：
+ * 会话页三栏（docs/design/chat.md / docs/design/ui-liquid-glass.md）：
  * CSS Grid：minmax(200px,260px) 1fr <右栏宽度（cookie 持久化，可拖拽）>；960px 窗口仍可用。
  * 右栏可折叠（折叠态存 cookie）；栏间 0.5px 发丝分隔线。
  *

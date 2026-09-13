@@ -1,5 +1,5 @@
 /**
- * URL 拼接规则（契约 §3）。
+ * URL 拼接规则（docs/contracts/protocol-mapping.md，URL 拼接）。
  *
  * 按"最小惊讶原则"：
  * - 先去末尾斜杠；

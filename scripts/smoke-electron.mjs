@@ -43,7 +43,7 @@ async function waitDebugEndpoint() {
 }
 
 function scanPlaintext() {
-  // 密钥红线：明文不得出现在 db / wal / 日志 / 备份 zip 中（prd.md §8 / §11.1）
+  // 密钥红线：明文不得出现在 db / wal / 日志 / 备份 zip 中（docs/design/security.md）
   const dataDir = path.join(ROOT, 'data');
   const targets = [];
   const walk = (dir) => {

@@ -1,5 +1,5 @@
 /**
- * 网关错误类型与归一化（prd.md §6.4、契约 §5）：
+ * 网关错误类型与归一化（docs/design/gateway.md，通用行为）：
  * - HTTP 非 2xx：读响应体 error.message（OpenAI 与 Anthropic 同构），映射 { code, message }；
  * - 所有出口消息过 redactString（依赖 crypto/redact 的密钥注册表）；
  * - 连接超时 / 流式空闲 / 主动取消 各有稳定 code，供 UI 阶段做 i18n 映射。

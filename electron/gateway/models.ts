@@ -1,5 +1,5 @@
 /**
- * 模型列表拉取与格式自动探测（prd.md §3.2/§3.3）。
+ * 模型列表拉取与格式自动探测（docs/design/provider.md）。
  * - openai-chat / openai-responses：GET {base}/v1/models，Authorization: Bearer；
  * - anthropic：GET {base}/v1/models，x-api-key + anthropic-version；
  * - 15s 超时；失败统一走 toApiError（message 已脱敏）。
@@ -29,7 +29,7 @@ export async function listModels(
 }
 
 /**
- * 格式自动探测（尽力而为，可失败，prd.md §3.3）：
+ * 格式自动探测（尽力而为，可失败；docs/design/provider.md 格式自动探测）：
  * ① Bearer 头试 /v1/models → openai-chat；② anthropic 头试 → anthropic；均失败 null。
  */
 export async function detectFormat(baseUrl: string, apiKey: string): Promise<ApiFormat | null> {
@@ -48,7 +48,7 @@ export async function detectFormat(baseUrl: string, apiKey: string): Promise<Api
   return null;
 }
 
-/** 简单并发池（testAll 并发=4，prd.md §3.2） */
+/** 简单并发池（testAll 并发=4；docs/design/provider.md 连接检测） */
 export async function runWithConcurrency<T>(
   items: readonly T[],
   worker: (item: T) => Promise<void>,
