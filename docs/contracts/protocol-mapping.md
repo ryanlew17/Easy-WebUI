@@ -22,17 +22,21 @@ interface ChatChunk { delta?: string; reasoning_delta?: string; finishReason?: s
 
 ## 1. URL 拼接（`gateway/url.ts`，joinUrl）
 
-早期设计稿写的是 `{base}/v1/chat/completions`，但大量国内服务商 base 已含版本段（`/v1` `/v3` `/v4`）或 Anthropic 兼容前缀（`/anthropic`）。按"最小惊讶原则"实现：
+早期设计稿写的是 `{base}/v1/chat/completions`，但大量国内服务商 base 已含版本段（`/v1` `/v3` `/v4`）或 Anthropic 兼容前缀（`/anthropic`）。按"最小惊讶原则"实现（以 `electron/gateway/url.ts` 代码为准）：
 
 ```
 const base = rawBase.replace(/\/+$/, '');
-const versioned = /\/(v\d+|anthropic)$/.test(base);   // 已带版本段则不再叠加
+const versioned = /\/v\d+$/.test(base);   // 仅 /vN 结尾视为已带版本段
 return versioned ? `${base}${path}` : `${base}/v1${path}`;
 // openai-chat:      joinUrl(base, '/chat/completions')、joinUrl(base, '/models')
 // openai-responses: joinUrl(base, '/responses')、joinUrl(base, '/models')
 // anthropic:        joinUrl(base, '/messages')、joinUrl(base, '/models')
 //   → api.anthropic.com → /v1/messages；api.xiaomimimo.com/anthropic → /anthropic/v1/messages ✓
 ```
+
+- **`/anthropic` 兼容前缀不算版本段**：Anthropic Messages API 真实路径是 `{base}/v1/messages`，因此该类 base 仍补 `/v1`（与官方 SDK 行为一致）。
+- 已知局限：base 含版本段但不在末尾（罕见）时不识别，保持简单规则优先。
+- 勘误（2026-09-13）：旧版文档（原 prd.md §6.5 / 原 impl-contract.md §3）正则写为 `/\/(v\d+|anthropic)$/`，与其自身示例（`/anthropic` 前缀仍补 `/v1`）矛盾，属笔误；代码实现与示例一致，本文件已按代码修正。
 
 ## 2. `openai-chat`（Chat Completions）
 

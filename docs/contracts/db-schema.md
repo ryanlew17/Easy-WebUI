@@ -73,7 +73,7 @@
 
 ### settings（v1）
 
-键值表：`key TEXT PRIMARY KEY, value TEXT NOT NULL`（GeneralSettings 持久化，设置页事实来源）。
+键值表：`key TEXT PRIMARY KEY, value TEXT NOT NULL`。实际用法为**单条记录** `key='general'`、`value` 为 GeneralSettings 的 JSON（读取时与 `DEFAULT_SETTINGS` 合并；设置页事实来源，见 `electron/db/settings.ts`）。
 
 ## 2. 迁移链（v1 → v3）
 
