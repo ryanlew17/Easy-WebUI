@@ -1,5 +1,5 @@
 /**
- * 生成编排（prd.md §4.3/§4.4、契约 §5 简化允许）—— 树形分支模型（schema v3）。
+ * 生成编排（docs/design/chat.md / docs/design/context-trim.md）—— 树形分支模型（schema v3）。
  *
  * 入口语义（全部共用 resolveGenerationTarget / assemblePayload / run 管线）：
  * - sendMessage：user 消息 parent = siblingOf 的 parent_id（校验同会话）或当前激活叶；
@@ -86,7 +86,7 @@ export class ChatOrchestrator {
 
   constructor(private deps: OrchestratorDeps) {}
 
-  /** 同会话单生成锁（prd.md §4.4） */
+  /** 同会话单生成锁（docs/design/chat.md） */
   isGenerating(conversationId: string): boolean {
     return this.active.has(conversationId);
   }
@@ -278,7 +278,7 @@ export class ChatOrchestrator {
     return trimmed;
   }
 
-  /** 截断警告（契约 §5 简化允许：仅一条 context_truncated chat:error，不阻断） */
+  /** 截断警告（docs/design/context-trim.md：仅一条 context_truncated chat:error，不阻断） */
   private warnTruncated(conversationId: string, messageId: string, trimmed: TrimResult): void {
     if (!trimmed.truncated) return;
     this.deps.send(EVT.chatError, {
@@ -419,7 +419,7 @@ export class ChatOrchestrator {
 
     const aborted = args.signal.aborted;
     if (failed && !aborted) {
-      // 请求失败：已收内容与错误一并落库（prd.md §4.4 错误卡片 + 重试语义）
+      // 请求失败：已收内容与错误一并落库（docs/design/chat.md，错误卡片 + 重试语义）
       const updated = messages.update(args.assistantMessageId, {
         content: finalContent,
         reasoning: finalReasoning || undefined,
@@ -454,7 +454,7 @@ export class ChatOrchestrator {
       message: updated,
     });
 
-    // 首轮完成后自动生成标题（prd.md §7.2）：成功广播 title:updated，
+    // 首轮完成后自动生成标题（docs/design/title.md）：成功广播 title:updated，
     // 最终失败广播 title:failed（自动路径不阻断对话，详见 generateTitleAuto）
     if (!aborted && content && settings.get().auto_title) {
       const conv = conversations.get(args.conversationId);

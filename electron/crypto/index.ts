@@ -1,5 +1,5 @@
 /**
- * 密钥加密服务（prd.md §8.1）：
+ * 密钥加密服务（docs/design/security.md，密钥存储）：
  * - 首选 Electron safeStorage（Windows DPAPI / macOS Keychain / Linux 系统密钥环）。
  * - safeStorage 不可用时的回退：机器指纹（hostname+用户名+平台 的 SHA-256，
  *   简化实现，非硬件 GUID——见下）经 scrypt 派生 AES-256-GCM 密钥；

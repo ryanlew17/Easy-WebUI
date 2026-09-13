@@ -1,7 +1,7 @@
 /**
- * IPC handler 注册（prd.md §2.2：不信任渲染进程传入的任何字段）。
+ * IPC handler 注册（docs/architecture.md 关键约束：不信任渲染进程传入的任何字段）。
  * - 每个 payload 先过 zod；
- * - 所有 throw 出去的错误统一过 redact()（契约 §2 安全红线）；
+ * - 所有 throw 出去的错误统一过 redact()（docs/design/security.md 安全红线）；
  * - Provider 出参无密文（DAO 层已剥离）。
  */
 import { ipcMain, dialog, shell } from 'electron';
@@ -123,7 +123,7 @@ const settingsPatchSchema = z.object({
   /** 标题生成指定模型：null = 清除指定（回退会话模型） */
   title_provider_id: z.string().min(1).max(100).nullable().optional(),
   title_model: z.string().min(1).max(300).nullable().optional(),
-  /** 外观（契约 §1）：缩放 0.5~2.5；字体栈字符白名单与渲染进程 shared/appearance.ts 一致 */
+  /** 外观（docs/contracts/impl-contract.md，GeneralSettings）：缩放 0.5~2.5；字体栈字符白名单与渲染进程 shared/appearance.ts 一致 */
   zoom: z.number().min(0.5).max(2.5).optional(),
   font_ui: z.string().max(200).regex(/^[A-Za-z0-9 ,.'"-]*$/).optional(),
   font_code: z.string().max(200).regex(/^[A-Za-z0-9 ,.'"-]*$/).optional(),

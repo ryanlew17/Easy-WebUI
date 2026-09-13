@@ -1,7 +1,7 @@
 /**
  * 消息状态 + 流式编排：
  * - 事件（onChatDelta/Done/Error）在 App 层统一挂载后路由到这里；
- * - delta 进入增量缓冲，50ms 节流 flush 进 React 状态（prd.md §9 性能预算）；
+ * - delta 进入增量缓冲，50ms 节流 flush 进 React 状态（docs/design/ux-guidelines.md，性能预算）；
  * - 单会话单生成锁：generating 映射驱动输入禁用/停止按钮/Esc。
  */
 import { create } from 'zustand';

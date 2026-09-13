@@ -1,6 +1,6 @@
 /**
  * 共享类型 —— 两端（electron/ 与 src/）唯一事实来源。
- * 严格对应 docs/impl-contract.md §1 与 §2；字段变更必须同步两端。
+ * 严格对应 docs/contracts/impl-contract.md（共享类型与 EasyUiApi 契约）；字段变更必须同步两端。
  */
 
 import type { ParamOverrides, ParamOverridesPatch, ParamPreset, ParamValues } from './params';
@@ -254,7 +254,7 @@ export interface PresetProvider {
 }
 
 /**
- * 渲染进程桥接 API（契约 §2）—— preload 的 contextBridge 与
+ * 渲染进程桥接 API（docs/contracts/impl-contract.md，EasyUiApi 契约）—— preload 的 contextBridge 与
  * Web 预览 mock（src/bridge/mock.ts）都必须完整实现本接口。
  */
 export interface EasyUiApi {

@@ -5,7 +5,7 @@
  *     的 backdrop root）且自身 backdrop-filter 生效 → 液态玻璃模糊真实可用；
  *  2) 气泡：user 气泡 min-width ≥120px，头部行单行（高度 ≤ 1.6×行高）；
  *  3) 输入坞：底行控件统一 32px 高、底缘对齐差 ≤1px、全部在 composer-shell 内；
- *  4) Generate 胶囊：流内按钮（在 composer-shell 底行内），不在输入坞边界外。
+ *  4) Generate 胶囊：portal 到 body 的浮窗（不在输入卡片流内），浮于输入坞上方、水平居中。
  * 复用 e2e-ui-polish.mjs 的 harness（静态服务器 + seed + Edge 无头）。
  */
 import puppeteer from 'puppeteer-core';

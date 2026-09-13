@@ -1,5 +1,5 @@
 /**
- * providers DAO。红线（契约 §2）：任何离开本模块的 Provider 对象都不含
+ * providers DAO。红线（docs/design/security.md）：任何离开本模块的 Provider 对象都不含
  * api_key_cipher——查询即剥离，渲染进程只见 has_key 布尔。
  * 需要密文的内部调用方（gateway 编排 / 备份导出）显式用 getRow()。
  */
@@ -18,7 +18,7 @@ export interface ProviderRow {
   updated_at: number;
 }
 
-/** base_url 归一化：去末尾斜杠（契约 §1：存储时去掉末尾 '/'） */
+/** base_url 归一化：去末尾斜杠（docs/contracts/impl-contract.md：存储时去掉末尾 '/'） */
 export function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }
@@ -123,7 +123,7 @@ export function createProvidersDao(db: DB) {
       return rowToProvider(next);
     },
 
-    /** 更新某个模型的 last_check（连接检测结果持久化，prd.md §3.2） */
+    /** 更新某个模型的 last_check（连接检测结果持久化，docs/design/provider.md） */
     updateModelCheck(id: string, modelId: string, check: ProviderModel['last_check']): void {
       const row = this.getRow(id);
       if (!row) return;

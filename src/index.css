@@ -6,7 +6,7 @@
 
 @layer base {
   html {
-    font-size: 16px; /* rem 基准（prd.md §5.3） */
+    font-size: 16px; /* rem 基准（docs/design/ui-liquid-glass.md，缩放鲁棒性） */
     /* CSS zoom（外观-界面缩放）视口补偿：zoom 不缩放 vw/vh 的解析，
        100vw 只占窗口的 z 倍 —— 显式尺寸 = 视口 / z，抵消后填满窗口。 */
     width: calc(100vw / var(--app-zoom, 1));
@@ -18,7 +18,7 @@
     height: 100%;
     color: var(--text-primary);
     background-color: var(--bg-base);
-    /* 字体栈必须含中文（契约 §7）；不使用网络字体（CSP default-src 'self'）。
+    /* 字体栈必须含中文（docs/design/ui-liquid-glass.md，字体栈）；不使用网络字体（CSP default-src 'self'）。
        --font-ui 为「设置-通用-外观」的界面字体覆盖（空 = 回退默认栈） */
     font-family:
       var(--font-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC',
@@ -26,7 +26,7 @@
     -webkit-font-smoothing: antialiased;
     overflow: hidden; /* 应用壳内自管滚动，杜绝窗口级横向滚动条 */
   }
-  /* 窗口背景：多段径向渐变 + 细噪点（契约 §7，无外链图）。
+  /* 窗口背景：多段径向渐变 + 细噪点（docs/design/ui-liquid-glass.md，窗口背景；无外链图）。
      噪点只在 ::after 以极低不透明度铺一层；::before 仅渐变，
      避免噪点满强度覆盖导致"花屏"。 */
   body::before {
@@ -95,7 +95,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
-    min-height: 2rem; /* ≥32px 点击区（prd.md §5.3） */
+    min-height: 2rem; /* ≥32px 点击区（docs/design/ui-liquid-glass.md） */
     min-width: 2rem;
     padding: 0 0.75rem;
     border-radius: var(--radius-control);
@@ -397,7 +397,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    min-height: 2rem; /* ≥32px 点击区（prd.md §5.3） */
+    min-height: 2rem; /* ≥32px 点击区（docs/design/ui-liquid-glass.md） */
     padding: 0.25rem 0.625rem;
     border-radius: calc(var(--radius-l) - 0.25rem);
     font-size: 0.8125rem;
@@ -506,7 +506,7 @@
     border: none;
     border-top: 0.5px solid var(--separator);
   }
-  /* 中文不用 italic（契约 §7）：强调改用字重 */
+  /* 中文不用 italic（docs/design/i18n.md，排版）：强调改用字重 */
   .md em {
     font-style: normal;
     font-weight: 600;

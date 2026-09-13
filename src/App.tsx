@@ -1,8 +1,8 @@
 /**
  * 应用壳：
  * - 启动装载：settings（主题/语言即时应用）→ providers + conversations；
- * - 桥事件统一挂载/卸载：onChatDelta/Done/Error/ModelCheck（契约 §2）；
- * - 全局快捷键（prd.md §9）：Ctrl/Cmd+N 新会话、Ctrl/Cmd+, 设置、Esc 停止生成
+ * - 桥事件统一挂载/卸载：onChatDelta/Done/Error/ModelCheck（docs/contracts/impl-contract.md，事件通道）；
+ * - 全局快捷键（docs/design/ux-guidelines.md，快捷键）：Ctrl/Cmd+N 新会话、Ctrl/Cmd+, 设置、Esc 停止生成
  *   （模态打开时 Esc 优先关模态，经 ui.modalDepth 协调）。
  */
 import { useEffect } from 'react';
@@ -47,7 +47,7 @@ export default function App() {
     });
     const offError = api.onChatError((p) => {
       if (p.error.code === 'context_truncated') {
-        // 契约 §5 简化允许：裁剪截断仅警告不阻断
+        // docs/design/context-trim.md：裁剪截断仅警告不阻断
         useUiStore.getState().toast('warning', t('toast.truncated'));
         return;
       }

@@ -1,5 +1,5 @@
 /**
- * Markdown 渲染（prd.md §8.3 安全红线 + §4.1）：
+ * Markdown 渲染（docs/design/security.md 渲染安全 + docs/design/chat.md）：
  * - react-markdown + remark-gfm；不启用 rehype-raw —— 模型输出中的原始 HTML 永不被渲染；
  * - highlight.js 按需注册常见语言（lib/core 而非全量包）；
  * - 高亮产出的 HTML 经 DOMPurify 消毒后再注入；

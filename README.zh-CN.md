@@ -4,7 +4,7 @@
 
 轻量级、**本地优先**（local-first）的多供应商大模型对话桌面客户端（PC 端），基于 **Electron + React 18 + TypeScript**。全部数据保存在本机；API 密钥加密落盘，渲染进程永远接触不到密钥。
 
-产品需求文档：[docs/prd.md](./docs/prd.md) · 跨进程接口契约：[docs/impl-contract.md](./docs/impl-contract.md)
+产品需求文档：[docs/prd.md](./docs/prd.md) · 技术架构：[docs/architecture.md](./docs/architecture.md) · 模块设计快照：[docs/design/](./docs/design/README.md) · 跨进程接口契约：[docs/contracts/impl-contract.md](./docs/contracts/impl-contract.md)
 
 > 没有 Electron 环境也能预览：`npm run dev` 启动**纯浏览器预览**（localStorage mock 桥），完整走通全部 UI 流程，不依赖任何原生模块。
 
@@ -103,7 +103,8 @@ src/                 # 渲染进程（Vite + React 18 + TS strict + Tailwind 3�
   styles/            #   设计令牌（液态玻璃、双主题）
 tests/               # vitest：gateway / trim / crypto / backup
 scripts/             # e2e 预览、electron 冒烟与打包产物验证
-docs/                # prd.md（产品需求）、impl-contract.md（IPC 契约）、release.md（发布规范）、screenshots/
+docs/                # prd.md（产品）、architecture.md、design/（模块设计快照）、
+                       #   contracts/（IPC/协议/数据库/备份契约）、requirements/、adr/、release.md、screenshots/
 ```
 
 关键约束：**所有出站 API 请求只走主进程 Gateway**——渲染进程永不见密钥/密文
@@ -173,7 +174,7 @@ node -e "const fs=require('fs'),c=require('crypto');const m=fs.readFileSync('ind
 
 - 随 API 演进补充更多协议适配与供应商预置
 - 更丰富的会话组织（搜索、分组）
-- 完整产品需求与设计方向见 [docs/prd.md](./docs/prd.md)
+- 候选方向见 [docs/roadmap.md](./docs/roadmap.md)；产品范围与非目标见 [docs/prd.md](./docs/prd.md)
 
 ## 许可证
 

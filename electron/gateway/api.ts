@@ -1,10 +1,10 @@
 /**
- * 适配层公共类型。注意与 prd.md §6 的 ChatRequest 的差异：
+ * 适配层公共类型。注意与 docs/design/gateway.md 统一接口 ChatRequest 的差异：
  * 适配器只接受"已解析"的字段（baseUrl/apiKey），providerId → 密钥的解析
  * 在编排层（electron/chat.ts）完成——这样适配层不含 DB 依赖，可纯单测。
  *
  * params 为"已解析生效"的完整 ParamValues（全局预设 ← 用户预设 ← 会话 overrides
- * 在 chat.ts 里 resolveParams 完成）；各适配器按协议能力挑选字段发送（契约 §5）。
+ * 在 chat.ts 里 resolveParams 完成）；各适配器按协议能力挑选字段发送（docs/contracts/protocol-mapping.md）。
  */
 import type { ChatChunk, ParamValues, Usage } from '../../shared/types';
 

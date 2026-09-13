@@ -1,7 +1,7 @@
 /**
  * 表单控件集：Toggle / Checkbox / SliderField（滑块+数字）/ NumberField / TextField /
  * TextAreaField / SelectField / SegmentedControl / FieldRow。
- * 最小点击区 ≥32px（prd.md §5.3）；全部可 Tab 到达、aria-label 由调用方传 i18n 文案。
+ * 最小点击区 ≥32px（docs/design/ui-liquid-glass.md，缩放鲁棒性）；全部可 Tab 到达、aria-label 由调用方传 i18n 文案。
  *
  * 参数面板覆盖语义（LM Studio 式）：
  * - FieldRow 传 modified + onReset 时：label 前显示 accent 小圆点（高亮）+
@@ -25,7 +25,7 @@ export function roundForStep(v: number, step: number): number {
  * 约定：未来新增按钮一律用 IconButton（SVG 图标 + title/aria-label），
  * 不再新增纯文字按钮；编辑态确认/取消可为 icon+文字（MessageBubble 内自拟）。
  * - ghost 为默认风格（btn-ghost 悬浮底色），variant 切换 accent/danger 语义色；
- * - 命中区 ≥24px（1.5rem，prd.md §5.3 最小点击区的紧凑档）；
+ * - 命中区 ≥24px（1.5rem；docs/design/ui-liquid-glass.md 最小点击区紧凑档）；
  * - 动效走 .btn 的令牌过渡（--dur-fast / --ease-interactive，active:scale 0.98）。
  */
 export function IconButton({
@@ -735,7 +735,7 @@ export function InfoTip({ text }: { text: string }) {
         onClick={() => setPinned((v) => !v)}
       >
         ⓘ
-        {/* 隐形点击区扩展：视觉 16px，命中区 32px（prd.md §5.3） */}
+        {/* 隐形点击区扩展：视觉 16px，命中区 32px（docs/design/ui-liquid-glass.md） */}
         <span className="absolute -inset-2" aria-hidden="true" />
       </button>
       {pop.mounted

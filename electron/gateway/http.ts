@@ -1,5 +1,5 @@
 /**
- * HTTP 辅助：连接超时与信号链接（prd.md §6.4：连接 15s）。
+ * HTTP 辅助：连接超时与信号链接（docs/design/gateway.md 通用行为：连接 15s）。
  *
  * 说明：连接超时只覆盖"拿到响应头之前"的阶段；响应体（SSE 流）的空闲
  * 由 sse.ts 的 idleMs 单独判定（60s）。Node ≥18 的全局 fetch 即可，

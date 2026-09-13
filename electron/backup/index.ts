@@ -1,7 +1,7 @@
 /**
  * 备份 zip 读写与 DB 事务封装（薄层——业务决策全部在 backup/core.ts）。
  * 文件：easyui-backup-YYYYMMDD-HHmm.zip，内含 data.json + manifest.json。
- * 默认输出位置 data/backups/（prd.md §7.1）。
+ * 默认输出位置 data/backups/（docs/design/storage.md）。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -144,7 +144,7 @@ export function createBackupService(deps: BackupDeps) {
         currentSchemaVersion: SCHEMA_VERSION,
       });
 
-      // 覆盖模式：先自动做一份临时备份（不含密钥，prd.md §7.3 恢复规则）
+      // 覆盖模式：先自动做一份临时备份（不含密钥；docs/contracts/backup-format.md 恢复规则）
       if (input.mode === 'overwrite') {
         this.createBackup({ includeKeys: false });
       }
