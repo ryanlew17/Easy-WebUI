@@ -4,7 +4,7 @@
 
 A lightweight, **local-first** multi-provider LLM chat client for the desktop (PC), built with **Electron + React 18 + TypeScript**. All data lives on your machine; API keys are encrypted at rest and never touch the renderer process.
 
-PRD (product requirements): [docs/prd.md](./docs/prd.md) · Cross-process contract: [docs/impl-contract.md](./docs/impl-contract.md)
+PRD (product requirements): [docs/prd.md](./docs/prd.md) · Architecture: [docs/architecture.md](./docs/architecture.md) · Module design snapshots: [docs/design/](./docs/design/README.md) · Cross-process contract: [docs/contracts/impl-contract.md](./docs/contracts/impl-contract.md)
 
 > No Electron handy? `npm run dev` gives you a **pure-browser preview** powered by a localStorage mock bridge — the full UI flow works without any native modules.
 
@@ -104,7 +104,8 @@ src/                 # renderer (Vite + React 18 + TS strict + Tailwind 3)
   styles/            #   design tokens (liquid glass, dual theme)
 tests/               # vitest: gateway / trim / crypto / backup
 scripts/             # e2e preview, electron smoke & packaged-app verification
-docs/                # prd.md (product requirements), impl-contract.md (IPC contract), release.md (release process), screenshots/
+docs/                # prd.md (product), architecture.md, design/ (module snapshots),
+                       #   contracts/ (IPC/protocol/db/backup), requirements/, adr/, release.md, screenshots/
 ```
 
 Key constraint: **all outbound API requests go through the main-process gateway** — the
@@ -187,7 +188,7 @@ regex can match text inside comments.)
 
 - More protocol adapters and provider presets as APIs evolve
 - Richer conversation organization (search, folders)
-- See [docs/prd.md](./docs/prd.md) for the full product requirements and design direction
+- See [docs/roadmap.md](./docs/roadmap.md) for candidates and [docs/prd.md](./docs/prd.md) for the product scope
 
 ## License
 
