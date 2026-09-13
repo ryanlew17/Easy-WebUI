@@ -155,9 +155,12 @@ try {
     ok(`发送失败按预期落库为错误消息（code=${assistant.error.code}，已脱敏）`);
   else bad('错误消息落库', JSON.stringify(msgs));
 
-  // 5. 截图真实 Electron 窗口（当前应显示错误卡片 UI）
-  await page.screenshot({ path: 'docs/screenshots/13-electron-app.png' });
-  ok('窗口截图 docs/screenshots/13-electron-app.png');
+  // 5. 截图真实 Electron 窗口（当前应显示错误卡片 UI）；产物输出到 build/e2e-shots
+  //    （不入库，.gitignore build/ 覆盖），docs/screenshots/ 仅保留 README 引用的 8 张精选图
+  const SHOT_DIR = 'build/e2e-shots';
+  fs.mkdirSync(SHOT_DIR, { recursive: true });
+  await page.screenshot({ path: `${SHOT_DIR}/13-electron-app.png` });
+  ok(`窗口截图 ${SHOT_DIR}/13-electron-app.png`);
 
   // 6. 备份（含密钥 + 密码）→ 恢复（合并模式）
   const backup = await page.evaluate(
