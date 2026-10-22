@@ -7,7 +7,7 @@
  * - beta 通道：autoUpdater.allowPrerelease ← deps.getBeta()（settings.update_beta，
  *   每次 check 时读取，改设置即生效）。
  * - 校验：electron-updater 按 latest.yml 的 sha512 自动校验下载包完整性，校验失败
- *   downloadUpdate reject；Windows 另建议 Authenticode 代码签名（build.win.certificateFile）。
+ *   downloadUpdate reject。
  * - 数据迁移：安装由 NSIS 完成；0.1.1 起数据默认在 userData 且卸载不删
  *   （deleteAppDataOnUninstall:false），在线升级天然不触碰数据目录；应用侧另有
  *   storage-layout.json 布局版本 + schema_migrations 兜底结构升级。
@@ -115,7 +115,8 @@ function extractReleaseNotes(
 }
 
 export function createUpdater(deps: UpdaterDeps): Updater {
-  const mock = process.env.EASYUI_MOCK_UPDATE === '1';
+  // @req REQ-2026-001 M4：mock 演示通道仅限非打包环境（打包版忽略该环境变量）
+  const mock = !deps.isPackaged() && process.env.EASYUI_MOCK_UPDATE === '1';
   /** 主进程权威状态机：渲染进程挂载晚于事件时用 getState() 同步 */
   let state: UpdateState = { phase: 'idle' };
   /** 进度事件只挂一次（真实与 mock 通道共用同一 EVT.updateProgress） */

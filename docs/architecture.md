@@ -84,7 +84,10 @@ EasyWebUI/
 - `vite.config.ts`：`base: './'`（Electron `file://` 加载需要相对路径，**不许改**）；server.port 5173。
 - `dev:electron` 依赖先 `npm run build` 产出 `dist-electron/`（允许的简化）；如后续引入 tsx/esbuild 直跑 TS 可去掉前置。
 - better-sqlite3 需匹配 Electron ABI：开发期 `electron .` 报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 的 V8 API 与 better-sqlite3 ≤ 11 不兼容，需 ≥ 12（本项目 v13）**；纯 Web 预览与 `npm test` 不依赖原生模块。
-- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。`build.npmRebuild: false` 与 `build.electronDist` 是测得的工程决策，**不许"清理"**（README Packaging 一节）。
+- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。产物命名见 `package.json → build` 按 target 的 `artifactName`；图标 `build/icon.ico`。
+- `build.npmRebuild: false`（better-sqlite3 已由 `@electron/rebuild` 按 Electron ABI 编好，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 electron-builder 在 Windows 上解压后 rename 目录 EPERM）是测得的工程决策，**不许"清理"**。
+- 打包环境：构建进程 PATH 需含 PowerShell（`C:\Windows\System32\WindowsPowerShell\v1.0`，electron-builder 收集 node 依赖时间接调用）；winCodeSign 缓存（`%LOCALAPPDATA%\electron-builder\Cache`）若因符号链接权限解包失败，用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
+- `npm install` 若因 better-sqlite3/electron 下载失败，可 `npm install --ignore-scripts` 保底（Web 预览与单测不依赖原生模块）。
 
 ## 5. 测试与验证体系
 

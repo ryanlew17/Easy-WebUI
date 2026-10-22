@@ -10,6 +10,7 @@
    `EasyWebUI_<v>_Setup.exe`、`EasyWebUI_<v>_Setup.exe.blockmap`、
    `EasyWebUI_<v>_Portable.exe`、`latest.yml`。
    - `latest.yml` 必须上传：应用内在线升级（electron-updater）依赖它发现/校验新版本。
+   - 本机未安装 `gh` CLI——用 GitHub REST API，token 取自 `git credential fill`（存入变量，绝不打印/回显）。
 
 ## Release 说明规范（v1.0.1 起）
 

@@ -23,7 +23,7 @@
 
 - 包体积较大（Electron 运行时随包分发），安装包与内存占用高于 Tauri。
 - 换取：`safeStorage` 稳定可用、生态与工具链成熟（electron-builder / electron-updater / better-sqlite3 原生模块按 ABI 预编译）、AI 代理实现成本最低。
-- 原生模块（better-sqlite3）需匹配 Electron ABI，带来已记录的打包取舍（`npmRebuild: false` 等，见 README "Packaging" 与 `../architecture.md`）。
+- 原生模块（better-sqlite3）需匹配 Electron ABI，带来已记录的打包取舍（`npmRebuild: false` 等，见 `../architecture.md` §4）。
 
 ## Alternatives Considered
 
