@@ -20,7 +20,7 @@
 
 - 主进程日志 `data/logs/app.log`（按日轮转 7 天）；网关不记请求日志（只记错误与生命周期事件，消息体一律过 redact）。
 - 全部已知密钥注册进 `crypto/redact` 登记表，任何出口统一 `redact()`（保留前 3 位 + `***`，即 `key.slice(0,3) + '***'` 模式）：错误消息、IPC 错误、服务商 error message。
-- 服务商可控的错误 `code`/`type` 经 `sanitizeErrorCode` 脱敏 + 截断（≤128 字符、白名单字符集）后才入库/广播。
+- 服务商可控的错误 `code`/`type` 经 `sanitizeErrorCode` 脱敏 + 截断（≤128 字符、白名单字符集）后才入库/广播；`message` 经 `sanitizeErrorMessage` 脱敏 + 截断（≤2000 字符，先脱敏后截断）后才入库/广播（@req REQ-2026-001）。
 
 ## 3. 渲染进程安全
 

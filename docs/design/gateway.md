@@ -31,7 +31,7 @@ interface ChatChunk { delta?: string; reasoning_delta?: string; finishReason?: s
 - **连接超时 15s**；流式空闲 60s 无数据自动重试 1 次，再失败报错（UI 给"重试"按钮，见 `./chat.md` §2）。
 - **重定向一律拒绝**（`redirect: 'manual'`，3xx → `redirect_rejected`；REQ-2026-001：LLM API 无合法重定向，跨源 307/308 会转发 `x-api-key` 与请求体）。
 - **响应大小硬上限**（REQ-2026-001）：非流式 body ≤ 16MB、错误体 ≤ 1MB（`gateway/read.ts`），SSE 单事件/半行 ≤ 1M 字符（`sse.ts`），会话累计 content+reasoning ≤ 4M 字符（`chat.ts`，超限中止并按 partial 落库）——统一报 `response_too_large`。
-- HTTP 非 2xx：读响应体 `error.message` 统一映射 `ApiError{code,message}`；**任何错误对象序列化前过 `redact()`**（密钥 → `前3字符***`，见 `./security.md`）；服务商可控的 error `code`/`type` 经 `sanitizeErrorCode` 脱敏截断（≤128 字符白名单字符集）。
+- HTTP 非 2xx：读响应体 `error.message` 统一映射 `ApiError{code,message}`；**任何错误对象序列化前过 `redact()`**（密钥 → `前3字符***`，见 `./security.md`）；服务商可控的 error `code`/`type` 经 `sanitizeErrorCode` 脱敏截断（≤128 字符白名单字符集），`message` 经 `sanitizeErrorMessage` 脱敏截断（≤2000 字符，@req REQ-2026-001）。
 - 三种格式（`openai-chat` / `openai-responses` / `anthropic`）各自的 payload、SSE 事件、鉴权头、参数映射、URL 拼接（joinUrl）见 `../contracts/protocol-mapping.md`。
 - 协议差异（top_k、system 字段位置、penalty 语义、思考开关载荷）在适配层内部消化，UI 仅提示。
 - 发送前的上下文裁剪在 `gateway/trim.ts`（纯函数，行为见 `./context-trim.md`）。

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BackupFileInfo, ImportResult } from '@shared/types';
+import { MAX_BACKUP_PASSWORD_CHARS } from '@shared/ipc';
 import { getApi } from '../../bridge';
 import { useUiStore } from '../../store/ui';
 import { useProvidersStore } from '../../store/providers';
@@ -95,9 +96,14 @@ function CreateBackupModal({ onClose }: { onClose: () => void }) {
               type="password"
               className="input-surface"
               value={password}
+              maxLength={MAX_BACKUP_PASSWORD_CHARS}
               autoComplete="new-password"
               onChange={(e) => setPassword(e.target.value)}
             />
+            {/* @req REQ-2026-001：密码 8–32 位，输入框内提示（minLength 逻辑校验在下方 valid） */}
+            <span className="mt-1 block text-[0.6875rem] text-tertiary">
+              {t('settings.backup.passwordHint')}
+            </span>
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-secondary">
@@ -107,6 +113,7 @@ function CreateBackupModal({ onClose }: { onClose: () => void }) {
               type="password"
               className="input-surface"
               value={confirm}
+              maxLength={MAX_BACKUP_PASSWORD_CHARS}
               autoComplete="new-password"
               onChange={(e) => setConfirm(e.target.value)}
             />
@@ -224,6 +231,7 @@ function RestoreModal({ path, onClose }: { path: string; onClose: () => void }) 
               type="password"
               className="input-surface"
               value={password}
+              maxLength={MAX_BACKUP_PASSWORD_CHARS}
               autoComplete="off"
               onChange={(e) => setPassword(e.target.value)}
             />

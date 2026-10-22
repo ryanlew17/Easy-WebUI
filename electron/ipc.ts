@@ -21,6 +21,7 @@ import {
   messageAnchorSchema,
   updateMessageContentSchema,
   deleteMessagesSchema,
+  MAX_BACKUP_PASSWORD_CHARS,
 } from '../shared/ipc';
 import { PRESETS } from '../shared/presets';
 import { serializeIpcError } from '../shared/errors';
@@ -41,6 +42,7 @@ import type {
 import { redact, redactString, registerSecret } from './crypto/redact';
 import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '../shared/url';
 import { isAppFrameUrl } from './webcontents-guard';
+import { isAllowedRestorePath, normalizeFsPath } from './backup/core';
 import type { CryptoService } from './crypto';
 import type { DB } from './db';
 import type { ProvidersDao } from './db/providers';
@@ -145,7 +147,8 @@ const settingsPatchSchema = z.object({
 
 const createBackupSchema = z.object({
   includeKeys: z.boolean(),
-  password: z.string().optional(),
+  // @req REQ-2026-001：密码 8–32 位（下限由 buildBackup 业务校验，UI maxLength 同步）
+  password: z.string().max(MAX_BACKUP_PASSWORD_CHARS).optional(),
 });
 
 const restoreBackupSchema = z.object({
@@ -158,7 +161,7 @@ const restoreBackupSchema = z.object({
     .refine((p) => path.win32.isAbsolute(p) || path.posix.isAbsolute(p), {
       message: 'invalid_backup_path',
     }),
-  password: z.string().optional(),
+  password: z.string().max(MAX_BACKUP_PASSWORD_CHARS).optional(),
   mode: z.enum(['merge', 'overwrite']),
 });
 
@@ -604,11 +607,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   handle(IPC.updateGetState, () => deps.updater.getState());
 
   /* —— 备份 —— */
+  /** 本会话 pickBackupFile 对话框放行过的路径（restoreBackup 白名单用，@req REQ-2026-001） */
+  const pickedBackupPaths = new Set<string>();
   handle(IPC.listBackups, () => backup.listBackups());
   handle(IPC.createBackup, (raw: unknown) => backup.createBackup(createBackupSchema.parse(raw)));
-  handle(IPC.restoreBackup, (raw: unknown) =>
-    backup.restoreBackup(restoreBackupSchema.parse(raw)),
-  );
+  handle(IPC.restoreBackup, async (raw: unknown) => {
+    const input = restoreBackupSchema.parse(raw);
+    // @req REQ-2026-001：恢复路径只接受 backups 目录内文件或本会话对话框
+    // （pickBackupFile）选择过的文件——zod 只管"绝对路径 .zip"形状，
+    // 这层把任意磁盘 zip 解析原语收窄到用户可见来源
+    if (!isAllowedRestorePath(input.path, backup.dir(), pickedBackupPaths)) {
+      throw codedError('invalid_backup_path');
+    }
+    return backup.restoreBackup(input);
+  });
   handle(IPC.deleteBackup, (filename: unknown) =>
     backup.deleteBackup(z.string().min(1).parse(filename)),
   );
@@ -622,6 +634,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       properties: ['openFile'],
       filters: [{ name: 'zip', extensions: ['zip'] }],
     });
-    return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+    const picked = r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+    if (picked) pickedBackupPaths.add(normalizeFsPath(picked));
+    return picked;
   });
 }

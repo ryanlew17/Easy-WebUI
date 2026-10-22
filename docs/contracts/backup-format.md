@@ -30,12 +30,12 @@
 ## 3. 密钥处理（两条路径）
 
 - **不含密钥（默认）**：`data.json` 中 `api_key_cipher` 置 null；恢复后平台其余配置可用，仅需补填密钥。
-- **含密钥**：需要独立备份密码（≥8 位，输入二次确认）；用 scrypt（N=2^15, r=8, p=1）从密码派生 32 字节密钥，AES-256-GCM 加密"解密后的密钥明文列表"；salt / nonce 入包（kdf 字段）。
+- **含密钥**：需要独立备份密码（8–32 位，输入二次确认，@req REQ-2026-001）；用 scrypt（N=2^15, r=8, p=1）从密码派生 32 字节密钥，AES-256-GCM 加密"解密后的密钥明文列表"；salt / nonce 入包（kdf 字段）。
 - **绝不允许把 safeStorage 机器密文直接导出**（绑定本机，换机无法解密）。恢复时用本机加密服务重新加密入库。
 
 ## 4. 恢复规则
 
-1. 选 zip → 解析 manifest → 含密钥则先验密码。
+1. 选 zip → 解析 manifest → 含密钥则先验密码。恢复路径只接受 backups 目录内文件或本会话 pickBackupFile 对话框选择过的文件（`isAllowedRestorePath`，@req REQ-2026-001）；删除备份同样要求文件名匹配 `^easyui-backup-.*\.zip$`。
 2. 校验 `schema_version ≤ 当前`（旧 schema 备份恢复后走 `backfillParentLinks` 等回填，见 [db-schema.md](./db-schema.md) §3）。
 3. 事务内导入，两种模式：
    - **合并**（默认）：按 id 跳过已存在记录；

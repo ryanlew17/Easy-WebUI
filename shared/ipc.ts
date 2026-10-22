@@ -154,6 +154,9 @@ export const openExternalSchema = z
   .max(1000)
   .regex(/^https?:\/\//i);
 
+/** 备份密码长度上限（创建与恢复共用；@req REQ-2026-001，mock 桥同规则） */
+export const MAX_BACKUP_PASSWORD_CHARS = 32;
+
 /* ---------------- 树形消息 / 分支操作入参（schema v3） ---------------- */
 
 export const sendMessageSchema = z.object({

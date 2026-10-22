@@ -14,10 +14,9 @@ import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
-import { GatewayError, sanitizeErrorCode, toApiError } from './errors';
+import { GatewayError, sanitizeErrorCode, sanitizeErrorMessage, toApiError } from './errors';
 import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
-import { redactString } from '../crypto/redact';
 
 export const ANTHROPIC_VERSION = '2023-06-01';
 export const ANTHROPIC_DEFAULT_MAX_TOKENS = 4096;
@@ -143,7 +142,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
       const err = json.error as { type?: string; message?: string } | undefined;
       throw new GatewayError(
         sanitizeErrorCode(err?.type),
-        redactString(err?.message ?? 'anthropic stream error'),
+        sanitizeErrorMessage(err?.message, 'anthropic stream error'),
       );
     }
     // ping / content_block_start/stop 等事件忽略

@@ -356,6 +356,7 @@
       "password": "Backup password",
       "passwordConfirm": "Confirm password",
       "passwordTooShort": "Password must be at least 8 characters",
+      "passwordHint": "Password must be 8–32 characters",
       "passwordMismatch": "Passwords do not match",
       "list": "Backups",
       "empty": "No backups yet",

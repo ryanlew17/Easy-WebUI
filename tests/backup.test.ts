@@ -11,11 +11,15 @@ import { describe, expect, it } from 'vitest';
 import {
   breakParentCycles,
   buildBackup,
+  isAllowedRestorePath,
+  normalizeFsPath,
   parseBackup,
   planImport,
+  sanitizeBackupFilename,
   type BackupDataJson,
   type ExportRows,
 } from '../electron/backup/core';
+import { MAX_BACKUP_PASSWORD_CHARS } from '@shared/ipc';
 import { DEFAULT_SETTINGS } from '@shared/types';
 
 /* ---------- 固定数据 ---------- */
@@ -467,5 +471,71 @@ describe('breakParentCycles（I6：恶意备份 parent_id 环断边）', () => {
   it('正常树不受影响', () => {
     const out = breakParentCycles([msg('a', null), msg('b', 'a'), msg('c', 'b')]);
     expect(out.map((r) => r.parent_id)).toEqual([null, 'a', 'b']);
+  });
+});
+
+/* ---------- @req REQ-2026-001：文件名/路径防御 + 密码上限 ---------- */
+
+describe('sanitizeBackupFilename（F1：删除入参模式校验）', () => {
+  it('合法备份文件名原样通过（basename 提取）', () => {
+    expect(sanitizeBackupFilename('easyui-backup-20260101-1200.zip')).toBe(
+      'easyui-backup-20260101-1200.zip',
+    );
+  });
+
+  it('路径穿越被 basename 化解，剩余 basename 仍须匹配模式', () => {
+    // ..\..\evil.zip → basename=evil.zip，不匹配备份模式 → 拒绝
+    expect(sanitizeBackupFilename('..\\..\\evil.zip')).toBeNull();
+    expect(sanitizeBackupFilename('../../easyui-backup-x.zip')).toBe('easyui-backup-x.zip');
+  });
+
+  it('非备份模式文件名（可执行/库文件等）→ 拒绝', () => {
+    expect(sanitizeBackupFilename('easyui.db')).toBeNull();
+    expect(sanitizeBackupFilename('keyring.bin')).toBeNull();
+    expect(sanitizeBackupFilename('evil.zip')).toBeNull();
+  });
+});
+
+describe('isAllowedRestorePath（F3：恢复路径白名单）', () => {
+  const dir = normalizeFsPath(process.cwd() + '/data/backups');
+  const picked = new Set([normalizeFsPath(process.cwd() + '/downloads/chosen.zip')]);
+
+  it('backups 目录内文件 → 放行（含分隔符防前缀碰撞）', () => {
+    expect(isAllowedRestorePath(process.cwd() + '/data/backups/easyui-backup-1.zip', dir, picked)).toBe(true);
+    // 相邻目录 backups-evil 不能靠字符串前缀混过
+    expect(isAllowedRestorePath(process.cwd() + '/data/backups-evil/x.zip', dir, picked)).toBe(false);
+  });
+
+  it('本会话对话框选择过的路径 → 放行；未选择过的外部路径 → 拒绝', () => {
+    expect(isAllowedRestorePath(process.cwd() + '/downloads/chosen.zip', dir, picked)).toBe(true);
+    expect(isAllowedRestorePath(process.cwd() + '/downloads/other.zip', dir, picked)).toBe(false);
+    expect(isAllowedRestorePath('C:\\Windows\\system32\\evil.zip', dir, new Set())).toBe(false);
+  });
+});
+
+describe('备份密码上限（F4：8–32 位）', () => {
+  it('密码 >32 位 → backup_password_too_long', () => {
+    expect(backupErrorCode(() =>
+      buildBackup(rows, {
+        includeKeys: true,
+        password: 'a'.repeat(MAX_BACKUP_PASSWORD_CHARS + 1),
+        decryptKey,
+        appVersion: '0.1.0',
+        schemaVersion: SCHEMA,
+      }),
+    )).toBe('backup_password_too_long');
+  });
+
+  it('密码恰 32 位仍可正常创建与恢复（roundtrip）', () => {
+    const password = 'a'.repeat(MAX_BACKUP_PASSWORD_CHARS);
+    const { data, manifest } = buildBackup(rows, {
+      includeKeys: true,
+      password,
+      decryptKey,
+      appVersion: '0.1.0',
+      schemaVersion: SCHEMA,
+    });
+    const restored = parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA });
+    expect(restored.providers[0].api_key_cipher).toBe('cipher-of-key-A');
   });
 });

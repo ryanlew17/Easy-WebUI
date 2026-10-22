@@ -17,10 +17,9 @@ import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
-import { GatewayError, sanitizeErrorCode, toApiError } from './errors';
+import { GatewayError, sanitizeErrorCode, sanitizeErrorMessage, toApiError } from './errors';
 import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
-import { redactString } from '../crypto/redact';
 import { parseStructuredSchema, STRUCTURED_OUTPUT_NAME } from './structured';
 
 export function buildRequest(input: AdapterChatInput): BuiltRequest {
@@ -127,7 +126,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
       const err = json.error as { message?: string; code?: string } | undefined;
       throw new GatewayError(
         sanitizeErrorCode(err?.code),
-        redactString(err?.message ?? 'response failed'),
+        sanitizeErrorMessage(err?.message, 'response failed'),
       );
     }
     yield {
@@ -164,7 +163,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
       const err = response?.error as { message?: string; code?: string } | undefined;
       throw new GatewayError(
         sanitizeErrorCode(err?.code),
-        redactString(err?.message ?? 'response failed'),
+        sanitizeErrorMessage(err?.message, 'response failed'),
       );
     }
     // 其余事件（response.created / output_item.* 等）忽略

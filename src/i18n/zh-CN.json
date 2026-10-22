@@ -356,6 +356,7 @@
       "password": "备份密码",
       "passwordConfirm": "确认密码",
       "passwordTooShort": "密码至少 8 位",
+      "passwordHint": "密码为 8–32 个字符",
       "passwordMismatch": "两次输入的密码不一致",
       "list": "备份列表",
       "empty": "暂无备份",

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatChunk } from '@shared/types';
 import { FACTORY_DEFAULTS } from '@shared/params';
 import { joinUrl } from '../electron/gateway/url';
-import { chat, listModels, testModel } from '../electron/gateway';
+import { chat, listModels, testModel, MAX_ERROR_MESSAGE_CHARS, sanitizeErrorMessage } from '../electron/gateway';
 import { iterateSse } from '../electron/gateway/sse';
 import {
   MAX_NONSTREAM_BYTES,
@@ -824,5 +824,42 @@ describe('iterateSse 单事件上限（C2）', () => {
       'hello',
       'world',
     ]);
+  });
+});
+
+/* ---------- @req REQ-2026-001：服务商错误 message 脱敏 + 截断 ---------- */
+
+describe('错误 message 整形（sanitizeErrorMessage）', () => {
+  it('超长 message 截断至 ≤2000 字符', () => {
+    const out = sanitizeErrorMessage('x'.repeat(5000), 'fallback');
+    expect(out.length).toBe(MAX_ERROR_MESSAGE_CHARS);
+    expect(out).toBe('x'.repeat(MAX_ERROR_MESSAGE_CHARS));
+  });
+
+  it('先脱敏后截断——密钥先被整体替换，绝不留半截明文', () => {
+    registerSecret('sk-secret-key-123456');
+    // 密钥位于 message 前部，其后跟超长填充：脱敏先行，截断只作用于已脱敏文本
+    const out = sanitizeErrorMessage(`sk-secret-key-123456${'y'.repeat(5000)}`, 'fallback');
+    expect(out).not.toContain('sk-secret-key-123456');
+    expect(out.length).toBeLessThanOrEqual(MAX_ERROR_MESSAGE_CHARS);
+    // 密钥位于 2000 字符之后：截断直接丢弃尾部，同样不泄露
+    const tail = sanitizeErrorMessage(`${'y'.repeat(3000)}sk-secret-key-123456`, 'fallback');
+    expect(tail).not.toContain('sk-secret-key-123456');
+  });
+
+  it('非字符串/空串回退 fallback', () => {
+    expect(sanitizeErrorMessage(undefined, 'fallback')).toBe('fallback');
+    expect(sanitizeErrorMessage('', 'fallback')).toBe('fallback');
+    expect(sanitizeErrorMessage(123, 'fallback')).toBe('fallback');
+  });
+
+  it('HTTP 非 2xx：toApiError 路径超长 message 同样截断', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: { message: 'z'.repeat(9000) } }, 500),
+    );
+    await expect(collect(openaiChat.chat(baseInput({ stream: false })))).rejects.toMatchObject({
+      code: '500',
+      message: 'z'.repeat(MAX_ERROR_MESSAGE_CHARS),
+    });
   });
 });

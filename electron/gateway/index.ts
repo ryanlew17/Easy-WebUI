@@ -156,7 +156,7 @@ export async function testAllModels(input: {
 export { listModels, detectFormat } from './models';
 export { joinUrl } from './url';
 export { trimMessages, defaultTokenCounter, truncateToTokens } from './trim';
-export { GatewayError, StreamIdleError, normalizeError, toApiError } from './errors';
+export { GatewayError, StreamIdleError, normalizeError, toApiError, MAX_ERROR_MESSAGE_CHARS, sanitizeErrorMessage } from './errors';
 export {
   MAX_ERROR_BYTES,
   MAX_NONSTREAM_BYTES,

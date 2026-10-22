@@ -48,7 +48,7 @@ import {
 import { PRESETS } from '@shared/presets';
 import { resolveTitleTarget, sanitizeTitle } from '@shared/title';
 import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
-import { openExternalSchema } from '@shared/ipc';
+import { MAX_BACKUP_PASSWORD_CHARS, openExternalSchema } from '@shared/ipc';
 
 const PREFIX = 'easyui_mock_';
 
@@ -1219,6 +1219,10 @@ export const mockApi: EasyUiApi = {
   },
 
   async createBackup(input): Promise<BackupFileInfo> {
+    // @req REQ-2026-001：与主进程 buildBackup 同规则（密码 ≤32），mock 桥行为对齐
+    if (input.password !== undefined && input.password.length > MAX_BACKUP_PASSWORD_CHARS) {
+      throw new Error('backup_password_too_long');
+    }
     await delay(300);
     return {
       filename: 'easyui-backup-webmock.zip',

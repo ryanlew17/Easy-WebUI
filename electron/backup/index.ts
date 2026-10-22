@@ -14,10 +14,12 @@ import { FACTORY_DEFAULTS } from '../../shared/params';
 import type { ProviderRow } from '../db/providers';
 import type { MessageRow } from '../db/messages';
 import {
+  BACKUP_NAME_RE,
   breakParentCycles,
   buildBackup,
   parseBackup,
   planImport,
+  sanitizeBackupFilename,
   type BackupDataJson,
   type ConversationExportRow,
   type ExportRows,
@@ -264,7 +266,7 @@ export function createBackupService(deps: BackupDeps) {
     listBackups(): BackupFileInfo[] {
       const files = fs
         .readdirSync(dir())
-        .filter((f) => /^easyui-backup-.*\.zip$/.test(f))
+        .filter((f) => BACKUP_NAME_RE.test(f))
         .sort()
         .reverse();
       return files.map((filename) => {
@@ -287,8 +289,10 @@ export function createBackupService(deps: BackupDeps) {
     },
 
     deleteBackup(filename: string): void {
-      // 防路径穿越：只取 basename，且必须落在 backups 目录
-      const safe = path.basename(filename);
+      // @req REQ-2026-001：basename 防穿越 + 文件名必须匹配备份模式
+      // （与 listBackups 同规则，否则可删 backups 目录内任意文件）
+      const safe = sanitizeBackupFilename(filename);
+      if (!safe) throw new Error('invalid_backup_filename');
       const full = path.join(dir(), safe);
       if (!full.startsWith(dir())) throw new Error('invalid_backup_path');
       fs.rmSync(full, { force: true });

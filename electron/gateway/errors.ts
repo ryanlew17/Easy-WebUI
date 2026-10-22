@@ -49,7 +49,20 @@ export async function toApiError(res: {
   } catch {
     /* 响应体非 JSON，保留 HTTP 状态码文案 */
   }
-  return new GatewayError(String(res.status), redactString(message));
+  return new GatewayError(String(res.status), sanitizeErrorMessage(message, message));
+}
+
+/**
+ * 服务商可控的错误 message 整形（@req REQ-2026-001）：脱敏 + 截断。
+ * 顺序必须是先脱敏后截断——先截断可能把密钥截成半截留在明文里。
+ * 截断上限与 MAX_ERROR_BYTES（读取层）分层：读取层防内存，这里防
+ * 超长 message 入库（error_json）/IPC 广播/UI 渲染。
+ */
+export const MAX_ERROR_MESSAGE_CHARS = 2000;
+
+export function sanitizeErrorMessage(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string' || raw.length === 0) return fallback;
+  return redactString(raw).slice(0, MAX_ERROR_MESSAGE_CHARS);
 }
 
 /**

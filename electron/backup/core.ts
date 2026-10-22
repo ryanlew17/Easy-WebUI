@@ -13,8 +13,10 @@
  *   salt 存 manifest.kdf.salt_b64，nonce/tag 随密文 blob（见 crypto/lowlevel）。
  * - 恢复时把明文用本机 CryptoService 重新加密（encryptKey 注入）再落库。
  */
+import path from 'node:path';
 import type { BackupManifest, GeneralSettings } from '../../shared/types';
 import { migrateLegacyParamsJson } from '../../shared/params';
+import { MAX_BACKUP_PASSWORD_CHARS } from '../../shared/ipc';
 import { aesGcmDecrypt, aesGcmEncrypt, BACKUP_KDF, randomSalt, scryptDerive } from '../crypto/lowlevel';
 
 /* ---------- 导出/导入的行形状（与 DB 列一一对应，cipher 用 utf8 字符串） ---------- */
@@ -167,6 +169,43 @@ export class BackupError extends Error {
   }
 }
 
+/* ---------- 文件名 / 路径防御（@req REQ-2026-001） ---------- */
+
+/** 备份文件名模式（listBackups 过滤与 deleteBackup 校验共用） */
+export const BACKUP_NAME_RE = /^easyui-backup-.*\.zip$/;
+
+/**
+ * deleteBackup 入参整形：取 basename（防穿越）且必须匹配备份文件名模式，
+ * 非法返回 null——否则被入侵的渲染进程可借 IPC 删除 backups 目录内任意文件。
+ */
+export function sanitizeBackupFilename(filename: string): string | null {
+  const base = path.basename(filename);
+  return BACKUP_NAME_RE.test(base) ? base : null;
+}
+
+/** 路径归一（win32 大小写不敏感），恢复路径白名单判定与登记共用 */
+export function normalizeFsPath(p: string): string {
+  const r = path.resolve(p);
+  return process.platform === 'win32' ? r.toLowerCase() : r;
+}
+
+/**
+ * 恢复路径放行判定：仅接受 backups 目录内的文件，或本会话 pickBackupFile
+ * 对话框返回过的路径——渲染进程不得让主进程解析磁盘上任意 zip。
+ */
+export function isAllowedRestorePath(
+  target: string,
+  backupsDir: string,
+  pickedPaths: ReadonlySet<string>,
+): boolean {
+  const t = normalizeFsPath(target);
+  if (t.startsWith(normalizeFsPath(backupsDir) + path.sep)) return true;
+  for (const p of pickedPaths) {
+    if (normalizeFsPath(p) === t) return true;
+  }
+  return false;
+}
+
 /* ---------- 导出 ---------- */
 
 export function buildBackup(
@@ -209,6 +248,13 @@ export function buildBackup(
     const password = opts.password ?? '';
     if (password.length < 8) {
       throw new BackupError('backup_password_too_short', 'backup password must be >= 8 chars');
+    }
+    // @req REQ-2026-001：上限 32（schema 之外的纯函数层兜底，防超长串进 scrypt 派生）
+    if (password.length > MAX_BACKUP_PASSWORD_CHARS) {
+      throw new BackupError(
+        'backup_password_too_long',
+        `backup password must be <= ${MAX_BACKUP_PASSWORD_CHARS} chars`,
+      );
     }
     const entries = rows.providers
       .filter((p) => p.api_key_cipher)
