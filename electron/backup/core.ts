@@ -250,8 +250,23 @@ export function parseBackup(
     if (!manifest.kdf || !data.keys_cipher?.cipher_b64) {
       throw new BackupError('backup_keys_missing', 'manifest includes_keys but no keys payload');
     }
-    const { N, r, p, salt_b64 } = manifest.kdf;
-    const key = scryptDerive(opts.password, Buffer.from(salt_b64, 'base64'), 32, { N, r, p });
+    // @req REQ-2026-001 I5：KDF 参数来自不可信 manifest——大 N/r/p 一次推导即占
+    // 上百 MB 内存与大量 CPU（DoS），必须与导出侧恒等；salt 长度同样钳制
+    const { algo, N, r, p, salt_b64 } = manifest.kdf;
+    if (
+      algo !== 'scrypt' ||
+      N !== BACKUP_KDF.N ||
+      r !== BACKUP_KDF.r ||
+      p !== BACKUP_KDF.p ||
+      typeof salt_b64 !== 'string'
+    ) {
+      throw new BackupError('invalid_backup', 'kdf parameters mismatch');
+    }
+    const salt = Buffer.from(salt_b64, 'base64');
+    if (salt.length < 16 || salt.length > 64) {
+      throw new BackupError('invalid_backup', 'invalid kdf salt');
+    }
+    const key = scryptDerive(opts.password, salt, 32, { N, r, p });
     let entries: Array<{ provider_id: string; api_key: string }>;
     try {
       const plain = aesGcmDecrypt(key, Buffer.from(data.keys_cipher.cipher_b64, 'base64'));
@@ -293,4 +308,33 @@ export function planImport<T extends { id: string }>(
   }
   const rows = incoming.filter((r) => !existingIds.has(r.id));
   return { rows, skipped: incoming.length - rows.length };
+}
+
+/* ---------- 消息树防御（@req REQ-2026-001 I6） ---------- */
+
+/**
+ * 断开 parent_id 环：恶意备份可在同会话内构造 A.parent=B、B.parent=A 一类环，
+ * 导入后虽不会立即出错，但删除/遍历子树时有死循环风险（db/messages 的遍历
+ * 已带 seen 守卫，这里在导入侧再断一层——纵深）。成环节点降级为挂根
+ * （parent_id=null），不拒绝整个备份。仅检查本批导入行之间的环：
+ * 既有库内消息是树（无环），且导入只插不改，跨新旧不可能成环。
+ */
+export function breakParentCycles<T extends { id: string; conversation_id: string; parent_id: string | null }>(
+  rows: T[],
+): T[] {
+  const parentOf = new Map(rows.map((r) => [r.id, r.parent_id]));
+  for (const r of rows) {
+    if (r.parent_id === null) continue;
+    const seen = new Set<string>([r.id]);
+    let cur: string | null = r.parent_id;
+    while (cur !== null && parentOf.has(cur)) {
+      if (seen.has(cur)) {
+        r.parent_id = null; // 断边降级挂根
+        break;
+      }
+      seen.add(cur);
+      cur = parentOf.get(cur) ?? null;
+    }
+  }
+  return rows;
 }

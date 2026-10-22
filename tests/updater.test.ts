@@ -62,7 +62,7 @@ describe('updater dev/未打包分支', () => {
 describe('updater mock 通道（EASYUI_MOCK_UPDATE=1）', () => {
   it('check → available（patch+1）→ download 进度推送 → downloaded → install no-op', async () => {
     process.env.EASYUI_MOCK_UPDATE = '1';
-    const { deps, sent } = makeDeps({ isPackaged: () => true });
+    const { deps, sent } = makeDeps({ isPackaged: () => false });
     const u = createUpdater(deps);
 
     const r = await u.check();
@@ -87,7 +87,7 @@ describe('updater mock 通道（EASYUI_MOCK_UPDATE=1）', () => {
 
   it('beta 开关反映在 mock 更新说明中；已下载后重复 download 直接成功', async () => {
     process.env.EASYUI_MOCK_UPDATE = '1';
-    const { deps } = makeDeps({ isPackaged: () => true, getBeta: () => true });
+    const { deps } = makeDeps({ isPackaged: () => false, getBeta: () => true });
     const u = createUpdater(deps);
     const r = await u.check();
     if (r.status !== 'available') throw new Error('unreachable');

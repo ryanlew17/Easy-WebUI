@@ -50,6 +50,13 @@ import { logger } from './logger';
 const TITLE_PROMPT =
   'Summarize the following user request as a very short conversation title (max 8 words, same language as the request). Reply with the title only, no quotes, no punctuation at the end.\n\n';
 
+/**
+ * 流式累计字符上限（@req REQ-2026-001 I7）：恶意端点可保持流永不结束
+ * （低速供数据即可绕过 60s 空闲判定），content+reasoning 累计超限即中止，
+ * 已收内容按 partial 落库。128k max_tokens ≈ 512KB 字符，4M 为充裕上限。
+ */
+const MAX_ACCUMULATED_CHARS = 4_000_000;
+
 export interface OrchestratorDeps {
   conversations: ConversationsDao;
   messages: MessagesDao;
@@ -379,6 +386,14 @@ export class ChatOrchestrator {
           });
         }
         if (chunk.finishReason) finishReason = chunk.finishReason;
+        // @req REQ-2026-001 I7：累计超限 → 中止（已收内容走下方 failed 分支落库 partial）
+        if (content.length + reasoning.length > MAX_ACCUMULATED_CHARS) {
+          failed = {
+            code: 'response_too_large',
+            message: `accumulated response exceeds ${MAX_ACCUMULATED_CHARS} chars`,
+          };
+          break;
+        }
       }
     } catch (e) {
       failed = normalizeError(e);

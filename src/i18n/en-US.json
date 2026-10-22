@@ -263,6 +263,7 @@
       "nameLabel": "Name",
       "namePlaceholder": "e.g. OpenAI Official / DeepSeek Relay",
       "baseUrlLabel": "Base URL",
+      "hostChangeClearsKey": "⚠️ Changing the server host clears the saved API key — re-enter it after saving.",
       "apiKeyLabel": "API key",
       "apiKeyPlaceholderNew": "sk-…",
       "apiKeyPlaceholderEdit": "Leave empty to keep unchanged",

@@ -17,7 +17,8 @@ import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
-import { GatewayError, toApiError } from './errors';
+import { GatewayError, sanitizeErrorCode, toApiError } from './errors';
+import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
 import { redactString } from '../crypto/redact';
 import { parseStructuredSchema, STRUCTURED_OUTPUT_NAME } from './structured';
@@ -121,11 +122,11 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
   if (!res.ok) throw await toApiError(res);
 
   if (!input.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = (await readJsonWithLimit(res)) as Record<string, unknown>;
     if (json.status === 'failed') {
       const err = json.error as { message?: string; code?: string } | undefined;
       throw new GatewayError(
-        typeof err?.code === 'string' ? err.code : 'request_failed',
+        sanitizeErrorCode(err?.code),
         redactString(err?.message ?? 'response failed'),
       );
     }
@@ -162,7 +163,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
       const response = json.response as Record<string, unknown> | undefined;
       const err = response?.error as { message?: string; code?: string } | undefined;
       throw new GatewayError(
-        typeof err?.code === 'string' ? err.code : 'request_failed',
+        sanitizeErrorCode(err?.code),
         redactString(err?.message ?? 'response failed'),
       );
     }

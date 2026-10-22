@@ -8,6 +8,7 @@ import type { ApiFormat } from '../../shared/types';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
 import { toApiError } from './errors';
+import { readJsonWithLimit } from './read';
 import { anthropicHeaders } from './anthropic';
 
 export async function listModels(
@@ -21,7 +22,7 @@ export async function listModels(
       : { authorization: `Bearer ${apiKey}` };
   const res = await fetchWithTimeout(joinUrl(baseUrl, '/models'), { headers }, CONNECT_TIMEOUT_MS);
   if (!res.ok) throw await toApiError(res);
-  const json = (await res.json()) as { data?: Array<{ id?: unknown; name?: unknown }> };
+  const json = (await readJsonWithLimit(res)) as { data?: Array<{ id?: unknown; name?: unknown }> };
   const arr = Array.isArray(json?.data) ? json.data : [];
   return arr
     .map((m) => (typeof m?.id === 'string' ? m.id : typeof m?.name === 'string' ? m.name : ''))

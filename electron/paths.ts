@@ -89,7 +89,14 @@ function scanTempLegacyDirs(): string[] {
       if (!name.includes('easy-webui') && !name.includes('easywebui')) continue;
       const dataDir = path.join(os.tmpdir(), entry, 'data');
       try {
-        if (fs.existsSync(path.join(dataDir, 'easyui.db'))) out.push(dataDir);
+        // @req REQ-2026-001 M3：除 easyui.db 外还要求 storage-layout.json 标记，
+        // 防本机他进程在 %TEMP% 投毒迁移源
+        if (
+          fs.existsSync(path.join(dataDir, 'easyui.db')) &&
+          fs.existsSync(path.join(dataDir, 'storage-layout.json'))
+        ) {
+          out.push(dataDir);
+        }
       } catch {
         /* ignore */
       }

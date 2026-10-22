@@ -263,6 +263,7 @@
       "nameLabel": "名称",
       "namePlaceholder": "如：OpenAI 官方 / DeepSeek 中转",
       "baseUrlLabel": "API 地址",
+      "hostChangeClearsKey": "⚠️ 更换服务地址（host）将清除已保存的 API 密钥，保存后需重新输入。",
       "apiKeyLabel": "API 密钥",
       "apiKeyPlaceholderNew": "sk-…",
       "apiKeyPlaceholderEdit": "留空表示不修改",

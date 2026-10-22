@@ -10,7 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatChunk } from '@shared/types';
 import { FACTORY_DEFAULTS } from '@shared/params';
 import { joinUrl } from '../electron/gateway/url';
-import { chat, testModel } from '../electron/gateway';
+import { chat, listModels, testModel } from '../electron/gateway';
+import { iterateSse } from '../electron/gateway/sse';
+import {
+  MAX_NONSTREAM_BYTES,
+  readJsonWithLimit,
+  readTextWithLimit,
+} from '../electron/gateway/read';
 import * as openaiChat from '../electron/gateway/openai-chat';
 import * as openaiResponses from '../electron/gateway/openai-responses';
 import * as anthropic from '../electron/gateway/anthropic';
@@ -676,5 +682,147 @@ describe('testModel', () => {
     expect(check.error).toContain('403');
     expect(check.error).toContain('sk-***');
     expect(check.error).not.toContain('sk-test-key');
+  });
+});
+
+/* ---------- @req REQ-2026-001：redirect 拒绝 / 大小上限 / SSE 上限 ---------- */
+
+const baseChatReq = (over: Record<string, unknown> = {}) => ({
+  baseUrl: 'https://api.test.com',
+  apiFormat: 'openai-chat' as const,
+  apiKey: 'sk-test-key',
+  model: 'm',
+  messages: [{ role: 'user' as const, content: 'hi' }],
+  params: { ...FACTORY_DEFAULTS },
+  stream: false,
+  signal: new AbortController().signal,
+  ...over,
+});
+
+describe('redirect 拒绝（I4）', () => {
+  it('请求一律带 redirect:manual', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '' } }] }));
+    await collect(chat(baseChatReq()));
+    const init = (fetchMock.mock.calls[0] as [string, RequestInit])[1];
+    expect(init.redirect).toBe('manual');
+  });
+
+  it('opaqueredirect（manual 模式下的 3xx）→ redirect_rejected', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      statusText: '',
+      type: 'opaqueredirect',
+      body: null,
+      text: async () => '',
+      json: async () => ({}),
+    } as unknown as Response);
+    await expect(collect(chat(baseChatReq()))).rejects.toMatchObject({ code: 'redirect_rejected' });
+  });
+
+  it('非规范实现直接返回 307 → 同样拒绝', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 307));
+    await expect(collect(chat(baseChatReq()))).rejects.toMatchObject({ code: 'redirect_rejected' });
+  });
+});
+
+describe('响应体大小上限（C2/M3）', () => {
+  it('listModels：content-length 超限 → response_too_large', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: '',
+      headers: {
+        get: (n: string) =>
+          n.toLowerCase() === 'content-length' ? String(MAX_NONSTREAM_BYTES + 1) : null,
+      },
+      body: null,
+      text: async () => '{}',
+      json: async () => ({}),
+    } as unknown as Response);
+    await expect(listModels('https://api.test.com', 'openai-chat', 'k')).rejects.toMatchObject({
+      code: 'response_too_large',
+    });
+  });
+
+  it('readTextWithLimit：body 流累计超限 → 抛错', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(64));
+        c.enqueue(new Uint8Array(64));
+        c.close();
+      },
+    });
+    await expect(
+      readTextWithLimit({ body: stream, text: async () => '' }, 100),
+    ).rejects.toMatchObject({ code: 'response_too_large' });
+  });
+
+  it('readTextWithLimit：无 body 回退 text() 按字节兜底', async () => {
+    await expect(
+      readTextWithLimit({ body: null, text: async () => 'x'.repeat(200) }, 100),
+    ).rejects.toMatchObject({ code: 'response_too_large' });
+  });
+
+  it('readTextWithLimit/readJsonWithLimit：正常多 chunk 拼接', async () => {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('{"a":'));
+        c.enqueue(enc.encode('1}'));
+        c.close();
+      },
+    });
+    await expect(readJsonWithLimit({ body: stream, text: async () => '' }, 100)).resolves.toEqual({
+      a: 1,
+    });
+  });
+});
+
+describe('iterateSse 单事件上限（C2）', () => {
+  async function collectSse(gen: AsyncGenerator<string>): Promise<string[]> {
+    const out: string[] = [];
+    for await (const s of gen) out.push(s);
+    return out;
+  }
+
+  it('单事件 data 超限 → response_too_large', async () => {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode(`data: ${'x'.repeat(200)}\n\n`));
+        c.close();
+      },
+    });
+    await expect(collectSse(iterateSse(stream, undefined, 1000, 100))).rejects.toMatchObject({
+      code: 'response_too_large',
+    });
+  });
+
+  it('永不换行的半行超限 → response_too_large', async () => {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('y'.repeat(200))); // 无 \n
+        c.close();
+      },
+    });
+    await expect(collectSse(iterateSse(stream, undefined, 1000, 100))).rejects.toMatchObject({
+      code: 'response_too_large',
+    });
+  });
+
+  it('上限内正常解析不受影响', async () => {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('data: hello\n\ndata: world\n\n'));
+        c.close();
+      },
+    });
+    await expect(collectSse(iterateSse(stream, undefined, 1000, 1000))).resolves.toEqual([
+      'hello',
+      'world',
+    ]);
   });
 });

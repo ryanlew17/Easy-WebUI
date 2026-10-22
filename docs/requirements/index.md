@@ -10,7 +10,7 @@
 
 | ID | 标题 | 状态 | 来源 | 影响模块 | 关联设计 | 更新时间 |
 |---|---|---|---|---|---|---|
-| _（暂无进行中的需求；新需求用 [REQ-TEMPLATE.md](./REQ-TEMPLATE.md) 在 `active/` 创建，登记后填入本表）_ | | | | | | |
+| [REQ-2026-001](./active/REQ-2026-001-security-audit-fixes.md) | 安全审计修复（Node RCE 响应 + 全量代码审查问题） | active | 内部 | shared/、electron/、src/ | design/security.md、design/gateway.md | 2026-10-22 |
 
 ## 状态流转
 

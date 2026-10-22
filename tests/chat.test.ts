@@ -478,3 +478,30 @@ describe('reasoningOff（会话思考开关）', () => {
     });
   }
 });
+
+/* ---------- @req REQ-2026-001 I7：流式累计上限 ---------- */
+
+describe('流式累计上限', () => {
+  it('content 累计超 MAX_ACCUMULATED_CHARS → 中止 + partial + response_too_large', async () => {
+    const { convId } = setup();
+    // 每块 90 万字符（低于 SSE 单事件 100 万上限），5 块累计 450 万 > 400 万编排层上限
+    const big = 'x'.repeat(900_000);
+    fetchMock.mockImplementation(async () =>
+      sseResponse(
+        sseChunksOpenAi([
+          { content: big },
+          { content: big },
+          { content: big },
+          { content: big },
+          { content: big },
+        ]),
+      ),
+    );
+    await orchestrator.sendMessage({ conversationId: convId, content: 'q' });
+    const payload = await waitEvent('chat:error');
+    expect((payload.error as { code: string }).code).toBe('response_too_large');
+    const msg = lastMessage(payload.messageId as string);
+    expect(msg.partial).toBe(true);
+    expect(msg.content.length).toBeGreaterThan(4_000_000); // 已收内容保留落库
+  });
+});

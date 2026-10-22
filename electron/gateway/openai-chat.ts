@@ -19,6 +19,7 @@ import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
 import { toApiError } from './errors';
+import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
 import { parseStructuredSchema, STRUCTURED_OUTPUT_NAME } from './structured';
 
@@ -101,7 +102,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
   if (!res.ok) throw await toApiError(res);
 
   if (!input.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = (await readJsonWithLimit(res)) as Record<string, unknown>;
     const choice = (json.choices as Record<string, unknown>[] | undefined)?.[0];
     const message = choice?.message as Record<string, unknown> | undefined;
     yield {

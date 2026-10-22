@@ -47,6 +47,8 @@ import {
 } from '@shared/params';
 import { PRESETS } from '@shared/presets';
 import { resolveTitleTarget, sanitizeTitle } from '@shared/title';
+import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
+import { openExternalSchema } from '@shared/ipc';
 
 const PREFIX = 'easyui_mock_';
 
@@ -429,15 +431,37 @@ function chunkText(text: string, size: number): string[] {
   return out;
 }
 
-/* ---------------- mock 平台内部形状（多存一个假 key 以演示 has_key） ---------------- */
+/* ---------------- mock 平台内部形状 ---------------- */
+
+/**
+ * @req REQ-2026-001 I8：mock 密钥只存内存，不落 localStorage
+ * （web 预览也可能填入真实密钥；localStorage 对该源上任何 JS 可读）。
+ * 旧版 mock 曾持久化 api_key——loadProviders 读出口统一剥离并回写清理。
+ */
+const memoryKeys = new Map<string, string>();
 
 interface MockProvider extends Provider {
+  /** @deprecated 仅用于清理旧版持久化残留；新逻辑永不写入 */
   api_key?: string;
 }
 
 function stripProvider(p: MockProvider): Provider {
   const { api_key: _ignored, ...rest } = p;
   return rest;
+}
+
+/** 读取平台列表：剥离旧版可能持久化的 api_key 并回写清理一次 */
+function loadProviders(): MockProvider[] {
+  const list = load<MockProvider[]>('providers', []);
+  let dirty = false;
+  for (const p of list) {
+    if (p.api_key !== undefined) {
+      delete p.api_key;
+      dirty = true;
+    }
+  }
+  if (dirty) save('providers', list);
+  return list;
 }
 
 const FAKE_MODELS: Record<ApiFormat, string[]> = {
@@ -602,11 +626,13 @@ export const mockApi: EasyUiApi = {
   /* —— 平台管理 —— */
 
   async listProviders(): Promise<Provider[]> {
-    return load<MockProvider[]>('providers', []).map(stripProvider);
+    return loadProviders().map(stripProvider);
   },
 
   async createProvider(draft: ProviderDraft): Promise<Provider> {
-    const providers = load<MockProvider[]>('providers', []);
+    // @req REQ-2026-001 M5：与主进程 zod 校验同规则（仅 http/https、禁 userinfo）
+    if (!isValidBaseUrl(draft.base_url)) throw new Error('invalid_base_url');
+    const providers = loadProviders();
     const now = Date.now();
     const provider: MockProvider = {
       id: uuid(),
@@ -614,21 +640,24 @@ export const mockApi: EasyUiApi = {
       base_url: draft.base_url.replace(/\/+$/, ''),
       api_format: draft.api_format,
       has_key: !!draft.api_key,
-      api_key: draft.api_key,
       models: [],
       created_at: now,
       updated_at: now,
     };
+    if (draft.api_key) memoryKeys.set(provider.id, draft.api_key); // 内存态，不落盘
     providers.push(provider);
     save('providers', providers);
     return stripProvider(provider);
   },
 
   async updateProvider(id, patch) {
-    const providers = load<MockProvider[]>('providers', []);
+    const providers = loadProviders();
     const idx = providers.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error('provider_not_found');
     const current = providers[idx];
+    if (patch.base_url != null && !isValidBaseUrl(patch.base_url)) {
+      throw new Error('invalid_base_url');
+    }
     const next: MockProvider = {
       ...current,
       name: patch.name ?? current.name,
@@ -638,9 +667,24 @@ export const mockApi: EasyUiApi = {
       models: (patch.models as ProviderModel[] | undefined) ?? current.models,
       updated_at: Date.now(),
     };
+    // @req REQ-2026-001 C1：换 host 且未给新 key → 清除已存密钥（与主进程一致）
+    if (
+      patch.base_url != null &&
+      patch.api_key === undefined &&
+      current.has_key &&
+      shouldClearKeyOnBaseUrlChange(current.base_url, patch.base_url)
+    ) {
+      memoryKeys.delete(id);
+      next.has_key = false;
+    }
     if (patch.api_key !== undefined) {
-      next.api_key = patch.api_key === '' ? undefined : patch.api_key;
-      next.has_key = patch.api_key !== '';
+      if (patch.api_key === '') {
+        memoryKeys.delete(id);
+        next.has_key = false;
+      } else {
+        memoryKeys.set(id, patch.api_key);
+        next.has_key = true;
+      }
     }
     providers[idx] = next;
     save('providers', providers);
@@ -648,7 +692,8 @@ export const mockApi: EasyUiApi = {
   },
 
   async deleteProvider(id) {
-    const providers = load<MockProvider[]>('providers', []);
+    const providers = loadProviders();
+    memoryKeys.delete(id);
     const conversations = loadConversations();
     const affected = conversations.filter((c) => c.provider_id === id).length;
     save(
@@ -673,7 +718,7 @@ export const mockApi: EasyUiApi = {
       format = input.draft.api_format;
     } else if (input.providerId) {
       format =
-        load<MockProvider[]>('providers', []).find((p) => p.id === input.providerId)
+        loadProviders().find((p) => p.id === input.providerId)
           ?.api_format ?? 'openai-chat';
     }
     return FAKE_MODELS[format];
@@ -686,7 +731,7 @@ export const mockApi: EasyUiApi = {
       ? { status: 'ok', latency_ms: Math.round(120 + Math.random() * 400), checked_at: Date.now() }
       : { status: 'fail', checked_at: Date.now(), error: 'mock: simulated failure (HTTP 401)' };
     // 持久化 last_check
-    const providers = load<MockProvider[]>('providers', []);
+    const providers = loadProviders();
     const p = providers.find((x) => x.id === providerId);
     if (p) {
       p.models = p.models.map((m) => (m.id === modelId ? { ...m, last_check: check } : m));
@@ -696,7 +741,7 @@ export const mockApi: EasyUiApi = {
   },
 
   async testAllModels(providerId) {
-    const provider = load<MockProvider[]>('providers', []).find((p) => p.id === providerId);
+    const provider = loadProviders().find((p) => p.id === providerId);
     if (!provider) throw new Error('provider_not_found');
     for (const m of provider.models.filter((x) => x.enabled)) {
       const check = await this.testModel(providerId, m.id);
@@ -1081,6 +1126,8 @@ export const mockApi: EasyUiApi = {
   },
 
   async openExternal(url: string) {
+    // @req REQ-2026-001：与主进程 openExternalSchema 同一 http(s) 白名单
+    openExternalSchema.parse(url);
     window.open(url, '_blank', 'noopener,noreferrer');
   },
 

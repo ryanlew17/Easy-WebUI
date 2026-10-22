@@ -9,24 +9,33 @@
  * - signal 取消时 reader.cancel() 并向上抛。
  */
 import { StreamIdleError } from './errors';
+import { ResponseBodyTooLargeError } from './read';
 import type { ReadableStreamReadResult } from 'node:stream/web';
 
 export const DEFAULT_STREAM_IDLE_MS = 60_000;
+/**
+ * 单个 SSE 事件（及半行缓冲）的字符上限（@req REQ-2026-001 C2）：
+ * 恶意端点可发送永不换行/永不空行的流使 buf/eventData 无限增长。
+ */
+export const MAX_SSE_EVENT_CHARS = 1_000_000;
 
 export async function* iterateSse(
   body: ReadableStream<Uint8Array>,
   signal?: AbortSignal,
   idleMs: number = DEFAULT_STREAM_IDLE_MS,
+  maxEventChars: number = MAX_SSE_EVENT_CHARS,
 ): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buf = '';
   let eventData: string[] = [];
+  let eventChars = 0; // 当前事件已累积字符（含 data: 多行），配 maxEventChars 使用
 
   const flushEvent = (): string | null => {
     if (eventData.length === 0) return null;
     const data = eventData.join('\n');
     eventData = [];
+    eventChars = 0;
     return data;
   };
 
@@ -40,6 +49,10 @@ export async function* iterateSse(
     }
     if (line.startsWith(':')) return; // 注释 / 心跳
     if (line.startsWith('data:')) {
+      eventChars += line.length;
+      if (eventChars > maxEventChars) {
+        throw new ResponseBodyTooLargeError(`sse event exceeds ${maxEventChars} chars`);
+      }
       eventData.push(line.slice(5).replace(/^ /, ''));
     }
     // event:/id:/retry: 行忽略——三种协议的事件类型都在 data JSON 内
@@ -90,6 +103,10 @@ export async function* iterateSse(
       }
 
       buf += decoder.decode(result.value, { stream: true });
+      // 永不换行的流会让 buf 无限增长：半行也纳入单事件上限
+      if (buf.length > maxEventChars) {
+        throw new ResponseBodyTooLargeError(`sse line exceeds ${maxEventChars} chars`);
+      }
       let idx: number;
       while ((idx = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, idx);

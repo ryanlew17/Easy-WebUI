@@ -14,6 +14,7 @@ import type {
   ProviderModel,
 } from '@shared/types';
 import { getApi } from '../../bridge';
+import { shouldClearKeyOnBaseUrlChange } from '@shared/url';
 import { useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { Modal } from '../../components/Modal';
@@ -60,6 +61,14 @@ export function ProviderModal({
   }, []);
 
   const canSubmit = name.trim().length > 0 && baseUrl.trim().length > 0;
+
+  /* @req REQ-2026-001 C1：带密钥平台换 host 且未填新 key → 保存后主进程自动清除已存密钥 */
+  const hostWillClearKey =
+    !!provider &&
+    provider.has_key &&
+    !apiKey &&
+    baseUrl.trim().length > 0 &&
+    shouldClearKeyOnBaseUrlChange(provider.base_url, baseUrl.trim());
 
   const applyPreset = (preset: PresetProvider): void => {
     setBaseUrl(preset.base_url);
@@ -236,6 +245,11 @@ export function ProviderModal({
             spellCheck={false}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
+          {hostWillClearKey ? (
+            <p className="mt-1 text-xs" style={{ color: 'var(--warning-text)' }}>
+              {t('settings.providers.hostChangeClearsKey')}
+            </p>
+          ) : null}
         </label>
 
         <label className="block">

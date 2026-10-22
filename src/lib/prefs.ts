@@ -47,6 +47,11 @@ export function readPrefs(): Prefs {
 export function writePrefs(patch: Partial<Prefs>): void {
   const next = { ...readPrefs(), ...patch };
   const json = JSON.stringify(next);
+  // @req REQ-2026-001：落实头注释宣称的 <2KB——超限拒绝写入（cookie 溢出会被浏览器静默截断）
+  if (json.length > 2048) {
+    console.warn('[easyui] prefs exceed 2KB, skip persist');
+    return;
+  }
   try {
     const expires = new Date(Date.now() + 365 * 24 * 3600 * 1000).toUTCString();
     document.cookie = `${COOKIE_NAME}=${encodeURIComponent(json)}; expires=${expires}; path=/; SameSite=Lax`;

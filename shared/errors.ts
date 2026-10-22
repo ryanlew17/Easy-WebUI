@@ -39,7 +39,14 @@ export function deriveIpcCode(err: { name?: string; message?: string; code?: unk
 /** 主进程侧：把已脱敏的错误编码为可跨进程序列化的 Error（code 内嵌 message） */
 export function serializeIpcError(err: { name?: string; message?: string; code?: unknown }): Error {
   const code = deriveIpcCode(err);
-  const message = typeof err.message === 'string' ? err.message : String(err);
+  // @req REQ-2026-001：ZodError 的 message 是完整 issue JSON（含字段路径/期望值），
+  // 不回传渲染进程；细节由主进程 handle() 留在本地日志
+  const message =
+    err.name === 'ZodError'
+      ? 'invalid_input'
+      : typeof err.message === 'string'
+        ? err.message
+        : String(err);
   return new Error(IPC_ERROR_PREFIX + JSON.stringify({ code, message }));
 }
 

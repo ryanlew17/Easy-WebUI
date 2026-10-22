@@ -14,7 +14,8 @@ import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
-import { GatewayError, toApiError } from './errors';
+import { GatewayError, sanitizeErrorCode, toApiError } from './errors';
+import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
 import { redactString } from '../crypto/redact';
 
@@ -75,7 +76,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
   if (!res.ok) throw await toApiError(res);
 
   if (!input.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = (await readJsonWithLimit(res)) as Record<string, unknown>;
     const content = json.content as Record<string, unknown>[] | undefined;
     const text = Array.isArray(content)
       ? content
@@ -141,7 +142,7 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
     } else if (type === 'error') {
       const err = json.error as { type?: string; message?: string } | undefined;
       throw new GatewayError(
-        typeof err?.type === 'string' ? err.type : 'request_failed',
+        sanitizeErrorCode(err?.type),
         redactString(err?.message ?? 'anthropic stream error'),
       );
     }

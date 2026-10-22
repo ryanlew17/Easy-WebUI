@@ -218,7 +218,7 @@ export interface EasyUiApi {
   pickDataDir(): Promise<string | null>;  // 系统目录选择框；取消返回 null
   setDataDir(input: { path: string }): Promise<DataDirMigrationResult>; // 校验链与迁移语义见 ../design/storage.md
   relaunchApp(): Promise<void>;           // app.relaunch + exit；web mock 为 no-op
-  openExternal(url: string): Promise<void>; // 仅放行 http(s)（zod openExternalSchema）；web mock 用 window.open
+  openExternal(url: string): Promise<void>; // 仅放行 http(s)（zod openExternalSchema）；web mock 用 window.open 且过同一白名单（REQ-2026-001）
 
   // —— 在线升级（Electron 独占；web mock 恒 unavailable/web_preview，localStorage.easyui_mock_update='1' 可演示）——
   updateCheck(): Promise<UpdateCheckResult>;     // 网络/配置失败不 reject，以 status 表达
@@ -288,6 +288,7 @@ invoke 拒绝时 Electron 只序列化 `Error.message`（自定义 `.code` 丢�
 - `src/bridge/index.ts`：`export function getApi(): EasyUiApi` —— 若 `window.easyui` 存在则返回之，否则返回 `mockApi`。UI 代码只依赖 `getApi()`，不感知差异。
 - `src/bridge/mock.ts`：用 localStorage（key 前缀 `easyui_mock_`）实现**完整** `EasyUiApi`：
   - 平台/会话/消息/**参数预设** CRUD（presets 存 `easyui_mock_presets`，首访补建全局预设；loadConversations 对旧版 params 形状做 `migrateLegacyParams` 迁移）、设置、备份函数返回空/成功桩。
+  - **API key 只存内存 Map，不落 localStorage**（REQ-2026-001：web 预览也可能填真实密钥）；`updateProvider` 换 host 清密钥、`base_url` 仅 http/https 禁 userinfo，均与主进程同规则。
   - `fetchModels` 返回几个假模型；`testModel` 300~900ms 随机延迟后 90% 成功。
   - `sendMessage` 以 setInterval 模拟流式输出一段内置 Markdown 演示回复（含代码块、列表、表格、reasoning 折叠块），支持 `stopGeneration`；演示回复中英各一段，按当前 i18n 语言选择。
   - 桌面独占功能的 mock 语义：`pickDataDir` → null、`setDataDir` → reject `electron_only`、升级恒 `unavailable/web_preview`（`localStorage.easyui_mock_update='1'` 演示完整链路）。

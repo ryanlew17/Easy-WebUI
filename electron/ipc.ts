@@ -39,6 +39,8 @@ import type {
   SystemInfo,
 } from '../shared/types';
 import { redact, redactString, registerSecret } from './crypto/redact';
+import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '../shared/url';
+import { isAppFrameUrl } from './webcontents-guard';
 import type { CryptoService } from './crypto';
 import type { DB } from './db';
 import type { ProvidersDao } from './db/providers';
@@ -56,9 +58,12 @@ import { logger } from './logger';
 
 const apiFormatSchema = z.enum(['openai-chat', 'openai-responses', 'anthropic']);
 
+// @req REQ-2026-001 M5：base_url 仅 http/https 且禁 userinfo（密钥不得随 URL 进日志）
+const baseUrlSchema = z.string().min(1).max(500).refine(isValidBaseUrl, { message: 'invalid_base_url' });
+
 const providerDraftSchema = z.object({
   name: z.string().min(1).max(100),
-  base_url: z.string().min(1).max(500),
+  base_url: baseUrlSchema,
   api_format: apiFormatSchema,
   api_key: z.string().max(500).optional(),
 });
@@ -79,7 +84,7 @@ const providerModelSchema = z.object({
 
 const updateProviderSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  base_url: z.string().min(1).max(500).optional(),
+  base_url: baseUrlSchema.optional(),
   api_format: apiFormatSchema.optional(),
   /** undefined=保持不变；'' =清除密钥；非空=重新设置 */
   api_key: z.string().max(500).optional(),
@@ -110,7 +115,7 @@ const fetchModelsSchema = z.object({
 });
 
 const detectFormatSchema = z.object({
-  base_url: z.string().min(1),
+  base_url: baseUrlSchema,
   api_key: z.string().optional(),
   providerId: z.string().optional(),
 });
@@ -144,7 +149,15 @@ const createBackupSchema = z.object({
 });
 
 const restoreBackupSchema = z.object({
-  path: z.string().min(1),
+  // @req REQ-2026-001：仅允许绝对路径的 .zip（渲染进程不得让主进程解析任意文件）
+  path: z
+    .string()
+    .min(1)
+    .max(1000)
+    .regex(/\.zip$/i, 'invalid_backup_path')
+    .refine((p) => path.win32.isAbsolute(p) || path.posix.isAbsolute(p), {
+      message: 'invalid_backup_path',
+    }),
   password: z.string().optional(),
   mode: z.enum(['merge', 'overwrite']),
 });
@@ -181,6 +194,9 @@ function codedError(code: string, detail?: string): Error {
   return e;
 }
 
+/** dev 白名单原点（registerIpcHandlers 入口赋值；prod 为 null） */
+let ipcDevOrigin: string | null = null;
+
 /** 包装：zod 校验 + 错误脱敏 + 错误码跨进程编码。
  * Electron invoke 拒绝时只序列化 Error.message（自定义 .code 丢失），
  * 故统一编码为 EASYUI_ERR:{code,message}（见 shared/errors.ts）；
@@ -189,8 +205,11 @@ function handle<TArgs extends unknown[], TResult>(
   channel: string,
   fn: (...args: TArgs) => Promise<TResult> | TResult,
 ): void {
-  ipcMain.handle(channel, async (_event, ...args) => {
+  ipcMain.handle(channel, async (event, ...args) => {
     try {
+      // @req REQ-2026-001 I3：只接受应用文档自身 frame 的调用
+      // （防寄生页面/异常窗口拿到全部 IPC 权限）
+      if (!isAppFrameUrl(event.senderFrame?.url, ipcDevOrigin)) throw new Error('invalid_sender');
       return await fn(...(args as TArgs));
     } catch (e) {
       const safe = redact(e);
@@ -225,6 +244,9 @@ function resolveEndpoint(
 export function registerIpcHandlers(deps: IpcDeps): void {
   const { providers, conversations, messages, settings, presets, crypto, orchestrator, backup } =
     deps;
+  ipcDevOrigin = process.env.VITE_DEV_SERVER_URL
+    ? new URL(process.env.VITE_DEV_SERVER_URL).origin
+    : null;
 
   /* —— 平台管理 —— */
   handle(IPC.listProviders, () => providers.list());
@@ -244,13 +266,25 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const providerId = z.string().min(1).parse(id);
     const patch = updateProviderSchema.parse(raw);
     if (patch.api_key) registerSecret(patch.api_key);
+    // @req REQ-2026-001 C1：带密钥 provider 的 base_url 换 host 且未同时给新 key
+    // → 自动清除已存密钥（否则恶意调用可把解密后的 key 发往攻击者端点）。
+    let clearKeyOnHostChange = false;
+    if (patch.base_url !== undefined && patch.api_key === undefined) {
+      const row = providers.getRow(providerId);
+      if (row?.api_key_cipher && shouldClearKeyOnBaseUrlChange(row.base_url, patch.base_url)) {
+        clearKeyOnHostChange = true;
+        logger.info('provider key cleared: base_url host changed', { providerId });
+      }
+    }
     const updated = providers.update(providerId, {
       name: patch.name,
       base_url: patch.base_url,
       api_format: patch.api_format,
       api_key_cipher:
         patch.api_key === undefined
-          ? undefined
+          ? clearKeyOnHostChange
+            ? null // 换 host 自动清除
+            : undefined // 保持不变
           : patch.api_key === ''
             ? null // 空串 = 清除密钥
             : Buffer.from(crypto.encryptString(patch.api_key), 'utf8'),

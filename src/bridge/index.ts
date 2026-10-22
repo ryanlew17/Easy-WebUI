@@ -6,5 +6,13 @@ import { mockApi } from './mock';
  * window.easyui 存在（Electron preload）→ 返回真实桥；否则返回 mock。
  */
 export function getApi(): EasyUiApi {
-  return window.easyui ?? mockApi;
+  if (window.easyui) return window.easyui;
+  // @req REQ-2026-001：Electron 下 preload 注入失败时静默跑 mock 会把业务数据写进
+  // localStorage 且用户无感知——至少留下可见告警（UI 不阻断，web 预览不受影响）
+  if (/electron/i.test(navigator.userAgent)) {
+    console.warn(
+      '[easyui] preload bridge missing under Electron — falling back to mock bridge; data will NOT persist to the app database.',
+    );
+  }
+  return mockApi;
 }

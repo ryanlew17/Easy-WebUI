@@ -157,6 +157,13 @@ export { listModels, detectFormat } from './models';
 export { joinUrl } from './url';
 export { trimMessages, defaultTokenCounter, truncateToTokens } from './trim';
 export { GatewayError, StreamIdleError, normalizeError, toApiError } from './errors';
+export {
+  MAX_ERROR_BYTES,
+  MAX_NONSTREAM_BYTES,
+  readJsonWithLimit,
+  readTextWithLimit,
+  ResponseBodyTooLargeError,
+} from './read';
 export { parseStructuredSchema, STRUCTURED_OUTPUT_NAME } from './structured';
-export { iterateSse } from './sse';
-export { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
+export { iterateSse, MAX_SSE_EVENT_CHARS } from './sse';
+export { CONNECT_TIMEOUT_MS, fetchWithTimeout, setGatewayFetch } from './http';

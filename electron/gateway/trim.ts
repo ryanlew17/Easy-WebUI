@@ -237,6 +237,9 @@ function tryLoadEncoder(): Encoder | null {
 
 /** 默认估算器：cl100k_base；任何失败回退 ceil(chars/3)（中文偏保守；docs/design/context-trim.md 估算器） */
 export const defaultTokenCounter: TokenCounter = (text: string): number => {
+  // @req REQ-2026-001：超长文本直接估算——js-tiktoken 对病态重复输入（如 'x'×4.5M）
+  // 有超线性退化（分钟级卡死主进程）；该量级下精确计数对上下文预算已无意义
+  if (text.length > 200_000) return Math.ceil(text.length / 3);
   const enc = tryLoadEncoder();
   if (enc) {
     try {

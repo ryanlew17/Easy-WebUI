@@ -5,7 +5,7 @@
  * DB 迁移 → 加密服务 → 备份服务 → 生成编排 → 注册全部 IPC handler → 建窗。
  */
 import path from 'node:path';
-import { app, BrowserWindow, Menu, safeStorage, session } from 'electron';
+import { app, BrowserWindow, Menu, net, safeStorage, session, shell } from 'electron';
 import { resolveDataDir } from './paths';
 import { migrateStorageDir } from './storage-migrate';
 import { createUpdater } from './updater';
@@ -20,11 +20,32 @@ import { createCryptoService } from './crypto';
 import { createBackupService } from './backup';
 import { ChatOrchestrator } from './chat';
 import { registerIpcHandlers } from './ipc';
+import { setGatewayFetch } from './gateway';
+import { isAllowedNavigationUrl, shouldOpenExternally } from './webcontents-guard';
 import { defaultWindowSize, loadWindowState, saveWindowState } from './window-state';
 import { EVT } from '../shared/ipc';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
-const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
+// @req REQ-2026-001：CSP 硬化（object/base/frame/form 全部封死；应用无 iframe/object/form 使用面）
+const CSP =
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";
+/** dev 白名单原点（will-navigate / senderFrame 校验共用）；prod 为 null */
+const devOrigin =
+  isDev && process.env.VITE_DEV_SERVER_URL
+    ? new URL(process.env.VITE_DEV_SERVER_URL).origin
+    : null;
+
+// @req REQ-2026-001 M6：单实例锁——双实例并发写同一 sqlite 有完整性/可用性风险
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
 
 let win: BrowserWindow | null = null;
 let dataDirForState = ''; // 窗口状态记忆的落盘目录（whenReady 里赋值）
@@ -63,11 +84,22 @@ function createWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true, // 显式声明（@req REQ-2026-001 M7：不依赖 Electron 默认值，防未来版本回退）
       preload: path.join(__dirname, 'preload.js'), // dist-electron/electron/preload.js
     },
   });
   win.on('closed', () => {
     win = null;
+  });
+
+  /* @req REQ-2026-001 I1/I2：导航与新窗口闸门——主窗口永不离开应用文档；
+   * window.open / target=_blank 一律 deny，http(s) 转系统浏览器（与 IPC openExternal 同一白名单） */
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!isAllowedNavigationUrl(url, devOrigin)) e.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (shouldOpenExternally(url)) void shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   /* 窗口状态记忆：防抖落盘尺寸/位置（最大化态存 normalBounds），关闭时再存一次 */
@@ -127,6 +159,10 @@ app.whenReady().then(() => {
 
   // 顺序约束：必须先迁移/抢救旧数据，再 openDatabase
   migrateStorageDir(dataDir, resolution.legacyDirs, (msg, extra) => logger.info(msg, extra));
+
+  // @req REQ-2026-001 C2：网关走 Chromium 网络栈——Brotli/gzip 解压不进 Node 主进程
+  // （Node 内嵌 brotli 的 CVE-2026-111497 修复随 Electron 版本跟进，见 AGENTS.md 安全待办）
+  setGatewayFetch((url, init) => net.fetch(url, init));
 
   const db = openDatabase(path.join(dataDir, 'easyui.db'));
   const providers = createProvidersDao(db);

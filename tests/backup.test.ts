@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  breakParentCycles,
   buildBackup,
   parseBackup,
   planImport,
@@ -388,5 +389,83 @@ describe('planImport（merge/overwrite 语义）', () => {
     const plan = planImport(new Set(['a', 'b', 'c']), incoming, 'merge');
     expect(plan.rows).toHaveLength(0);
     expect(plan.skipped).toBe(3);
+  });
+});
+
+/* ---------- @req REQ-2026-001 I5/I6：KDF 参数校验 + parent 环断边 ---------- */
+
+describe('恢复路径 KDF 参数校验（I5：参数来自不可信 manifest）', () => {
+  const password = 'backup-password-123';
+  const buildWithKeys = () =>
+    buildBackup(rows, {
+      includeKeys: true,
+      password,
+      decryptKey,
+      appVersion: '0.1.0',
+      schemaVersion: SCHEMA,
+    });
+
+  it('篡改 kdf.N（2^17，一次推导上百 MB）→ invalid_backup', () => {
+    const { data, manifest } = buildWithKeys();
+    manifest.kdf = { ...manifest.kdf!, N: 2 ** 17 };
+    expect(
+      backupErrorCode(() =>
+        parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
+      ),
+    ).toBe('invalid_backup');
+  });
+
+  it('kdf.algo 非 scrypt → invalid_backup', () => {
+    const { data, manifest } = buildWithKeys();
+    (manifest.kdf as { algo: string }).algo = 'pbkdf2';
+    expect(
+      backupErrorCode(() =>
+        parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
+      ),
+    ).toBe('invalid_backup');
+  });
+
+  it('salt 超长（>64B）→ invalid_backup', () => {
+    const { data, manifest } = buildWithKeys();
+    manifest.kdf = { ...manifest.kdf!, salt_b64: Buffer.from('s'.repeat(100)).toString('base64') };
+    expect(
+      backupErrorCode(() =>
+        parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
+      ),
+    ).toBe('invalid_backup');
+  });
+});
+
+describe('breakParentCycles（I6：恶意备份 parent_id 环断边）', () => {
+  const msg = (id: string, parent_id: string | null) => ({
+    id,
+    conversation_id: 'c1',
+    parent_id,
+  });
+
+  it('A↔B 环 → 断边挂根，行数不变且任意节点可有限步到根', () => {
+    const ms = [msg('a', null), msg('b', 'c'), msg('c', 'b')]; // b↔c 成环
+    const out = breakParentCycles(ms);
+    expect(out).toHaveLength(3);
+    const parentOf = new Map(out.map((r) => [r.id, r.parent_id]));
+    for (const m of out) {
+      const seen = new Set<string>();
+      let cur: string | null = m.id;
+      while (cur !== null) {
+        expect(seen.has(cur)).toBe(false); // 不得成环
+        seen.add(cur);
+        cur = parentOf.get(cur) ?? null;
+      }
+    }
+  });
+
+  it('自环（A.parent=A）→ 断边挂根', () => {
+    const out = breakParentCycles([msg('a', 'a')]);
+    expect(out[0].parent_id).toBeNull();
+  });
+
+  it('正常树不受影响', () => {
+    const out = breakParentCycles([msg('a', null), msg('b', 'a'), msg('c', 'b')]);
+    expect(out.map((r) => r.parent_id)).toEqual([null, 'a', 'b']);
   });
 });

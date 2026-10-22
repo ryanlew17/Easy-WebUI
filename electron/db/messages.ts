@@ -231,12 +231,20 @@ export function createMessagesDao(db: DB) {
       const anchor = getRow(messageId);
       if (!anchor) return [];
       const out: string[] = [];
+      // @req REQ-2026-001 I6：环守卫——恶意备份可注入 parent_id 环（A↔B），
+      // 无 seen 集合时本遍历死循环且 out 无限增长
+      const seen = new Set<string>([messageId]);
       const stack = [messageId];
       while (stack.length > 0) {
         const id = stack.pop() as string;
         out.push(id);
         const children = childrenStmt.all(anchor.conversation_id, id) as MessageRow[];
-        for (const c of children) stack.push(c.id);
+        for (const c of children) {
+          if (!seen.has(c.id)) {
+            seen.add(c.id);
+            stack.push(c.id);
+          }
+        }
       }
       return out;
     },

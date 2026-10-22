@@ -21,9 +21,10 @@ export function classifyError(err: ApiError): ErrorKind {
     return 'config';
   }
   if (/\b429\b|rate.?limit|quota/.test(text)) return 'rate';
-  if (/\b5\d\d\b|internal|bad_gateway|service_unavailable/.test(text)) return 'server';
+  // @req REQ-2026-001：response_too_large=端点返回超限内容；redirect_rejected=端点发起重定向（地址配置存疑）
+  if (/\b5\d\d\b|internal|bad_gateway|service_unavailable|response_too_large/.test(text)) return 'server';
   if (/timeout|timed?\s*out|idle/.test(text)) return 'timeout';
-  if (/network|econn|enotfound|fetch failed|socket|unreachable|cors/.test(text)) return 'network';
+  if (/network|econn|enotfound|fetch failed|socket|unreachable|cors|redirect_rejected/.test(text)) return 'network';
   return 'unknown';
 }
 

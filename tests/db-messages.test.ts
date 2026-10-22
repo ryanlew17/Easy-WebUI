@@ -251,6 +251,26 @@ describe('树形消息 DAO', () => {
     expect(messages.subtreeIds(a2.id)).toEqual([a2.id]);
   });
 
+  /* @req REQ-2026-001 I6：parent_id 无 FK，恶意备份可注入环（A↔B）——
+   * 遍历必须带 seen 守卫，删除不得死循环 */
+  it('parent 环：subtreeIds/deleteWithDescendants 终止且无重复', () => {
+    const u1 = ins('user', 'q1', null, 1);
+    const a1 = ins('assistant', 'a1', u1.id, 2);
+    // 直接 SQL 互指成环（绕过 DAO 正常路径，模拟恶意备份恢复后的状态）
+    db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?').run(a1.id, u1.id);
+    db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?').run(u1.id, a1.id);
+
+    const ids = messages.subtreeIds(u1.id);
+    expect(new Set(ids)).toEqual(new Set([u1.id, a1.id]));
+    expect(ids.length).toBe(2); // 无重复收集
+
+    // 删除环中节点：正常返回，两条都删掉
+    const n = messages.deleteWithDescendants(convId, [u1.id]);
+    expect(n).toBe(2);
+    expect(messages.get(u1.id)).toBeNull();
+    expect(messages.get(a1.id)).toBeNull();
+  });
+
   it('deleteWithDescendants：删中间节点连删子树，active_leaf 回退最近存活祖先', () => {
     const u1 = ins('user', 'q1', null, 1);
     const a1 = ins('assistant', 'a1', u1.id, 2);

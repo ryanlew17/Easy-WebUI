@@ -6,10 +6,10 @@
     <!--
       CSP（仅生产生效）：default-src 'self' 会连带禁止 inline script，
       因此下方防 FOUC 启动脚本以 sha256 哈希白名单放行（script-src 未回落到 unsafe-inline）。
-      注意：若修改下方内联脚本内容（含任何空白），必须重新计算哈希，命令见 README「CSP hash」。
+      注意：若修改下方内联脚本内容（含任何空白），必须重新计算哈希，命令见 docs/design/security.md §3。
       dev 模式下 vite.config.ts 的 stripCspInDev 插件会移除此 meta（HMR / react preamble 需要）。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-WoE9wgpAUH0Q2zvlQqBQ36hi2DDcN8v7sp8m1ymMQ/8='; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-WoE9wgpAUH0Q2zvlQqBQ36hi2DDcN8v7sp8m1ymMQ/8='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
     <title>Easy WebUI</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <!--

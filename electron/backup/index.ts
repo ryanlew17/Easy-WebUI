@@ -14,6 +14,7 @@ import { FACTORY_DEFAULTS } from '../../shared/params';
 import type { ProviderRow } from '../db/providers';
 import type { MessageRow } from '../db/messages';
 import {
+  breakParentCycles,
   buildBackup,
   parseBackup,
   planImport,
@@ -25,6 +26,9 @@ import {
   type ProviderExportRow,
 } from './core';
 import type { BackupManifest } from '../../shared/types';
+
+/** 压缩炸弹防御（@req REQ-2026-001 M4）：zip 单条目声明尺寸上限 */
+const MAX_ZIP_ENTRY_BYTES = 256 * 1024 * 1024;
 
 export interface BackupDeps {
   db: DB;
@@ -99,6 +103,12 @@ export function createBackupService(deps: BackupDeps) {
     const manifestEntry = zip.getEntry('manifest.json');
     if (!dataEntry || !manifestEntry) {
       throw new Error('invalid_backup: missing data.json or manifest.json');
+    }
+    // M4：声明尺寸超限直接拒（getData 会按声明尺寸分配内存）
+    for (const e of [dataEntry, manifestEntry]) {
+      if (e.header.size > MAX_ZIP_ENTRY_BYTES) {
+        throw new Error('invalid_backup: zip entry too large');
+      }
     }
     return {
       data: JSON.parse(dataEntry.getData().toString('utf8')) as BackupDataJson,
@@ -204,7 +214,8 @@ export function createBackupService(deps: BackupDeps) {
         result.skipped += c.skipped;
 
         const m = planImport(existingMsgs, rows.messages, input.mode);
-        for (const r of m.rows) insertMessage.run(r);
+        // @req REQ-2026-001 I6：导入侧断开 parent_id 环（成环节点降级挂根，不拒绝整个备份）
+        for (const r of breakParentCycles(m.rows)) insertMessage.run(r);
         result.messages = m.rows.length;
         result.skipped += m.skipped;
 

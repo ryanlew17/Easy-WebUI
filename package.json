@@ -43,7 +43,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
-    "electron": "^44.0.0",
+    "electron": "^44.9.3",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "postcss": "^8.4.49",
@@ -99,7 +99,7 @@
     }
   },
   "allowScripts": {
-    "electron@33.4.11": true,
+    "electron@44.9.3": true,
     "better-sqlite3": true,
     "electron-winstaller": true,
     "esbuild": true
