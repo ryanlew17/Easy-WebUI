@@ -139,10 +139,13 @@ try {
     (c) => window.easyui.updateConversation(c.id, { provider_id: c.pid, model: 'smoke-model' }),
     { id: conv.id, pid: updated.id },
   );
-  // 把平台地址改为不可达端点，让 sendMessage 立即失败（确定性，不等超时）
+  // 把平台地址改为不可达端点，让 sendMessage 立即失败（确定性，不等超时）；
+  // 换 host 时显式带回测试密钥，避免触发 REQ-2026-001 的自动清钥保护。
   await page.evaluate(
-    (id) => window.easyui.updateProvider(id, { base_url: 'http://127.0.0.1:9/none' }),
+    (id, key) =>
+      window.easyui.updateProvider(id, { base_url: 'http://127.0.0.1:9/none', api_key: key }),
     provider.id,
+    FAKE_KEY,
   );
   const { assistantMessageId } = await page.evaluate(
     (cid) => window.easyui.sendMessage({ conversationId: cid, content: 'ping' }),

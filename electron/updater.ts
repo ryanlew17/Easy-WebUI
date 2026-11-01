@@ -102,8 +102,8 @@ function loadAutoUpdater(): AutoUpdaterLike {
   return cachedAutoUpdater;
 }
 
-/** electron-updater 的 releaseNotes 兼容字符串与分段数组两种形态 */
-function extractReleaseNotes(
+/** electron-updater 的 releaseNotes 兼容字符串与分段数组两种形态；空行保留 Markdown 块边界 */
+export function extractReleaseNotes(
   notes: string | { note: string | null }[] | null | undefined,
 ): string {
   if (!notes) return '';
@@ -111,7 +111,7 @@ function extractReleaseNotes(
   return notes
     .map((n) => n.note ?? '')
     .filter(Boolean)
-    .join('\n');
+    .join('\n\n');
 }
 
 export function createUpdater(deps: UpdaterDeps): Updater {
@@ -145,9 +145,12 @@ export function createUpdater(deps: UpdaterDeps): Updater {
         release_notes: [
           `Easy WebUI ${bumpPatch(current)}（模拟更新）`,
           '',
-          '- 修复安装版升级后数据目录丢失的问题',
-          '- 修复便携版数据落入临时目录的问题',
-          '- 新增数据存储路径自定义与在线升级入口',
+          "## What's New",
+          '',
+          '- 支持 **Markdown** 与 <strong>安全 HTML</strong> 摘要',
+          '- 查看 [GitHub Releases](https://github.com/ryanlew17/Easy-WebUI/releases)',
+          '',
+          '<details open><summary>富文本演示</summary><p>经过白名单消毒的详情内容。</p></details>',
           deps.getBeta() ? '- （beta 通道已开启：本版本为预发布模拟）' : '',
         ]
           .filter(Boolean)

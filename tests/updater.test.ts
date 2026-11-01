@@ -3,7 +3,12 @@
  * 覆盖：compareSemver、dev/未打包分支、EASYUI_MOCK_UPDATE 演示通道全状态机。
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { compareSemver, createUpdater, type UpdaterDeps } from '../electron/updater';
+import {
+  compareSemver,
+  createUpdater,
+  extractReleaseNotes,
+  type UpdaterDeps,
+} from '../electron/updater';
 import type { UpdateProgress } from '../shared/types';
 
 function makeDeps(over?: Partial<UpdaterDeps>) {
@@ -95,4 +100,23 @@ describe('updater mock 通道（EASYUI_MOCK_UPDATE=1）', () => {
     await u.download();
     await expect(u.download()).resolves.toEqual({ verified: true });
   }, 10000);
+});
+
+describe('extractReleaseNotes（@req REQ-2026-002）', () => {
+  it('字符串摘要保持原文', () => {
+    const notes = '## What\'s New\n\n- Rich text';
+    expect(extractReleaseNotes(notes)).toBe(notes);
+  });
+
+  it('分段摘要以空行连接并忽略空分段', () => {
+    expect(
+      extractReleaseNotes([{ note: '## What\'s New' }, { note: null }, { note: '- Rich text' }]),
+    ).toBe("## What's New\n\n- Rich text");
+  });
+
+  it('空输入返回空串', () => {
+    expect(extractReleaseNotes(null)).toBe('');
+    expect(extractReleaseNotes(undefined)).toBe('');
+    expect(extractReleaseNotes([])).toBe('');
+  });
 });

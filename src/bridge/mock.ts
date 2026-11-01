@@ -662,6 +662,18 @@ export const mockApi: EasyUiApi = {
     if (patch.models && patch.models.length > MAX_PROVIDER_MODELS) {
       throw new Error('invalid_input');
     }
+    // @req REQ-2026-002：zod 4 与 mock 均拒绝非有限检测数值
+    if (
+      patch.models?.some((m) => {
+        const check = m.last_check;
+        return (
+          (check?.latency_ms !== undefined && !Number.isFinite(check.latency_ms)) ||
+          (check?.checked_at !== undefined && !Number.isFinite(check.checked_at))
+        );
+      })
+    ) {
+      throw new Error('invalid_input');
+    }
     const next: MockProvider = {
       ...current,
       name: patch.name ?? current.name,
@@ -1151,20 +1163,12 @@ export const mockApi: EasyUiApi = {
             release_notes: [
               'Easy WebUI 0.2.0（web mock 演示更新说明）',
               '',
-              '新功能：',
-              '- 关于页与在线升级前端（本页）',
-              '- 数据目录自定义与迁移流程',
-              '- 会话列表性能优化',
+              "## What's New",
               '',
-              '修复：',
-              '- 修复流式中断后偶发的消息状态未落地',
-              '- 修复深色主题下代码块对比度不足',
-              '- 修复缩放 150% 时设置页底部留白',
+              '- 支持 **Markdown** 与 <strong>安全 HTML</strong> 摘要',
+              '- 查看 [GitHub Releases](https://github.com/ryanlew17/Easy-WebUI/releases)',
               '',
-              '改进：',
-              '- 标题生成超时从 10s 提升到 20s 并重试一次',
-              '- 备份清单加入应用版本与 schema 版本',
-              '- 缩短冷启动时的设置加载耗时',
+              '<details open><summary>富文本演示</summary><p>经过白名单消毒的详情内容。</p></details>',
             ].join('\n'),
             published_at: new Date().toISOString(),
             size: 128319488,

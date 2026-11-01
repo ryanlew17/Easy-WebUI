@@ -119,7 +119,7 @@ export type DataDirMigrationResult =
   | { status: 'noop';      needsRestart: false; path: string }; // 同目录无操作
 
 // —— 在线升级（真实实现 electron/updater.ts；行为见 ../design/ux-guidelines.md「关于页与在线升级」）——
-export interface UpdateInfo { version: string; release_notes: string /* 纯文本，UI 固定高度滚动 */; published_at?: string; size?: number }
+export interface UpdateInfo { version: string; release_notes: string /* GitHub Markdown/安全 HTML，UI 白名单渲染并固定高度滚动 */; published_at?: string; size?: number }
 export type UpdateCheckResult =
   | { status: 'available'; info: UpdateInfo }
   | { status: 'none' }

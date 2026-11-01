@@ -1,8 +1,9 @@
 @import './styles/tokens.css';
+@import 'tailwindcss' source(none);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@source '../index.html';
+@source './**/*.{ts,tsx}';
+@config '../tailwind.config.js';
 
 @layer base {
   html {

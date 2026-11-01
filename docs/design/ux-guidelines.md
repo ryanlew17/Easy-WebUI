@@ -2,7 +2,7 @@
 
 > 适用范围：焦点与描边、快捷键、空状态、窗口状态记忆、关于页与在线升级、错误文案、删除保护、性能预算、可访问性。
 > 何时读取：改交互细节、设置页第五标签（关于/升级）、全局快捷键、错误文案之前。
-> 最后更新：2026-09-13
+> 最后更新：2026-11-01
 > 来源：原 prd.md §5.7/§9；升级类型契约见 `../contracts/impl-contract.md` §1/§2
 
 ## 1. 焦点与描边
@@ -36,6 +36,7 @@
 
 - 信息卡：版本 / 协议 / 作者 / GitHub（外链经 `openExternal`，仅 http(s)）。
 - 升级卡状态机：`checking → available（自动转 downloading）→ downloading → downloaded → install`；`none`/`unavailable`/失败一律通知气泡；下载完成态必须带固定高度可滚动版本说明 + 备份警告 + 安装确认弹窗，确认后静默安装并重启（`quitAndInstall(true,true)`）。
+- 版本说明使用独立 `ReleaseNotes` 按需渲染 GitHub Markdown 与白名单安全 HTML；区域保留固定高度滚动、可访问名称和 Tab 聚焦，链接仅允许 http(s) 并走外链闸门，聊天 raw HTML 行为不变（REQ-2026-002）。
 - **主进程权威状态**（`updateGetState()`）：About 页挂载时同步，错过 `update:available` 事件也能恢复 UI；available 态自动续下载。
 - 真实通道 = electron-updater + GitHub provider（`ryanlew17/Easy-WebUI`，打包嵌入 app-update.yml）；`autoDownload=false`（下载由用户触发）；`allowPrerelease ← settings.update_beta`；sha512 校验内建；版本比较 compareSemver（导出于 updater.ts）；安装前 DB 由 before-quit 钩子关闭。
 - 启动自检由 `auto_update` 控制：发现新版仅广播提示（带宽动作须用户知情），下载由 About 页状态机接管。
