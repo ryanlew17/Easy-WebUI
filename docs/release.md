@@ -34,7 +34,7 @@ npx electron-builder --win portable nsis --publish never
 
 ## 4. 发布前依赖审计
 
-`npm audit` 当前仍有 22 项（17 moderate / 5 high），包括生产 `zod` 通告（<4.6.6，需独立大版本迁移）及开发工具链问题。发布前必须单独评估；禁止用 `npm audit fix --force` 混入选型或安全修复。zod 4 迁移排期见 [REQ-2026-002](./requirements/active/REQ-2026-002-input-and-protocol-safety.md)。
+`npm audit --omit=dev` 当前为 0。全量 `npm audit` 剩 15 项 moderate、0 项 high，全部位于 electron-builder 的 minimatch/glob 等开发传递链，不随应用分发。普通 `npm audit fix` 已清理可安全升级项；剩余项只能由 npm 建议降级到 electron-builder 20.23.1，故不采用该建议，也禁止用 `npm audit fix --force` 掩盖结果。后续处置见 [REQ-2026-002](./requirements/active/REQ-2026-002-input-and-protocol-safety.md)。
 
 ## 5. 发布步骤
 

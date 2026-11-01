@@ -8,7 +8,7 @@
  * 挂载时若主进程已处于 available/downloading/downloaded（如启动自动检查发现新版本），
  * 经 updateGetState 恢复 UI；available 态同样自动续上自动下载。
  */
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UpdateInfo } from '@shared/types';
 import { getApi } from '../../bridge';
@@ -16,6 +16,10 @@ import { useSettingsStore } from '../../store/settings';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
 import { Toggle } from '../../components/controls';
+
+const ReleaseNotes = lazy(() =>
+  import('../../components/ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })),
+);
 
 /** GitHub 仓库（与 package.json build.publish 一致） */
 export const REPO_URL = 'https://github.com/ryanlew17/Easy-WebUI';
@@ -291,12 +295,16 @@ export function AboutTab() {
                 <span className="mb-1 mt-2.5 block text-xs font-medium text-secondary">
                   {t('settings.about.releaseNotes')}
                 </span>
-                <textarea
-                  readOnly
-                  className="input-surface h-36 resize-none overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed"
-                  value={updateInfo.release_notes}
+                <div
+                  className="input-surface h-36 overflow-y-auto"
+                  role="region"
                   aria-label={t('settings.about.releaseNotes')}
-                />
+                  tabIndex={0}
+                >
+                  <Suspense fallback={null}>
+                    <ReleaseNotes content={updateInfo.release_notes} />
+                  </Suspense>
+                </div>
 
                 {dlState === 'ready' ? (
                   <div className="mt-3">

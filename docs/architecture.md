@@ -10,12 +10,12 @@
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
 | 外壳 | **Electron 45** | PC 桌面分发；渲染进程直连服务商 API 有 CORS 限制，主进程可转发；提供异步 `safeStorage` 系统级密钥加密 |
-| 前端 | Vite 8 + React 18 + TypeScript 5.6（strict） | 生态成熟、AI 代理实现成本最低 |
-| 样式 | Tailwind CSS 3 + CSS 自定义属性 | 液态玻璃与双主题均依赖设计令牌（design tokens） |
+| 前端 | Vite 8 + React 18 + TypeScript 7（strict） | 原生编译器提升类型检查与构建速度；当前代码不依赖 TypeScript 编程 API |
+| 样式 | Tailwind CSS 4（@tailwindcss/vite）+ CSS 自定义属性 | 液态玻璃与双主题均依赖设计令牌（design tokens）；Vite 插件取代 PostCSS/autoprefixer |
 | 存储 | **better-sqlite3**（主进程，WAL 模式） | 单文件、事务、查询快；原生模块已按 Electron ABI 预编译 |
 | 网络 | 主进程 `net.fetch` | 绕过 CORS，统一 SSE 流式处理 |
 | 状态 / i18n | Zustand / i18next + react-i18next | 轻量；两份 JSON 语言包 |
-| Markdown | react-markdown + remark-gfm + highlight.js + DOMPurify | GFM 表格、代码高亮、渲染前消毒 |
+| Markdown | react-markdown 10 + remark-gfm + highlight.js + DOMPurify；ReleaseNotes 增加 rehype-raw/sanitize | GFM 表格、代码高亮、渲染前消毒；GitHub 摘要白名单 HTML 按需加载，聊天仍禁 raw HTML |
 | 备份 | adm-zip | 纯 JS 免原生编译 |
 | 更新 | electron-updater（GitHub Releases 通道） | 增量 blockmap + sha512 校验 |
 
@@ -63,7 +63,7 @@ EasyWebUI/
 │   └── paths.ts / storage-migrate.ts / logger.ts
 ├── shared/              # 跨进程唯一共享层：types（EasyUiApi 契约）/ params / presets /
 │                        #   appearance / reasoning / title / errors / ipc
-├── src/                 # 渲染进程（Vite + React 18 + strict + Tailwind 3）
+├── src/                 # 渲染进程（Vite + React 18 + strict + Tailwind 4）
 │   ├── bridge/          #   getApi()：Electron 桥或 localStorage mock
 │   ├── pages/           #   chat/（三栏会话页）、settings/（五标签设置页）
 │   ├── components/      #   Modal / Toast / Markdown / Popover / controls / icons / params
@@ -77,10 +77,11 @@ EasyWebUI/
 
 ## 4. 工程与构建
 
-- 包管理 npm，Node ≥ 18。**命令清单见 AGENTS.md**（dev / dev:electron / typecheck / test / build / 打包 / 探针脚本）。
-- 三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict）、`tsconfig.electron.json`（electron/ + shared/，module commonjs，outDir `dist-electron`，types node）。
+- 包管理 npm，Node ≥22.12.0（Vitest 5 / concurrently 10 开发链要求）。**命令清单见 AGENTS.md**（dev / dev:electron / typecheck / test / build / 打包 / 探针脚本）。
+- 三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict，相对 `paths` 且无 `baseUrl`）、`tsconfig.electron.json`（electron/ + shared/，NodeNext 模块与解析、rootDir `.`、outDir `dist-electron`，types node；当前包类型下仍发射 CommonJS）。
+- `@typescript/native` 以 npm alias 提供 TypeScript 7 的 `tsc`；`typescript` 保留 5.9 以满足 react-i18next 的可选 peer 范围。实际构建编译器以 `npx tsc --version` 验证为 7.0.2。
 - `build` 产物链：web typecheck → vite build（→ `dist/`）→ tsc 主进程（→ `dist-electron/`，**保留 electron/ + shared/ 目录结构**，故 `package.json → main` 为 `dist-electron/electron/main.js`）→ esbuild 自包含打包 preload（`--external:electron`，最后一步）。
-- `vite.config.ts`：`base: './'`（Electron `file://` 加载需要相对路径，**不许改**）；server.port 5173。
+- `vite.config.mts`：`base: './'`（Electron `file://` 加载需要相对路径，**不许改**）；server.port 5173。Vite/Vitest 配置使用 `.mts`，保持 ESM 原生加载且不把整个包切换为 ESM。Tailwind 4 由 `@tailwindcss/vite` 处理，旧 JS 配置经 `@config` 保留；`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`，避免 `tmp/` 等工作区文件影响构建；不再使用 PostCSS/autoprefixer，CSS 目标为 Safari 16.4+ / Firefox 128+。
 - `dev:electron` 依赖先 `npm run build` 产出 `dist-electron/`（允许的简化）；如后续引入 tsx/esbuild 直跑 TS 可去掉前置。
 - better-sqlite3 需匹配 Electron ABI：开发期 `electron .` 报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 的 V8 API 与 better-sqlite3 ≤ 11 不兼容，需 ≥ 12（本项目 v13）**；纯 Web 预览与 `npm test` 不依赖原生模块。
 - electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。产物命名见 `package.json → build` 按 target 的 `artifactName`；图标 `build/icon.ico`。

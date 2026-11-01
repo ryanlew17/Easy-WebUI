@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -22,7 +23,7 @@ function stripCspInDev(): Plugin {
 
 export default defineConfig({
   base: './', // Electron 生产环境以 file:// 加载，必须相对路径
-  plugins: [react(), stripCspInDev()],
+  plugins: [react(), tailwindcss(), stripCspInDev()],
   resolve: {
     alias: {
       '@shared': r('./shared'),
@@ -39,20 +40,21 @@ export default defineConfig({
    * - 显式现代浏览器档后，LightningCSS 认定各目标均支持无前缀 backdrop-filter，
    *   压缩产物保留无前缀版（Safari ≥16 亦无需自动补 -webkit 前缀）；
    * - css.lightningcss.targets 同步声明同一档，作为压缩器行为变更时的兜底。
-   * 注意：css.transformer 必须保持 postcss（Tailwind 依赖），不可切 lightningcss。
+   * Tailwind 4 由 @tailwindcss/vite 处理，无需 PostCSS/autoprefixer；
+   * Safari 16.4 / Firefox 128 是 Tailwind 4 官方最低浏览器档。
    */
   css: {
     lightningcss: {
       targets: {
         chrome: 120 << 16,
         edge: 120 << 16,
-        safari: 16 << 16,
-        firefox: 115 << 16,
+        safari: (16 << 16) | (4 << 8),
+        firefox: 128 << 16,
       },
     },
   },
   build: {
     outDir: 'dist',
-    cssTarget: ['chrome120', 'edge120', 'safari16', 'firefox115'],
+    cssTarget: ['chrome120', 'edge120', 'safari16.4', 'firefox128'],
   },
 });

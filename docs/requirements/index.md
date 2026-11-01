@@ -11,7 +11,8 @@
 | ID | 标题 | 状态 | 来源 | 影响模块 | 关联设计 | 更新时间 |
 |---|---|---|---|---|---|---|
 | [REQ-2026-001](./archive/REQ-2026-001-security-audit-fixes.md) | 安全审计修复 | done | 内部 | shared/、electron/、src/ | design/security.md、design/gateway.md、contracts/backup-format.md | 2026-11-01 |
-| [REQ-2026-002](./active/REQ-2026-002-input-and-protocol-safety.md) | 输入与协议安全跟进（zod 4 迁移） | active | 外部独立审查 | shared/、electron/、src/bridge/ | contracts/impl-contract.md、contracts/protocol-mapping.md、design/chat.md | 2026-11-01 |
+| [REQ-2026-002](./archive/REQ-2026-002-input-and-protocol-safety.md) | 输入、工具链与升级摘要安全跟进 | done | 外部独立审查与范围扩展 | shared/、electron/、src/、构建与发布链 | contracts/impl-contract.md、contracts/protocol-mapping.md、design/chat.md、design/security.md、design/ux-guidelines.md | 2026-11-01 |
+| [REQ-2026-003](./active/REQ-2026-003-performance-optimization.md) | 安全修复后的性能评估与深度优化 | active | REQ-2026-001 至 REQ-2026-002 综合评估 | electron/、src/、scripts/、tests/ | design/security.md、design/chat.md、design/message-tree.md、design/storage.md、design/ux-guidelines.md、design/ui-liquid-glass.md | 2026-11-01 |
 
 ## 状态流转
 

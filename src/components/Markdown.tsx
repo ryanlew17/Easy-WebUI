@@ -174,3 +174,5 @@ export function Markdown({ content }: { content: string }) {
     </div>
   );
 }
+
+export { CodeBlock, extractCode };

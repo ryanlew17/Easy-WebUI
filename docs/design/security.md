@@ -34,7 +34,8 @@
 - **导航与发送方闸门**（REQ-2026-001）：主窗口 `will-navigate` 白名单（dev=vite origin / prod 一律拦截）；`setWindowOpenHandler` 全部 deny、http(s) 转 `shell.openExternal`；所有 IPC handler 校验 `senderFrame.url` 必须是应用文档（`electron/webcontents-guard.ts` 纯函数）。
 - 单实例锁：第二实例退出并聚焦既有窗口（防双实例并发写同一 sqlite）。
 - 渲染进程代码不得 import `electron/` 下任何模块；跨进程共享类型与纯逻辑一律放 `shared/`。
-- Markdown 渲染前经 DOMPurify 消毒（模型输出不可信）；不加载远程字体/脚本。
+- 聊天 Markdown 继续禁止 raw HTML；highlight.js 产出的 HTML 仅经 DOMPurify 消毒后注入（模型输出不可信）。不加载远程字体/脚本。
+- GitHub Release 摘要由独立 `ReleaseNotes` 按需加载，使用 `rehype-raw + rehype-sanitize` 白名单支持 GFM 与安全 HTML；脚本、样式、iframe、表单、事件属性、危险 URL 与远程图片一律移除，链接仅允许 http(s) 并沿用外链闸门（REQ-2026-002）。该例外不得扩散到聊天消息。
 - 外链经 `system:open-external` 仅放行 http(s)（zod 校验）。
 - Web 预览 mock 桥（`src/bridge/mock.ts`）：API key 仅存内存 Map，不落 localStorage；`openExternal` 复用同一 http(s) 白名单。
 
