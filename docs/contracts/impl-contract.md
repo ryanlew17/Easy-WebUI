@@ -3,8 +3,7 @@
 > 适用范围：`shared/types.ts` 镜像说明、渲染进程桥接 API（`window.easyui.*` / mock 桥）、事件通道、IPC 错误编码、预置供应商数据、Mock 桥行为契约。
 > 何时读取：新增/修改任何 IPC 方法、共享类型、preload 白名单、mock 桥实现之前；排查两端行为不一致时。
 > 关联需求：无（变更需求先落 `../requirements/`，再改本契约）。
-> 最后更新：2026-09-13
-> 来源：原 docs/impl-contract.md §0–§4/§6（§3/§5 → protocol-mapping.md，§7–§11 → design/ 与 testing/；原文存档于 `../archive/impl-contract-v1.0.1-2026-09-13.md`）
+> 最后更新：2026-11-01
 
 ---
 
@@ -13,7 +12,7 @@
 - 本文件规定**跨进程接口与共享类型**，`electron/` 与 `src/` 两端必须严格一致。
 - 工程与脚本、目录结构见 `../architecture.md`；协议适配细节见 [protocol-mapping.md](./protocol-mapping.md)；数据库结构见 [db-schema.md](./db-schema.md)；备份格式见 [backup-format.md](./backup-format.md)。
 - 与 `../prd.md`（产品定位、边界、非目标）冲突时以 prd.md 为准；本文件未覆盖处遵循"最小惊讶原则"并在代码注释中说明取舍。
-- **`shared/types.ts` 是最终事实来源**：本 §1/§2 是其文档镜像（已对齐 v1.0.1 真实接口面，含 v0.1.1 数据目录/在线升级与 v1.0.0 树形分支全部方法）。字段变更必须同步两端与本文件。
+- **`shared/types.ts` 是最终事实来源**：本 §1/§2 是其当前接口面的文档镜像。字段变更必须同步两端与本文件。
 
 ## 1. 共享类型（`shared/types.ts`，两端唯一事实来源）
 
@@ -33,7 +32,7 @@ export interface Provider {
   base_url: string;         // 已去末尾 '/'
   api_format: ApiFormat;
   has_key: boolean;         // 渲染进程只看布尔，永不见密钥/密文
-  models: ProviderModel[];
+  models: ProviderModel[];      // 主进程 IPC 与 mock 桥均限制 ≤2000（REQ-2026-002）
   created_at: number; updated_at: number;
 }
 export interface ProviderDraft { // 新建/编辑表单
@@ -285,7 +284,7 @@ invoke 拒绝时 Electron 只序列化 `Error.message`（自定义 `.code` 丢�
 
 ## 6. Web 预览 Mock 桥（`src/bridge/`）
 
-- `src/bridge/index.ts`：`export function getApi(): EasyUiApi` —— 若 `window.easyui` 存在则返回之，否则返回 `mockApi`。UI 代码只依赖 `getApi()`，不感知差异。
+- `src/bridge/index.ts`：`export function getApi(): EasyUiApi` —— 若 `window.easyui` 存在则返回之，否则返回 `mockApi`。UI 代码只依赖 `getApi()`，不感知差异；Electron 下 preload 注入失败而降级 mock 时必须 `console.warn` 明示数据不会写入应用数据库，避免静默改用 localStorage（@req REQ-2026-001）。
 - `src/bridge/mock.ts`：用 localStorage（key 前缀 `easyui_mock_`）实现**完整** `EasyUiApi`：
   - 平台/会话/消息/**参数预设** CRUD（presets 存 `easyui_mock_presets`，首访补建全局预设；loadConversations 对旧版 params 形状做 `migrateLegacyParams` 迁移）、设置、备份函数返回空/成功桩。
   - **API key 只存内存 Map，不落 localStorage**（REQ-2026-001：web 预览也可能填真实密钥）；`updateProvider` 换 host 清密钥、`base_url` 仅 http/https 禁 userinfo，均与主进程同规则。

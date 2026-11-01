@@ -343,6 +343,19 @@ describe('openai-chat 适配器', () => {
       expect(msg).not.toContain('sk-test-key');
     }
   });
+
+  it('流式 error 事件 → 抛错并脱敏（@req REQ-2026-002）', async () => {
+    registerSecret('sk-test-key');
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        'data: {"error":{"code":"server_error","message":"bad key sk-test-key"}}\n\n',
+      ]),
+    );
+    await expect(collect(openaiChat.chat(baseInput()))).rejects.toMatchObject({
+      code: 'server_error',
+      message: 'bad key sk-***',
+    });
+  });
 });
 
 /* ---------- openai-responses ---------- */

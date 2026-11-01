@@ -48,12 +48,9 @@
 
 ## 文档
 
-- 产品范围与路线图：[docs/prd.md](./docs/prd.md) · [docs/roadmap.md](./docs/roadmap.md)
-- 技术架构、构建与打包：[docs/architecture.md](./docs/architecture.md)
-- 模块设计快照：[docs/design/](./docs/design/README.md)
-- 跨进程接口契约：[docs/contracts/impl-contract.md](./docs/contracts/impl-contract.md)
-- 开发命令与代理规则：[AGENTS.md](./AGENTS.md) · 测试验证：[docs/testing.md](./docs/testing.md)
-- 发布流程：[docs/release.md](./docs/release.md)
+- [文档地图](./docs/README.md)——产品、架构、模块行为、接口契约与 ADR。
+- [开发命令与代理规则](./AGENTS.md)
+- [验证与发布流程](./docs/release.md)
 
 ## 许可证
 

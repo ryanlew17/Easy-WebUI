@@ -3,8 +3,7 @@
 > 适用范围：产品定位、核心价值、目标用户、非目标、模块地图与边界、关键质量属性。**只描述"产品是什么/不做什么"**。
 > 何时读取：判断需求是否该做（对照非目标）、理解模块边界、做架构级规划时。
 > 关联需求：增量需求不写入本文件——见 [requirements/](./requirements/index.md)。
-> 最后更新：2026-09-13
-> 来源：原 prd.md §1 重写精简（原文存档于 [archive/prd-v1.0.1-2026-09-13.md](./archive/prd-v1.0.1-2026-09-13.md)）
+> 最后更新：2026-11-01
 
 ---
 
@@ -64,10 +63,4 @@
 
 ## 5. 文档地图
 
-- 技术选型 / 进程架构 / 目录结构 / 构建 → [architecture.md](./architecture.md)
-- 模块行为快照 → [design/](./design/README.md)
-- 接口 / 协议映射 / 数据库 / 备份格式 → [contracts/](./contracts/README.md)
-- 增量需求 → [requirements/](./requirements/index.md)（GitHub Issue 优先）
-- 技术决策 → [adr/](./adr/README.md)
-- 版本历程 → [changelog.md](./changelog.md) · 候选方向 → [roadmap.md](./roadmap.md)
-- 测试门槛 → [testing.md](./testing.md) · 发布规范 → [release.md](./release.md)
+全部现行文档与维护边界见 [docs/README.md](./README.md)。

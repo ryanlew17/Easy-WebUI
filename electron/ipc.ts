@@ -22,6 +22,7 @@ import {
   updateMessageContentSchema,
   deleteMessagesSchema,
   MAX_BACKUP_PASSWORD_CHARS,
+  MAX_PROVIDER_MODELS,
 } from '../shared/ipc';
 import { PRESETS } from '../shared/presets';
 import { serializeIpcError } from '../shared/errors';
@@ -90,7 +91,8 @@ const updateProviderSchema = z.object({
   api_format: apiFormatSchema.optional(),
   /** undefined=保持不变；'' =清除密钥；非空=重新设置 */
   api_key: z.string().max(500).optional(),
-  models: z.array(providerModelSchema).optional(),
+  // @req REQ-2026-002：限制结构化克隆载荷进入校验后的内存放大面
+  models: z.array(providerModelSchema).max(MAX_PROVIDER_MODELS).optional(),
 });
 
 const updateConversationSchema = z.object({
@@ -224,10 +226,10 @@ function handle<TArgs extends unknown[], TResult>(
 }
 
 /** 解析"providerId 或 draft"两种形态的 (baseUrl, format, key)，draft.api_key 或库内已存密钥 */
-function resolveEndpoint(
+async function resolveEndpoint(
   deps: IpcDeps,
   input: { providerId?: string; draft?: z.infer<typeof providerDraftSchema> },
-): { baseUrl: string; format: ApiFormat; apiKey: string } {
+): Promise<{ baseUrl: string; format: ApiFormat; apiKey: string }> {
   if (input.draft) {
     const key = input.draft.api_key ?? '';
     if (key) registerSecret(key);
@@ -237,7 +239,7 @@ function resolveEndpoint(
     const row = deps.providers.getRow(input.providerId);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = deps.crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await deps.crypto.decryptString(row.api_key_cipher.toString('utf8'));
     registerSecret(key);
     return { baseUrl: row.base_url, format: row.api_format, apiKey: key };
   }
@@ -254,18 +256,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   /* —— 平台管理 —— */
   handle(IPC.listProviders, () => providers.list());
 
-  handle(IPC.createProvider, (raw: unknown) => {
+  handle(IPC.createProvider, async (raw: unknown) => {
     const draft = providerDraftSchema.parse(raw);
     if (draft.api_key) registerSecret(draft.api_key);
     return providers.insert({
       name: draft.name,
       base_url: draft.base_url,
       api_format: draft.api_format,
-      api_key_cipher: draft.api_key ? Buffer.from(crypto.encryptString(draft.api_key), 'utf8') : null,
+      api_key_cipher: draft.api_key
+        ? Buffer.from(await crypto.encryptString(draft.api_key), 'utf8')
+        : null,
     });
   });
 
-  handle(IPC.updateProvider, (id: unknown, raw: unknown) => {
+  handle(IPC.updateProvider, async (id: unknown, raw: unknown) => {
     const providerId = z.string().min(1).parse(id);
     const patch = updateProviderSchema.parse(raw);
     if (patch.api_key) registerSecret(patch.api_key);
@@ -290,7 +294,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             : undefined // 保持不变
           : patch.api_key === ''
             ? null // 空串 = 清除密钥
-            : Buffer.from(crypto.encryptString(patch.api_key), 'utf8'),
+            : Buffer.from(await crypto.encryptString(patch.api_key), 'utf8'),
       models: patch.models,
     });
     if (!updated) throw new Error('provider_not_found');
@@ -303,7 +307,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   handle(IPC.fetchModels, async (raw: unknown) => {
     const input = fetchModelsSchema.parse(raw);
-    const ep = resolveEndpoint(deps, input);
+    const ep = await resolveEndpoint(deps, input);
     return listModels(ep.baseUrl, ep.format, ep.apiKey);
   });
 
@@ -313,7 +317,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const row = providers.getRow(pid);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
     registerSecret(key);
     const check = await testModel({
       baseUrl: row.base_url,
@@ -330,7 +334,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const row = providers.getRow(pid);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
     registerSecret(key);
     const provider = providers.get(pid);
     const modelIds = (provider?.models ?? [])
@@ -356,7 +360,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (!apiKey && input.providerId) {
       const row = providers.getRow(input.providerId);
       if (row?.api_key_cipher) {
-        apiKey = crypto.decryptString(row.api_key_cipher.toString('utf8'));
+        apiKey = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
       }
     }
     if (apiKey) registerSecret(apiKey);

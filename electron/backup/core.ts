@@ -208,18 +208,18 @@ export function isAllowedRestorePath(
 
 /* ---------- 导出 ---------- */
 
-export function buildBackup(
+export async function buildBackup(
   rows: ExportRows,
   opts: {
     includeKeys: boolean;
     password?: string;
     /** 注入：本机密文 → 明文（生产为 CryptoService.decryptString） */
-    decryptKey: (cipher: string) => string;
+    decryptKey: (cipher: string) => string | Promise<string>;
     appVersion: string;
     schemaVersion: number;
     now?: number;
   },
-): { data: BackupDataJson; manifest: BackupManifest } {
+): Promise<{ data: BackupDataJson; manifest: BackupManifest }> {
   const now = opts.now ?? Date.now();
 
   // providers 中的机器密文一律置 null（绝不允许导出 safeStorage 密文，docs/contracts/backup-format.md）
@@ -256,9 +256,14 @@ export function buildBackup(
         `backup password must be <= ${MAX_BACKUP_PASSWORD_CHARS} chars`,
       );
     }
-    const entries = rows.providers
-      .filter((p) => p.api_key_cipher)
-      .map((p) => ({ provider_id: p.id, api_key: opts.decryptKey(p.api_key_cipher as string) }));
+    const entries = await Promise.all(
+      rows.providers
+        .filter((p) => p.api_key_cipher)
+        .map(async (p) => ({
+          provider_id: p.id,
+          api_key: await opts.decryptKey(p.api_key_cipher as string),
+        })),
+    );
     const salt = randomSalt(16);
     const key = scryptDerive(password, salt, 32, BACKUP_KDF);
     const blob = aesGcmEncrypt(key, JSON.stringify(entries));
@@ -271,16 +276,16 @@ export function buildBackup(
 
 /* ---------- 恢复 ---------- */
 
-export function parseBackup(
+export async function parseBackup(
   data: BackupDataJson,
   manifest: BackupManifest,
   opts: {
     password?: string;
     /** 注入：明文 → 本机密文（生产为 CryptoService.encryptString） */
-    encryptKey: (plain: string) => string;
+    encryptKey: (plain: string) => string | Promise<string>;
     currentSchemaVersion: number;
   },
-): ExportRows {
+): Promise<ExportRows> {
   if (typeof manifest.schema_version !== 'number' || manifest.schema_version > opts.currentSchemaVersion) {
     throw new BackupError(
       'backup_schema_too_new',
@@ -324,13 +329,15 @@ export function parseBackup(
     plainKeys = new Map(entries.map((e) => [e.provider_id, e.api_key]));
   }
 
-  const providers: ProviderExportRow[] = (data.providers ?? []).map((p) => {
-    const plain = plainKeys.get(p.id);
-    return {
-      ...p,
-      api_key_cipher: plain ? opts.encryptKey(plain) : null, // 用本机加密服务重新加密
-    };
-  });
+  const providers: ProviderExportRow[] = await Promise.all(
+    (data.providers ?? []).map(async (p) => {
+      const plain = plainKeys.get(p.id);
+      return {
+        ...p,
+        api_key_cipher: plain ? await opts.encryptKey(plain) : null, // 用本机加密服务重新加密
+      };
+    }),
+  );
 
   return {
     providers,

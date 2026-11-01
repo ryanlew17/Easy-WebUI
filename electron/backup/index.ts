@@ -121,7 +121,7 @@ export function createBackupService(deps: BackupDeps) {
   return {
     dir,
 
-    createBackup(input: { includeKeys: boolean; password?: string }): BackupFileInfo {
+    async createBackup(input: { includeKeys: boolean; password?: string }): Promise<BackupFileInfo> {
       const settingsRow = db.prepare("SELECT value FROM settings WHERE key = 'general'").get() as
         | { value: string }
         | undefined;
@@ -134,7 +134,7 @@ export function createBackupService(deps: BackupDeps) {
         settings = {} as GeneralSettings;
       }
       const rows = collectRows(db, settings);
-      const { data, manifest } = buildBackup(rows, {
+      const { data, manifest } = await buildBackup(rows, {
         includeKeys: input.includeKeys,
         password: input.password,
         decryptKey: (cipher) => crypto.decryptString(cipher),
@@ -144,13 +144,13 @@ export function createBackupService(deps: BackupDeps) {
       return writeZip(data, manifest, `easyui-backup-${timestampName()}.zip`);
     },
 
-    restoreBackup(input: {
+    async restoreBackup(input: {
       path: string;
       password?: string;
       mode: 'merge' | 'overwrite';
-    }): ImportResult {
+    }): Promise<ImportResult> {
       const { data, manifest } = readZip(input.path);
-      const rows = parseBackup(data, manifest, {
+      const rows = await parseBackup(data, manifest, {
         password: input.password,
         encryptKey: (plain) => crypto.encryptString(plain),
         currentSchemaVersion: SCHEMA_VERSION,
@@ -158,7 +158,7 @@ export function createBackupService(deps: BackupDeps) {
 
       // 覆盖模式：先自动做一份临时备份（不含密钥；docs/contracts/backup-format.md 恢复规则）
       if (input.mode === 'overwrite') {
-        this.createBackup({ includeKeys: false });
+        await this.createBackup({ includeKeys: false });
       }
 
       const result: ImportResult = { providers: 0, conversations: 0, messages: 0, presets: 0, skipped: 0 };
@@ -276,7 +276,8 @@ export function createBackupService(deps: BackupDeps) {
         let createdAt = stat.mtimeMs;
         try {
           const manifestEntry = new AdmZip(full).getEntry('manifest.json');
-          if (manifestEntry) {
+          // @req REQ-2026-001 M4：列表展示也只在尺寸预算内解压 manifest
+          if (manifestEntry && manifestEntry.header.size <= MAX_ZIP_ENTRY_BYTES) {
             const manifest = JSON.parse(manifestEntry.getData().toString('utf8')) as BackupManifest;
             includesKeys = manifest.includes_keys === true;
             if (typeof manifest.created_at === 'number') createdAt = manifest.created_at;

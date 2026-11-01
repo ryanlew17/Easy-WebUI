@@ -126,18 +126,23 @@ function createWindow(): void {
   // CSS zoom（web 与 Electron 同一代码路径）。setVisualZoomLevelLimits 锁死 pinch
   // 视觉缩放；应用菜单置空以摘掉默认菜单的 Ctrl+/-/0 缩放加速器
   // （编辑快捷键由 Chromium 渲染层原生处理，不受影响）。
-  win.webContents.setVisualZoomLevelLimits(1, 1);
-  Menu.setApplicationMenu(null);
-
-  if (isDev) {
-    void win.loadURL(process.env.VITE_DEV_SERVER_URL as string);
-  } else {
+  // @req REQ-2026-001 Electron 45：等导航完成再设置，避免初始渲染帧被替换后拒绝
+  const contents = win.webContents;
+  const loading = isDev
+    ? win.loadURL(process.env.VITE_DEV_SERVER_URL as string)
     // package.json main = dist-electron/electron/main.js → 项目根在上两级
-    void win.loadFile(path.join(__dirname, '../../dist/index.html'));
-  }
+    : win.loadFile(path.join(__dirname, '../../dist/index.html'));
+  void loading
+    .then(() => contents.setVisualZoomLevelLimits(1, 1))
+    .catch((e: unknown) => {
+      if (!contents.isDestroyed()) {
+        logger.warn('page load or visual zoom lock failed', e instanceof Error ? e.message : e);
+      }
+    });
+  Menu.setApplicationMenu(null);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const resolution = resolveDataDir(app);
   const dataDir = resolution.dir;
   dataDirForState = dataDir;
@@ -161,7 +166,7 @@ app.whenReady().then(() => {
   migrateStorageDir(dataDir, resolution.legacyDirs, (msg, extra) => logger.info(msg, extra));
 
   // @req REQ-2026-001 C2：网关走 Chromium 网络栈——Brotli/gzip 解压不进 Node 主进程
-  // （Node 内嵌 brotli 的 CVE-2026-111497 修复随 Electron 版本跟进，见 AGENTS.md 安全待办）
+  // Electron 45.2.1 已带 Node 24.22.1 修复；net.fetch 继续作为纵深防御
   setGatewayFetch((url, init) => net.fetch(url, init));
 
   const db = openDatabase(path.join(dataDir, 'easyui.db'));
@@ -172,7 +177,7 @@ app.whenReady().then(() => {
   const presets = createPresetsDao(db);
   if (!presets.hasGlobal()) presets.ensureGlobal(); // 兜底：全局预设恒存在
 
-  const crypto = createCryptoService({ dataDir, safeStorage });
+  const crypto = await createCryptoService({ dataDir, safeStorage });
   const backup = createBackupService({ db, crypto, dataDir, appVersion: app.getVersion() });
 
   const orchestrator = new ChatOrchestrator({

@@ -1,5 +1,5 @@
 /**
- * 程序化验证探针（fix/v1.0.1-ui-polish 第二轮）：不依赖目视截图，直接断言 DOM 几何与
+ * 程序化验证探针：不依赖目视截图，直接断言 DOM 几何与
  * computed style，验证四项修复的因果链：
  *  1) 模型下拉 / Select 弹层 / ctx-tip：portal 到 document.body（祖先链无 backdrop-filter
  *     的 backdrop root）且自身 backdrop-filter 生效 → 液态玻璃模糊真实可用；

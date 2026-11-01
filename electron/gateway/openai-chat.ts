@@ -18,7 +18,7 @@ import { reasoningOffPayload } from '../../shared/reasoning';
 import type { AdapterChatInput, BuiltRequest, ProtocolAdapter } from './api';
 import { joinUrl } from './url';
 import { CONNECT_TIMEOUT_MS, fetchWithTimeout } from './http';
-import { toApiError } from './errors';
+import { GatewayError, sanitizeErrorCode, sanitizeErrorMessage, toApiError } from './errors';
 import { readJsonWithLimit } from './read';
 import { iterateSse } from './sse';
 import { parseStructuredSchema, STRUCTURED_OUTPUT_NAME } from './structured';
@@ -123,6 +123,14 @@ export async function* chat(input: AdapterChatInput): AsyncGenerator<ChatChunk> 
       json = JSON.parse(data) as Record<string, unknown>;
     } catch {
       continue; // 非 JSON 行（极少数中转站混入）跳过
+    }
+    // @req REQ-2026-002：部分中转站在流中直接发 error，不能静默按成功截断
+    if (json.error && typeof json.error === 'object') {
+      const err = json.error as { code?: string; type?: string; message?: string };
+      throw new GatewayError(
+        sanitizeErrorCode(err.code ?? err.type),
+        sanitizeErrorMessage(err.message, 'openai chat stream error'),
+      );
     }
     const choice = (json.choices as Record<string, unknown>[] | undefined)?.[0];
     const delta = choice?.delta as Record<string, unknown> | undefined;

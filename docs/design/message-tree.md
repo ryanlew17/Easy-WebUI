@@ -2,8 +2,7 @@
 
 > 适用范围：消息树模型（parent_id + active_leaf_id）、激活路径解析、分支操作语义（发送/分叉/重生成/续写/切换/删除）、气泡操作与批量选择。
 > 何时读取：改 `electron/db/messages.ts`、分支导航 UI、消息操作按钮、`src/bridge/mock.ts` 分支逻辑之前；**此处的行为改动需要回归测试（tests/db-messages.test.ts）**。
-> 关联需求：无（v1.0.1 现状快照）。
-> 最后更新：2026-09-13
+> 最后更新：2026-11-01
 > 来源：原 prd.md §4.5 + 原 docs/impl-contract.md §11.1；列级契约见 `../contracts/db-schema.md`，API 见 `../contracts/impl-contract.md` §2
 
 ## 1. 模型
@@ -11,6 +10,7 @@
 - 消息是 **parent_id 树**；`conversations.active_leaf_id` 指向激活叶（空 = 最新一条为叶）。
 - `listMessages` 返回根 → 激活叶的线性路径；路径上同 parent 子消息数 >1 的消息带 `branch={index, count, ids}`（同级按 created_at,rowid 排序，index 从 1 起）。
 - v2→v3 迁移与旧备份恢复共用 `backfillParentLinks()` 回填（幂等，规则见 `../contracts/db-schema.md` §3）。
+- 不可信导入中的 `parent_id` 环必须断边挂根；子树遍历与删除使用 `visited` 防环，不得影响其他分支的可达性（@req REQ-2026-001）。
 
 ## 2. 操作语义
 
