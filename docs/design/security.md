@@ -31,7 +31,7 @@
   ```bash
   node -e "const fs=require('fs'),c=require('crypto');const m=fs.readFileSync('index.html','utf8').match(/<script>(\(function[\s\S]*?)<\/script>/);console.log(c.createHash('sha256').update(m[1],'utf8').digest('base64'))"
   ```
-- `nodeIntegration: false` + `contextIsolation: true` + 显式 `sandbox: true`；`contextBridge` 只暴露白名单 API（`window.easyui.*`，见 `../contracts/impl-contract.md` §2）。
+- `nodeIntegration: false` + `contextIsolation: true` + 显式 `sandbox: true`；`contextBridge` 只暴露白名单 API（`window.easyui.*`，契约见 `shared/types.ts` 的 `EasyUiApi`）。
 - **导航与发送方闸门**（REQ-2026-001）：主窗口 `will-navigate` 白名单（dev=vite origin / prod 一律拦截）；`setWindowOpenHandler` 全部 deny、http(s) 转 `shell.openExternal`；所有 IPC handler 校验 `senderFrame.url` 必须是应用文档（`electron/webcontents-guard.ts` 纯函数）。
 - 单实例锁：第二实例退出并聚焦既有窗口（防双实例并发写同一 sqlite）。
 - 渲染进程代码不得 import `electron/` 下任何模块；跨进程共享类型与纯逻辑一律放 `shared/`。

@@ -4,7 +4,25 @@ Electron + React 18 + TypeScript local-first multi-provider LLM chat client. Win
 
 ## Context
 
-- Start with `docs/README.md`; read only the task-relevant documents and related code/tests.
+Route by task type below — do NOT read all of `docs/` by default. Full doc map for humans: `docs/README.md`.
+
+| Task type | Read |
+| --- | --- |
+| Requirement work | `docs/requirements/index.md` → locate the REQ/Issue → that file + its linked design docs + related code/tests |
+| Architecture / build / dirs / deps | `docs/architecture.md` (+ related ADRs in `docs/adr/`) |
+| Chat page / generation / streaming / stats | `docs/design/chat.md` |
+| Message tree / branching / deletion | `docs/design/message-tree.md` |
+| Params & presets | `docs/design/params.md` |
+| Keys / redaction / CSP / privacy | `docs/design/security.md`（接触密钥的改动必读） |
+| Protocol adapters / SSE / URL mapping | `docs/contracts/protocol-mapping.md` |
+| Data dir / migration / backup UX | `docs/design/storage.md` + `docs/contracts/backup-format.md` |
+| Providers / model checks | `docs/design/provider.md` |
+| Visual tokens / themes / zoom / motion | `docs/design/ui-liquid-glass.md` |
+| Floating layers / focus / a11y / shortcuts | `docs/design/popover.md` + `docs/design/ux-guidelines.md` |
+| IPC / shared types / mock bridge | `docs/contracts/impl-contract.md` + `shared/types.ts` |
+| Title generation / context trim / gateway limits / i18n | `docs/design/{title,context-trim,gateway,i18n}.md` |
+| Testing / packaging / release | `docs/release.md`；版本历史 `docs/changelog.md`；候选方向 `docs/roadmap.md` |
+
 - Requirement authority: GitHub Issue > `docs/requirements/active/` > current design docs. Register requirements before implementation.
 - `docs/requirements/archive/` contains completed requirements, not current behavior. Older snapshots live in Git history.
 

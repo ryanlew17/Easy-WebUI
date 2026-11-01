@@ -3,7 +3,7 @@
 > 适用范围：平台的增删改查、预置模板、模型列表拉取、连通性检测、API 格式自动探测的当前行为。
 > 何时读取：改设置页平台管理 UI、`fetchModels`/`testModel`/`detectFormat` 相关主进程或 mock 逻辑之前。
 > 最后更新：2026-09-13
-> 来源：原 prd.md §3；字段契约见 `../contracts/impl-contract.md` §1/§5
+> 来源：原 prd.md §3；字段契约见 `shared/types.ts`，预置模板见 `shared/presets.ts`
 
 ## 1. 数据字段
 
@@ -23,7 +23,7 @@
 
 **新增/编辑平台**（模态框）：
 
-1. 12 家**预置模板**作为快捷填充（点选自动填 base_url/format，名称可改，不预写数据库；模板表见 `../contracts/impl-contract.md` §5）；也支持完全自定义。
+1. 12 家**预置模板**作为快捷填充（点选自动填 base_url/format，名称可改，不预写数据库；模板见 `shared/presets.ts`）；也支持完全自定义。
 2. 填写名称、API 地址、API 密钥，选择响应格式（默认 `openai-chat`，提供"自动探测"，见 §4）。
 3. 点击**"检测模型列表"**：openai 系 `GET /v1/models` + Bearer 头；anthropic 加 `x-api-key` + `anthropic-version` 头。超时 15s；失败在输入框下方给可读错误（状态码 + 服务商 message，**密钥已脱敏**）。支持用未保存的草稿密钥直接拉取。
 4. 成功后弹出模型复选列表，勾选写入 `models`（`enabled: true`）。

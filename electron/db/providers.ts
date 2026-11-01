@@ -18,7 +18,7 @@ export interface ProviderRow {
   updated_at: number;
 }
 
-/** base_url 归一化：去末尾斜杠（docs/contracts/impl-contract.md：存储时去掉末尾 '/'） */
+/** base_url 归一化：去末尾斜杠（shared/types.ts Provider.base_url：存储时去掉末尾 '/'） */
 export function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }

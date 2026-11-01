@@ -135,7 +135,7 @@ const settingsPatchSchema = z.object({
   /** 标题生成指定模型：null = 清除指定（回退会话模型） */
   title_provider_id: z.string().min(1).max(100).nullable().optional(),
   title_model: z.string().min(1).max(300).nullable().optional(),
-  /** 外观（docs/contracts/impl-contract.md，GeneralSettings）：缩放 0.5~2.5；字体栈字符白名单与渲染进程 shared/appearance.ts 一致 */
+  /** 外观（shared/types.ts，GeneralSettings）：缩放 0.5~2.5；字体栈字符白名单与渲染进程 shared/appearance.ts 一致 */
   zoom: z.number().min(0.5).max(2.5).optional(),
   font_ui: z.string().max(200).regex(/^[A-Za-z0-9 ,.'"-]*$/).optional(),
   font_code: z.string().max(200).regex(/^[A-Za-z0-9 ,.'"-]*$/).optional(),

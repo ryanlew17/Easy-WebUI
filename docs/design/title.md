@@ -14,7 +14,7 @@
 - 触发：首轮对话完成后（`auto_title` 开且标题为空）。
 - 用解析出的模型生成极简短标题；单次 20s 超时、间隔 800ms 重试 1 次。
 - 成功广播 `title:updated`（侧栏即时刷新，同步 bump `updated_at` 保持排序一致）；失败广播 `title:failed`（toast 警告，**绝不阻断对话**）。
-- 渲染进程消费：`App.tsx` 订阅 → `useConversationsStore.applyTitle`；`chat:done` 只做本地 `touchLocal` 重排序，不整表 refetch（避免旧快照竞态，见 `../contracts/impl-contract.md` §3）。
+- 渲染进程消费：`App.tsx` 订阅 → `useConversationsStore.applyTitle`；`chat:done` 只做本地 `touchLocal` 重排序，不整表 refetch（避免旧快照竞态，见 `../contracts/impl-contract.md`「事件通道」）。
 
 ## 3. 手动标题
 

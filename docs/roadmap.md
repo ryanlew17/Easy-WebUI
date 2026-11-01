@@ -16,7 +16,7 @@
 | macOS / Linux 打包实测 | electron-builder 配置就绪未实测 | |
 | 会话导出为 Markdown | | |
 | 更丰富的会话组织 | 搜索、分组/文件夹 | 来自 README 路线图 |
-| 更多协议适配与供应商预置 | 随 API 演进补充 | 12 家预置见 `contracts/impl-contract.md` §5 |
+| 更多协议适配与供应商预置 | 随 API 演进补充 | 12 家预置见 `shared/presets.ts` |
 
 ## 流程
 

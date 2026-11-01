@@ -32,19 +32,16 @@
 
 ## 接口契约（`contracts/`）
 
-- [impl-contract.md](./contracts/impl-contract.md)：共享类型、`EasyUiApi`、事件、IPC 错误、Mock 桥与预置供应商。代码事实以 `shared/types.ts` 为准。
+- [impl-contract.md](./contracts/impl-contract.md)：契约的代码事实来源索引、事件通道、IPC 错误码与 Mock 桥行为；类型以 `shared/types.ts` 为准。
 - [protocol-mapping.md](./contracts/protocol-mapping.md)：三种 API 格式的参数、请求、SSE 与 URL 映射。
 - [db-schema.md](./contracts/db-schema.md)：SQLite 结构、索引与迁移。
 - [backup-format.md](./contracts/backup-format.md)：备份 ZIP、manifest 与加密格式。
 
 ## 架构决策（`adr/`）
 
-- [ADR-001](./adr/ADR-001-electron-over-tauri.md)：Electron 而非 Tauri。
-- [ADR-002](./adr/ADR-002-popover-portal.md)：浮层 portal 到 `document.body`。
-- [ADR-003](./adr/ADR-003-mock-bridge.md)：Web Mock 桥与主进程语义一致。
-- [ADR-004](./adr/ADR-004-userdata-data-dir.md)：安装版数据放在用户目录。
+ADR-001 Electron（非 Tauri）· ADR-002 浮层 portal 到 `document.body` · ADR-003 Mock 桥与主进程语义一致 · ADR-004 安装版数据放用户目录。
 
-ADR 只记录决策背景与后果；现行规则以 `design/` 和 `contracts/` 为准。新 ADR 使用 `ADR-NNN-短标题.md`，包含 Status / Date / Context / Decision / Consequences / Alternatives。
+ADR 只记录决策背景与后果；现行规则以 `design/` 和 `contracts/` 为准。新 ADR 用 `ADR-NNN-短标题.md`，含 Status / Date / Context / Decision / Consequences / Alternatives。
 
 ## 维护约定
 

@@ -1,6 +1,6 @@
 # 技术架构
 
-> 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置（tsconfig / vite / 依赖）、Mock 桥二元性。
+> 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
 > 最后更新：2026-11-02
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
@@ -9,19 +9,19 @@
 
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
-| 外壳 | **Electron 45** | PC 桌面分发；渲染进程直连服务商 API 有 CORS 限制，主进程可转发；提供异步 `safeStorage` 系统级密钥加密 |
-| 前端 | Vite 8 + React 18 + TypeScript 7（strict） | 原生编译器提升类型检查与构建速度；当前代码不依赖 TypeScript 编程 API |
-| 样式 | Tailwind CSS 4（@tailwindcss/vite）+ CSS 自定义属性 | 液态玻璃与双主题均依赖设计令牌（design tokens）；Vite 插件取代 PostCSS/autoprefixer |
-| 存储 | **better-sqlite3**（主进程，WAL 模式） | 单文件、事务、查询快；原生模块已按 Electron ABI 预编译 |
+| 外壳 | **Electron 45** | 桌面分发；渲染进程直连服务商 API 受 CORS 限制；异步 `safeStorage` 密钥加密 |
+| 前端 | Vite 8 + React 18 + TypeScript 7（strict，`@typescript/native`） | 原生编译器提升类型检查与构建速度；不依赖 TS 编程 API |
+| 样式 | Tailwind CSS 4（@tailwindcss/vite）+ CSS 自定义属性 | 液态玻璃与双主题依赖设计令牌；插件取代 PostCSS/autoprefixer |
+| 存储 | **better-sqlite3**（主进程，WAL） | 单文件、事务、查询快；原生模块按 Electron ABI 预编译 |
 | 网络 | 主进程 `net.fetch` | 绕过 CORS，统一 SSE 流式处理 |
 | 状态 / i18n | Zustand / i18next + react-i18next | 轻量；两份 JSON 语言包 |
-| Markdown | react-markdown 10 + remark-gfm + highlight.js 核心/语言按需加载 + DOMPurify；ReleaseNotes 增加 rehype-raw/sanitize | GFM 表格、代码高亮、渲染前消毒；聊天与 GitHub 摘要渲染器及高亮语言均按需加载，聊天仍禁 raw HTML |
+| Markdown | react-markdown 10 + remark-gfm + highlight.js 核心/语言按需加载 + DOMPurify；ReleaseNotes 另加 rehype-raw/sanitize | 渲染前消毒；聊天禁 raw HTML，语言按需加载 |
 | 备份 | adm-zip | 纯 JS 免原生编译 |
 | 更新 | electron-updater（GitHub Releases 通道） | 增量 blockmap + sha512 校验 |
 
-> 备选 Tauri 已评估并否决：Electron 生态与 `safeStorage` 更稳，不更换。
+> 备选 Tauri 已评估并否决（ADR-001），不更换。
 
-## 2. 进程架构
+## 2. 进程架构与关键约束
 
 ```
 ┌──────────────────────────── Electron Main Process ────────────────────────────┐
@@ -31,17 +31,16 @@
                     │  IPC（invoke/handle；流式/事件用 webContents.send）
 ┌────────────────────────────────── Renderer Process ───────────────────────────┐
 │ React UI（会话页/设置页） │ Zustand Store │ i18n │ Cookie 偏好(防 FOUC)         │
-└────────────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**关键约束**（摘要见 AGENTS.md，详情在各 design/contracts 文档）：
-
-1. **所有出站 API 请求必须经由主进程 Provider Gateway 转发**，渲染进程不持有明文密钥、不直接请求服务商。渲染进程只提供"平台 id + 模型名 + 参数"，主进程查库解密密钥后发请求（`./design/gateway.md`、`./design/security.md`）。
-2. 流式响应经 `webContents.send('chat:delta', …)` 推送，渲染进程增量渲染；取消经 IPC 调 `AbortController.abort()`，已收部分内容落库（`partial: true`）（`./design/chat.md`）。
-3. **IPC 接口对每个 payload 做 zod 校验**，不信任渲染进程传入的任何字段；错误经 `redact()` 脱敏后以 `EASYUI_ERR:` 编码抛回（`./contracts/impl-contract.md` §4）。
-4. `nodeIntegration: false`、`contextIsolation: true`，`contextBridge` 只暴露白名单 API（`window.easyui.*`）（`./design/security.md`）。
-5. **渲染进程代码不得 import `electron/` 下任何模块**；跨进程共享的类型与纯逻辑一律放 `shared/`。
-6. **Web 预览 Mock 桥**：`src/bridge/index.ts` 的 `getApi()` 在无 `window.easyui` 时返回 localStorage 实现的 `mockApi`（完整 `EasyUiApi`，含流式演示回复）。`npm run dev` 纯浏览器可走通全部 UI 流程；**主进程逻辑的行为修复须同步修 mock 桥**，两端语义一致（`./contracts/impl-contract.md` §6）。
+| 约束 | 规则 | 详见 |
+| --- | --- | --- |
+| 出站请求收口 | 一律经主进程 Provider Gateway；渲染进程不持明文密钥、不直连服务商 | `./design/gateway.md`、`./design/security.md` |
+| 流式与取消 | delta 经 `chat:delta` 推送；取消走 `AbortController`，已收内容落库 `partial: true` | `./design/chat.md` |
+| IPC 校验 | 每 payload zod 校验；错误 `redact()` 后以 `EASYUI_ERR:` 编码抛回 | `./contracts/impl-contract.md` §3 |
+| 渲染进程隔离 | `nodeIntegration:false` + `contextIsolation:true`，只暴露 `window.easyui.*` 白名单；渲染代码禁 import `electron/`，跨进程共享放 `shared/` | `./design/security.md` |
+| Mock 桥二元性 | `getApi()` 无 `window.easyui` 时返回 localStorage mock；主进程行为修复须同步 mock | `./contracts/impl-contract.md` §4 |
 
 ## 3. 目录结构
 
@@ -70,25 +69,16 @@ EasyWebUI/
 │   ├── store/           #   zustand（conversations/messages/presets/providers/settings/ui）
 │   ├── i18n/ lib/ styles/
 ├── tests/               # vitest 单测（gateway/trim/crypto/backup/db/窗口状态…）
-├── scripts/             # 走查与探针（puppeteer-core + 系统 Edge 无头）、截图、冒烟
+├── scripts/             # 走查与探针（puppeteer-core + 系统 Edge 无头）、截图、冒烟、性能基准
 ├── build/               # 应用图标
 └── release/             # electron-builder 产物
 ```
 
 ## 4. 工程与构建
 
-- 包管理 npm，Node ≥22.12.0（Vitest 5 / concurrently 10 开发链要求）。**命令清单见 AGENTS.md**（dev / dev:electron / typecheck / test / build / 打包 / 探针脚本）。
-- 三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict，相对 `paths` 且无 `baseUrl`）、`tsconfig.electron.json`（electron/ + shared/，NodeNext 模块与解析、rootDir `.`、outDir `dist-electron`，types node；当前包类型下仍发射 CommonJS）。
-- `@typescript/native` 以 npm alias 提供 TypeScript 7 的 `tsc`；`typescript` 保留 5.9 以满足 react-i18next 的可选 peer 范围。实际构建编译器以 `npx tsc --version` 验证为 7.0.2。
+- npm，Node ≥22.12.0；命令清单见 AGENTS.md。三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict，相对 `paths` 无 `baseUrl`）、`tsconfig.electron.json`（electron/ + shared/，NodeNext，rootDir `.`，outDir `dist-electron`，发射 CommonJS）。`@typescript/native` 提供 TS7 的 `tsc`；`typescript` 5.9 保留满足旧 peer。
 - `build` 产物链：web typecheck → vite build（→ `dist/`）→ tsc 主进程（→ `dist-electron/`，**保留 electron/ + shared/ 目录结构**，故 `package.json → main` 为 `dist-electron/electron/main.js`）→ esbuild 自包含打包 preload（`--external:electron`，最后一步）。
-- `vite.config.mts`：`base: './'`（Electron `file://` 加载需要相对路径，**不许改**）；server.port 5173。Vite/Vitest 配置使用 `.mts`，保持 ESM 原生加载且不把整个包切换为 ESM。Tailwind 4 由 `@tailwindcss/vite` 处理，旧 JS 配置经 `@config` 保留；`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`，避免 `tmp/` 等工作区文件影响构建；不再使用 PostCSS/autoprefixer，CSS 目标为 Safari 16.4+ / Firefox 128+。
-- `dev:electron` 依赖先 `npm run build` 产出 `dist-electron/`（允许的简化）；如后续引入 tsx/esbuild 直跑 TS 可去掉前置。
-- better-sqlite3 需匹配 Electron ABI：开发期 `electron .` 报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 的 V8 API 与 better-sqlite3 ≤ 11 不兼容，需 ≥ 12（本项目 v13）**；纯 Web 预览与 `npm test` 不依赖原生模块。
-- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。产物命名见 `package.json → build` 按 target 的 `artifactName`；图标 `build/icon.ico`。
-- `build.npmRebuild: false`（better-sqlite3 已由 `@electron/rebuild` 按 Electron ABI 编好，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 electron-builder 在 Windows 上解压后 rename 目录 EPERM）是测得的工程决策，**不许"清理"**。
-- 打包环境：构建进程 PATH 需含 PowerShell（`C:\Windows\System32\WindowsPowerShell\v1.0`，electron-builder 收集 node 依赖时间接调用）；winCodeSign 缓存（`%LOCALAPPDATA%\electron-builder\Cache`）若因符号链接权限解包失败，用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
-- `npm install` 若因 better-sqlite3/electron 下载失败，可 `npm install --ignore-scripts` 保底（Web 预览与单测不依赖原生模块）。
-
-## 5. 测试与验证体系
-
-验证、打包与发布门槛见 `./release.md`。REQ-2026-003 增加 `npm run perf`（构建 + 内存 SQLite/临时目录主进程基准 + 50 气泡三轮渲染基准）与 `npm run perf:electron`（临时应用和隔离 userData 的三次冷启动）；结果记录 commit、dirty 状态和工作树内容哈希，不触碰真实业务数据。
+- `vite.config.mts`：`base: './'`（Electron `file://` 需要相对路径，**不许改**）；server.port 5173；`.mts` 保持 ESM 原生加载；Tailwind 4 经 `@tailwindcss/vite`，旧 JS 配置经 `@config` 保留，`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`；CSS 目标 Safari 16.4+ / Firefox 128+。
+- better-sqlite3 ABI：开发期报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 需 better-sqlite3 ≥ 12（本项目 v13）**；纯 Web 预览与 `npm test` 不依赖原生模块，安装失败可 `npm install --ignore-scripts` 保底。
+- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。`build.npmRebuild: false`（原生模块已按 Electron ABI 预编译，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 Windows 解压 rename EPERM）是**测得的工程决策，不许"清理"**。排障：构建 PATH 需含 PowerShell；winCodeSign 缓存解包失败用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
+- 验证、打包与发布门槛见 `./release.md`；`npm run perf` / `npm run perf:electron`（REQ-2026-003）为隔离基准（内存 SQLite / 临时目录 / 隔离 userData），不触碰真实业务数据。
