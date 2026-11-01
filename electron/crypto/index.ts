@@ -18,18 +18,20 @@ import path from 'node:path';
 import type { EncryptionStatus } from '../../shared/types';
 import { aesGcmDecrypt, aesGcmEncrypt, scryptDerive, sha256, randomSalt } from './lowlevel';
 
-/** 与 electron.safeStorage 结构兼容的可注入接口（便于测试与解耦） */
+/** 与 electron.safeStorage 异步接口结构兼容的可注入接口（便于测试与解耦） */
 export interface SafeStorageLike {
-  isEncryptionAvailable(): boolean;
-  encryptString(plainText: string): Buffer;
-  decryptString(encrypted: Buffer): string;
+  isAsyncEncryptionAvailable(): Promise<boolean>;
+  encryptStringAsync(plainText: string): Promise<Buffer>;
+  decryptStringAsync(
+    encrypted: Buffer,
+  ): Promise<{ result: string; shouldReEncrypt: boolean }>;
 }
 
 export interface CryptoService {
   status(): EncryptionStatus;
   /** 返回带前缀的密文字符串（适合以 BLOB/TEXT 落库） */
-  encryptString(plain: string): string;
-  decryptString(cipher: string): string;
+  encryptString(plain: string): Promise<string>;
+  decryptString(cipher: string): Promise<string>;
 }
 
 const PREFIX_SAFE = 'v1:ss:';
@@ -69,12 +71,12 @@ function loadOrCreateKeyring(dataDir: string): Buffer {
   return salt;
 }
 
-export function createCryptoService(opts: {
+export async function createCryptoService(opts: {
   dataDir: string;
   safeStorage?: SafeStorageLike | null;
-}): CryptoService {
+}): Promise<CryptoService> {
   const ss = opts.safeStorage ?? null;
-  const useSafe = !!ss && safeIsAvailable(ss);
+  const useSafe = !!ss && (await safeIsAvailable(ss));
 
   // 回退路径的派生密钥（惰性，仅在真正需要时计算）
   let fallbackKey: Buffer | null = null;
@@ -94,17 +96,21 @@ export function createCryptoService(opts: {
       };
     },
 
-    encryptString(plain: string): string {
+    // @req REQ-2026-001 Electron 45：同步 safeStorage 已弃用，密文前缀保持不变
+    async encryptString(plain: string): Promise<string> {
       if (useSafe) {
-        return PREFIX_SAFE + ss!.encryptString(plain).toString('base64');
+        return PREFIX_SAFE + (await ss!.encryptStringAsync(plain)).toString('base64');
       }
       return PREFIX_MACH + aesGcmEncrypt(getFallbackKey(), plain).toString('base64');
     },
 
-    decryptString(cipher: string): string {
+    async decryptString(cipher: string): Promise<string> {
       if (cipher.startsWith(PREFIX_SAFE)) {
         if (!ss) throw new Error('safestorage_unavailable');
-        return ss.decryptString(Buffer.from(cipher.slice(PREFIX_SAFE.length), 'base64'));
+        const encrypted = Buffer.from(cipher.slice(PREFIX_SAFE.length), 'base64');
+        let decrypted = await ss.decryptStringAsync(encrypted);
+        if (decrypted.shouldReEncrypt) decrypted = await ss.decryptStringAsync(encrypted);
+        return decrypted.result;
       }
       if (cipher.startsWith(PREFIX_MACH)) {
         return aesGcmDecrypt(
@@ -117,9 +123,9 @@ export function createCryptoService(opts: {
   };
 }
 
-function safeIsAvailable(ss: SafeStorageLike): boolean {
+async function safeIsAvailable(ss: SafeStorageLike): Promise<boolean> {
   try {
-    return ss.isEncryptionAvailable();
+    return await ss.isAsyncEncryptionAvailable();
   } catch {
     return false;
   }

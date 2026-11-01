@@ -124,9 +124,9 @@ const encryptKey = (plain: string): string => `cipher-of-${plain.replace('plain-
 const SCHEMA = 1;
 
 /** 捕获抛出的 BackupError.code；未抛错则返回 null 让断言失败 */
-function backupErrorCode(fn: () => unknown): string | null {
+async function backupErrorCode(fn: () => unknown | Promise<unknown>): Promise<string | null> {
   try {
-    fn();
+    await fn();
     return null;
   } catch (e) {
     return typeof (e as { code?: unknown })?.code === 'string'
@@ -138,8 +138,8 @@ function backupErrorCode(fn: () => unknown): string | null {
 /* ---------- 不含密钥（默认） ---------- */
 
 describe('备份导出（不含密钥）', () => {
-  it('api_key_cipher 一律置 null，manifest 无 kdf', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('api_key_cipher 一律置 null，manifest 无 kdf', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: false,
       decryptKey,
       appVersion: '0.1.0',
@@ -156,14 +156,14 @@ describe('备份导出（不含密钥）', () => {
     expect(data.settings.theme).toBe('dark');
   });
 
-  it('roundtrip：恢复后平台仅缺密钥，其余配置可用', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('roundtrip：恢复后平台仅缺密钥，其余配置可用', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: false,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: SCHEMA,
     });
-    const restored = parseBackup(data, manifest, {
+    const restored = await parseBackup(data, manifest, {
       encryptKey,
       currentSchemaVersion: SCHEMA,
     });
@@ -185,7 +185,7 @@ describe('备份导出（不含密钥）', () => {
     expect(restored.messages[1].finish_reason).toBe('stop');
   });
 
-  it('旧版（v2）备份：缺 v3 新列 → 补默认值（parent/统计 NULL，reasoning_enabled=1）', () => {
+  it('旧版（v2）备份：缺 v3 新列 → 补默认值（parent/统计 NULL，reasoning_enabled=1）', async () => {
     // 手工构造 v2 备份数据：会话/消息均无 v3 新增列
     const v2Data = {
       providers: [],
@@ -210,7 +210,7 @@ describe('备份导出（不含密钥）', () => {
       settings: { ...DEFAULT_SETTINGS },
       keys_cipher: null,
     };
-    const restored = parseBackup(v2Data as unknown as BackupDataJson /* 故意缺 v3 新列，模拟旧备份 */, { app_version: '1.0.0', schema_version: 2, includes_keys: false, created_at: 1 }, {
+    const restored = await parseBackup(v2Data as unknown as BackupDataJson /* 故意缺 v3 新列，模拟旧备份 */, { app_version: '1.0.0', schema_version: 2, includes_keys: false, created_at: 1 }, {
       encryptKey,
       currentSchemaVersion: 3,
     });
@@ -228,7 +228,7 @@ describe('备份导出（不含密钥）', () => {
     // manifest.schema_version<3 时调 backfillParentLinks）完成，见 db-messages.test.ts 的迁移用例
   });
 
-  it('旧版（v1）备份：params_json 会话行被迁移，presets 缺省为空数组', () => {
+  it('旧版（v1）备份：params_json 会话行被迁移，presets 缺省为空数组', async () => {
     // 手工构造 v1 备份数据（conversations 用旧 params_json 形状、无 presets 字段）
     const legacyData = {
       providers: [],
@@ -248,7 +248,7 @@ describe('备份导出（不含密钥）', () => {
       settings: { ...DEFAULT_SETTINGS },
       keys_cipher: null,
     };
-    const restored = parseBackup(legacyData, { app_version: '0.0.9', schema_version: 1, includes_keys: false, created_at: 1 }, {
+    const restored = await parseBackup(legacyData, { app_version: '0.0.9', schema_version: 1, includes_keys: false, created_at: 1 }, {
       encryptKey,
       currentSchemaVersion: SCHEMA,
     });
@@ -275,8 +275,8 @@ describe('备份导出（不含密钥）', () => {
 describe('备份导出（含密钥，密码加密）', () => {
   const password = 'backup-password-123';
 
-  it('密钥明文经 scrypt+AES-GCM 入包，机器密文绝不导出', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('密钥明文经 scrypt+AES-GCM 入包，机器密文绝不导出', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: true,
       password,
       decryptKey,
@@ -298,15 +298,15 @@ describe('备份导出（含密钥，密码加密）', () => {
     expect(whole).not.toContain('cipher-of-key-A');
   });
 
-  it('roundtrip：正确密码恢复并用本机加密服务重新加密', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('roundtrip：正确密码恢复并用本机加密服务重新加密', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: true,
       password,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: SCHEMA,
     });
-    const restored = parseBackup(data, manifest, {
+    const restored = await parseBackup(data, manifest, {
       password,
       encryptKey,
       currentSchemaVersion: SCHEMA,
@@ -316,15 +316,15 @@ describe('备份导出（含密钥，密码加密）', () => {
     expect(restored.providers[1].api_key_cipher).toBeNull(); // 原本无密钥
   });
 
-  it('错误密码 → backup_wrong_password', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('错误密码 → backup_wrong_password', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: true,
       password,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: SCHEMA,
     });
-    expect(backupErrorCode(() =>
+    expect(await backupErrorCode(async () =>
       parseBackup(data, manifest, {
         password: 'wrong-password',
         encryptKey,
@@ -333,21 +333,21 @@ describe('备份导出（含密钥，密码加密）', () => {
     )).toBe('backup_wrong_password');
   });
 
-  it('缺密码 → backup_password_required', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('缺密码 → backup_password_required', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: true,
       password,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: SCHEMA,
     });
-    expect(backupErrorCode(() =>
+    expect(await backupErrorCode(async () =>
       parseBackup(data, manifest, { encryptKey, currentSchemaVersion: SCHEMA }),
     )).toBe('backup_password_required');
   });
 
-  it('密码过短（<8）→ backup_password_too_short', () => {
-    expect(backupErrorCode(() =>
+  it('密码过短（<8）→ backup_password_too_short', async () => {
+    expect(await backupErrorCode(async () =>
       buildBackup(rows, {
         includeKeys: true,
         password: 'short',
@@ -358,14 +358,14 @@ describe('备份导出（含密钥，密码加密）', () => {
     )).toBe('backup_password_too_short');
   });
 
-  it('schema_version 高于当前 → 拒绝恢复', () => {
-    const { data, manifest } = buildBackup(rows, {
+  it('schema_version 高于当前 → 拒绝恢复', async () => {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: false,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: 999,
     });
-    expect(backupErrorCode(() =>
+    expect(await backupErrorCode(async () =>
       parseBackup(data, manifest, { encryptKey, currentSchemaVersion: SCHEMA }),
     )).toBe('backup_schema_too_new');
   });
@@ -409,31 +409,31 @@ describe('恢复路径 KDF 参数校验（I5：参数来自不可信 manifest）
       schemaVersion: SCHEMA,
     });
 
-  it('篡改 kdf.N（2^17，一次推导上百 MB）→ invalid_backup', () => {
-    const { data, manifest } = buildWithKeys();
+  it('篡改 kdf.N（2^17，一次推导上百 MB）→ invalid_backup', async () => {
+    const { data, manifest } = await buildWithKeys();
     manifest.kdf = { ...manifest.kdf!, N: 2 ** 17 };
     expect(
-      backupErrorCode(() =>
+      await backupErrorCode(async () =>
         parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
       ),
     ).toBe('invalid_backup');
   });
 
-  it('kdf.algo 非 scrypt → invalid_backup', () => {
-    const { data, manifest } = buildWithKeys();
+  it('kdf.algo 非 scrypt → invalid_backup', async () => {
+    const { data, manifest } = await buildWithKeys();
     (manifest.kdf as { algo: string }).algo = 'pbkdf2';
     expect(
-      backupErrorCode(() =>
+      await backupErrorCode(async () =>
         parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
       ),
     ).toBe('invalid_backup');
   });
 
-  it('salt 超长（>64B）→ invalid_backup', () => {
-    const { data, manifest } = buildWithKeys();
+  it('salt 超长（>64B）→ invalid_backup', async () => {
+    const { data, manifest } = await buildWithKeys();
     manifest.kdf = { ...manifest.kdf!, salt_b64: Buffer.from('s'.repeat(100)).toString('base64') };
     expect(
-      backupErrorCode(() =>
+      await backupErrorCode(async () =>
         parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA }),
       ),
     ).toBe('invalid_backup');
@@ -514,8 +514,8 @@ describe('isAllowedRestorePath（F3：恢复路径白名单）', () => {
 });
 
 describe('备份密码上限（F4：8–32 位）', () => {
-  it('密码 >32 位 → backup_password_too_long', () => {
-    expect(backupErrorCode(() =>
+  it('密码 >32 位 → backup_password_too_long', async () => {
+    expect(await backupErrorCode(async () =>
       buildBackup(rows, {
         includeKeys: true,
         password: 'a'.repeat(MAX_BACKUP_PASSWORD_CHARS + 1),
@@ -526,16 +526,16 @@ describe('备份密码上限（F4：8–32 位）', () => {
     )).toBe('backup_password_too_long');
   });
 
-  it('密码恰 32 位仍可正常创建与恢复（roundtrip）', () => {
+  it('密码恰 32 位仍可正常创建与恢复（roundtrip）', async () => {
     const password = 'a'.repeat(MAX_BACKUP_PASSWORD_CHARS);
-    const { data, manifest } = buildBackup(rows, {
+    const { data, manifest } = await buildBackup(rows, {
       includeKeys: true,
       password,
       decryptKey,
       appVersion: '0.1.0',
       schemaVersion: SCHEMA,
     });
-    const restored = parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA });
+    const restored = await parseBackup(data, manifest, { password, encryptKey, currentSchemaVersion: SCHEMA });
     expect(restored.providers[0].api_key_cipher).toBe('cipher-of-key-A');
   });
 });

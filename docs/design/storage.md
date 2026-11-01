@@ -2,8 +2,7 @@
 
 > 适用范围：数据目录解析优先级（自定义/便携/安装版）、指针文件、旧数据抢救迁移、自定义位置变更流程、备份/恢复的用户流程。
 > 何时读取：改 `electron/paths.ts` / `storage-migrate.ts`、设置页数据目录 UI、备份页之前。
-> 关联需求：无（v1.0.1 现状快照）。
-> 最后更新：2026-09-13
+> 最后更新：2026-11-01
 > 来源：原 prd.md §7.1/§7.3 + 原 docs/impl-contract.md §10.1（两份重复内容合并）；表结构见 `../contracts/db-schema.md`，备份格式见 `../contracts/backup-format.md`
 
 ## 1. 目录解析优先级
@@ -18,7 +17,7 @@
 
 `resolveDataDir` → `migrateStorageDir` → `openDatabase`。
 
-- `migrateStorageDir`（**旧数据抢救**）：目标目录无 easyui.db 时从 legacy 目录列表（旧安装目录、%Temp% 解包目录等）首个含 db 的目录整体复制。
+- `migrateStorageDir`（**旧数据抢救**）：目标目录无 easyui.db 时从 legacy 目录列表（旧安装目录、%Temp% 解包目录等）首个含 db 的目录整体复制；%Temp% 候选必须同时含 `easyui.db` 与 `storage-layout.json`，防止接受投毒目录（@req REQ-2026-001）。
 - 布局版本标记 `storage-layout.json`，当前 `STORAGE_LAYOUT_VERSION = 1`（扩展点 = LAYOUT_STEPS 数组），大版本结构变更可自动迁移。
 
 ## 3. 自定义位置变更（设置页 → 通用 → 数据存储路径）
@@ -44,6 +43,6 @@ data/
 
 1. **导出** `easyui-backup-YYYYMMDD-HHmm.zip`（格式与加密见 `../contracts/backup-format.md`）。
 2. **不含密钥（默认）**：恢复后平台其余配置可用，仅需补填密钥。
-3. **含密钥**：独立备份密码（≥8 位，二次确认），scrypt + AES-256-GCM 加密密钥明文列表。
+3. **含密钥**：独立备份密码（8–32 位，二次确认），scrypt + AES-256-GCM 加密密钥明文列表。
 4. **恢复**：选 zip → 验 manifest → 含密钥先验密码 → 事务内导入；**合并**（按 id 跳过，默认）/ **覆盖**（清表重导，二次确认 + 自动先做一份不含密钥的临时备份）；完成后报统计（平台/会话/消息/预设/跳过数）。
 5. 备份列表支持打开目录与删除（删除需确认）。

@@ -105,7 +105,11 @@ export class ChatOrchestrator {
   ): Promise<{ userMessageId: string | null; assistantMessageId: string }> {
     const { conversations, messages } = this.deps;
     const conv = this.requireConversation(input.conversationId);
-    const target = this.resolveGenerationTarget(conv);
+    const target = await this.resolveGenerationTarget(conv);
+    // @req REQ-2026-001：异步解密后、任何落库/请求前原子复检，关闭并发首检竞态
+    if (this.isGenerating(conv.id)) {
+      throw new GatewayError('generation_in_progress', 'generation already in progress');
+    }
 
     // user 消息落点：siblingOf 的 parent（编辑重发开新分支）或当前激活叶
     let parentId: string | null;
@@ -139,7 +143,11 @@ export class ChatOrchestrator {
     if (anchor.role !== 'assistant') {
       throw new GatewayError('invalid_target', 'regenerate target must be an assistant message');
     }
-    const target = this.resolveGenerationTarget(conv);
+    const target = await this.resolveGenerationTarget(conv);
+    // @req REQ-2026-001：异步解密后、任何落库/请求前原子复检，关闭并发首检竞态
+    if (this.isGenerating(conv.id)) {
+      throw new GatewayError('generation_in_progress', 'generation already in progress');
+    }
 
     // 历史 = 根到目标 parent 的路径；同级新分支（旧分支保留不删）
     const history = anchor.parent_id ? messages.pathTo(anchor.parent_id) : [];
@@ -155,7 +163,11 @@ export class ChatOrchestrator {
     if (anchor.role !== 'assistant') {
       throw new GatewayError('invalid_target', 'continue target must be an assistant message');
     }
-    const target = this.resolveGenerationTarget(conv);
+    const target = await this.resolveGenerationTarget(conv);
+    // @req REQ-2026-001：异步解密后、任何落库/请求前原子复检，关闭并发首检竞态
+    if (this.isGenerating(conv.id)) {
+      throw new GatewayError('generation_in_progress', 'generation already in progress');
+    }
 
     // 历史 = 根到 parent 的路径 + 现有内容作为 assistant 尾条（让模型续写）
     const prefix = anchor.parent_id ? messages.pathTo(anchor.parent_id) : [];
@@ -191,13 +203,20 @@ export class ChatOrchestrator {
         priorTotalMs: anchor.stats?.total_ms ?? 0,
         priorTokenCount: anchor.token_count ?? 0,
       },
+    }).catch((e: unknown) => {
+      // @req REQ-2026-002：fire-and-forget 尾部 DAO/广播异常不得成为未处理拒绝
+      logger.warn('chat pipeline failed', normalizeError(e));
     });
   }
 
   async generateResponse(input: { conversationId: string }): Promise<{ assistantMessageId: string }> {
     const { messages } = this.deps;
     const conv = this.requireConversation(input.conversationId);
-    const target = this.resolveGenerationTarget(conv);
+    const target = await this.resolveGenerationTarget(conv);
+    // @req REQ-2026-001：异步解密后、任何落库/请求前原子复检，关闭并发首检竞态
+    if (this.isGenerating(conv.id)) {
+      throw new GatewayError('generation_in_progress', 'generation already in progress');
+    }
 
     const leaf = messages.activeLeaf(conv.id);
     if (!leaf || leaf.role !== 'user') {
@@ -233,7 +252,7 @@ export class ChatOrchestrator {
   }
 
   /** 生效参数（全局预设 ← 用户预设 ← 会话 overrides）+ provider + 密钥 + 模型 */
-  private resolveGenerationTarget(conv: Conversation): GenerationTarget {
+  private async resolveGenerationTarget(conv: Conversation): Promise<GenerationTarget> {
     const globalParams = this.deps.presets.get(GLOBAL_PRESET_ID)?.params ?? FACTORY_DEFAULTS;
     const preset = conv.preset_id ? this.deps.presets.get(conv.preset_id) : null;
     const params: ParamValues = resolveParams(globalParams, preset, conv.overrides);
@@ -247,7 +266,7 @@ export class ChatOrchestrator {
     if (!providerRow.api_key_cipher) {
       throw new GatewayError('missing_api_key', 'provider has no api key');
     }
-    const apiKey = this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
+    const apiKey = await this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
     registerSecret(apiKey); // 红线：此后日志/错误中该密钥一律脱敏
     return { params, providerRow, apiKey, model };
   }
@@ -332,6 +351,9 @@ export class ChatOrchestrator {
       params: target.params,
       reasoningOff: !conv.reasoning_enabled,
       signal: controller.signal,
+    }).catch((e: unknown) => {
+      // @req REQ-2026-002：fire-and-forget 尾部 DAO/广播异常不得成为未处理拒绝
+      logger.warn('chat pipeline failed', normalizeError(e));
     });
     return assistant.id;
   }
@@ -530,7 +552,7 @@ export class ChatOrchestrator {
         'title provider missing or has no api key',
       );
     }
-    const apiKey = this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
+    const apiKey = await this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
     registerSecret(apiKey); // 红线：此后日志/错误中该密钥一律脱敏
 
     const firstUser = messages.list(conversationId).find((m) => m.role === 'user');

@@ -48,12 +48,9 @@ More in [docs/screenshots/](./docs/screenshots/) — welcome page, settings, the
 
 ## Documentation
 
-- Product scope & roadmap: [docs/prd.md](./docs/prd.md) · [docs/roadmap.md](./docs/roadmap.md)
-- Architecture, build & packaging: [docs/architecture.md](./docs/architecture.md)
-- Module design snapshots: [docs/design/](./docs/design/README.md)
-- Cross-process contracts: [docs/contracts/impl-contract.md](./docs/contracts/impl-contract.md)
-- Development commands & agent rules: [AGENTS.md](./AGENTS.md) · testing: [docs/testing.md](./docs/testing.md)
-- Release process: [docs/release.md](./docs/release.md)
+- [Documentation map](./docs/README.md) — product, architecture, module behavior, contracts, and ADRs.
+- [Development commands & agent rules](./AGENTS.md)
+- [Verification & release process](./docs/release.md)
 
 ## License
 

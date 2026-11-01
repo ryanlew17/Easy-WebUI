@@ -154,6 +154,9 @@ export const openExternalSchema = z
   .max(1000)
   .regex(/^https?:\/\//i);
 
+/** 单平台模型数量上限（主进程 IPC 与 mock 桥同规则；@req REQ-2026-002） */
+export const MAX_PROVIDER_MODELS = 2000;
+
 /** 备份密码长度上限（创建与恢复共用；@req REQ-2026-001，mock 桥同规则） */
 export const MAX_BACKUP_PASSWORD_CHARS = 32;
 

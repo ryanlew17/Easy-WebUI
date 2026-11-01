@@ -2,15 +2,14 @@
 
 > 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置（tsconfig / vite / 依赖）、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
-> 关联需求：无（v1.0.1 现状快照）。
-> 最后更新：2026-09-13
+> 最后更新：2026-11-01
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
 
 ## 1. 技术选型（当前锁定版本）
 
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
-| 外壳 | **Electron 44** | PC 桌面分发；渲染进程直连服务商 API 有 CORS 限制，主进程可转发；提供 `safeStorage` 系统级密钥加密 |
+| 外壳 | **Electron 45** | PC 桌面分发；渲染进程直连服务商 API 有 CORS 限制，主进程可转发；提供异步 `safeStorage` 系统级密钥加密 |
 | 前端 | Vite 8 + React 18 + TypeScript 5.6（strict） | 生态成熟、AI 代理实现成本最低 |
 | 样式 | Tailwind CSS 3 + CSS 自定义属性 | 液态玻璃与双主题均依赖设计令牌（design tokens） |
 | 存储 | **better-sqlite3**（主进程，WAL 模式） | 单文件、事务、查询快；原生模块已按 Electron ABI 预编译 |
@@ -48,8 +47,8 @@
 
 ```
 EasyWebUI/
-├── docs/                # prd.md、architecture.md（本文件）、design/、contracts/、requirements/、
-│                        #   adr/、roadmap.md、changelog.md、testing.md、release.md、screenshots/、archive/
+├── docs/                # README.md、prd.md、architecture.md（本文件）、design/、contracts/、
+│                        #   requirements/、adr/、roadmap.md、changelog.md、release.md、screenshots/
 ├── electron/            # 主进程（tsc → dist-electron/，commonjs）
 │   ├── main.ts          #   入口：窗口/数据目录/CSP/日志/生命周期
 │   ├── preload.ts       #   contextBridge → window.easyui
@@ -91,4 +90,4 @@ EasyWebUI/
 
 ## 5. 测试与验证体系
 
-门槛与命令说明见 `./testing.md`；发布流程见 `./release.md`。
+验证、打包与发布门槛见 `./release.md`。

@@ -48,7 +48,7 @@ import {
 import { PRESETS } from '@shared/presets';
 import { resolveTitleTarget, sanitizeTitle } from '@shared/title';
 import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
-import { MAX_BACKUP_PASSWORD_CHARS, openExternalSchema } from '@shared/ipc';
+import { MAX_BACKUP_PASSWORD_CHARS, MAX_PROVIDER_MODELS, openExternalSchema } from '@shared/ipc';
 
 const PREFIX = 'easyui_mock_';
 
@@ -657,6 +657,10 @@ export const mockApi: EasyUiApi = {
     const current = providers[idx];
     if (patch.base_url != null && !isValidBaseUrl(patch.base_url)) {
       throw new Error('invalid_base_url');
+    }
+    // @req REQ-2026-002：与主进程 IPC 的模型数量上限一致
+    if (patch.models && patch.models.length > MAX_PROVIDER_MODELS) {
+      throw new Error('invalid_input');
     }
     const next: MockProvider = {
       ...current,

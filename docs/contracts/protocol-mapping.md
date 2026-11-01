@@ -3,8 +3,8 @@
 > 适用范围：`openai-chat` / `openai-responses` / `anthropic` 三种格式的请求 payload、SSE 事件、鉴权 Header、参数映射、URL 拼接（joinUrl）、协议层错误码。实现位于 `electron/gateway/`。
 > 何时读取：修改协议适配器、新增参数映射、排查某服务商请求/流式解析问题之前。
 > 关联需求：无（协议相关需求先落 `../requirements/`）。
-> 最后更新：2026-09-13
-> 来源：原 prd.md §6 + 原 docs/impl-contract.md §3/§5（两份重复内容合并去重；原文存档于 `../archive/`）
+> 最后更新：2026-11-01
+> 来源：原 prd.md §6 + 原 docs/impl-contract.md §3/§5（重复内容已合并去重；历史原文见 Git 记录）
 
 适配层统一接口（行为总览见 `../design/gateway.md`）：
 
@@ -42,7 +42,7 @@ return versioned ? `${base}${path}` : `${base}/v1${path}`;
 
 - `POST …/chat/completions`，`Authorization: Bearer`。
 - payload `{model, messages, stream, temperature, top_p?, max_tokens?, stop?, presence_penalty?, frequency_penalty?, response_format?}`。
-- SSE 解析：`data:` 行、`[DONE]` 终止、`choices[0].delta.content`；`choices[0].delta.reasoning_content` → `reasoning_delta`。
+- SSE 解析：`data:` 行、`[DONE]` 终止、`choices[0].delta.content`；`choices[0].delta.reasoning_content` → `reasoning_delta`。流内 `{"error":{...}}` 事件不得静默忽略，须脱敏后抛出（@req REQ-2026-002）。
 - 关闭思考（`reasoningOff`）：附加 `thinking:{type:'disabled'}`。
 
 ## 3. `openai-responses`（Responses API）

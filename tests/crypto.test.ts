@@ -116,3 +116,56 @@ describe('scrypt + AES-256-GCM roundtrip', () => {
     expect(sha256('host|user|win32').length).toBe(32);
   });
 });
+
+describe('safeStorage 异步适配（@req REQ-2026-001）', () => {
+  it('加解密使用异步 API，保留 v1:ss 密文格式', async () => {
+    const { createCryptoService } = await import('../electron/crypto');
+    let legacyCalls = 0;
+    const safeStorage = {
+      isEncryptionAvailable: () => true,
+      encryptString: () => {
+        legacyCalls += 1;
+        throw new Error('legacy sync encryptString called');
+      },
+      decryptString: () => {
+        legacyCalls += 1;
+        throw new Error('legacy sync decryptString called');
+      },
+      isAsyncEncryptionAvailable: async () => true,
+      encryptStringAsync: async (plain: string) => Buffer.from(`ss:${plain}`, 'utf8'),
+      decryptStringAsync: async (encrypted: Buffer) => ({
+        result: encrypted.toString('utf8').slice(3),
+        shouldReEncrypt: false,
+      }),
+    };
+    const crypto = await createCryptoService({ dataDir: 'unused', safeStorage });
+    const cipher = await crypto.encryptString('sk-async');
+    expect(cipher.startsWith('v1:ss:')).toBe(true);
+    expect(await crypto.decryptString(cipher)).toBe('sk-async');
+    expect(crypto.status()).toEqual({ method: 'safeStorage', available: true });
+    expect(legacyCalls).toBe(0);
+  });
+
+  it('旧 safeStorage 密文遇到密钥轮换提示时重新解密', async () => {
+    const { createCryptoService } = await import('../electron/crypto');
+    let decryptCalls = 0;
+    const safeStorage = {
+      isEncryptionAvailable: () => true,
+      encryptString: () => Buffer.alloc(0),
+      decryptString: () => 'legacy-sync-result',
+      isAsyncEncryptionAvailable: async () => true,
+      encryptStringAsync: async (plain: string) => Buffer.from(plain, 'utf8'),
+      decryptStringAsync: async () => {
+        decryptCalls += 1;
+        return decryptCalls === 1
+          ? { result: 'sk-rotated', shouldReEncrypt: true }
+          : { result: 'sk-latest', shouldReEncrypt: false };
+      },
+    };
+    const crypto = await createCryptoService({ dataDir: 'unused', safeStorage });
+    expect(await crypto.decryptString(`v1:ss:${Buffer.from('legacy').toString('base64')}`)).toBe(
+      'sk-latest',
+    );
+    expect(decryptCalls).toBe(2);
+  });
+});

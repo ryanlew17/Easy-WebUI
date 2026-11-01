@@ -2,7 +2,6 @@
 
 > 适用范围：平台的增删改查、预置模板、模型列表拉取、连通性检测、API 格式自动探测的当前行为。
 > 何时读取：改设置页平台管理 UI、`fetchModels`/`testModel`/`detectFormat` 相关主进程或 mock 逻辑之前。
-> 关联需求：无（v1.0.1 现状快照）。
 > 最后更新：2026-09-13
 > 来源：原 prd.md §3；字段契约见 `../contracts/impl-contract.md` §1/§5
 

@@ -2,7 +2,6 @@
 
 > 适用范围：自动标题（首轮对话后）与手动标题（侧栏 ✨）的触发条件、模型解析、重试与事件广播。
 > 何时读取：改 `shared/title.ts`、标题生成主流程、侧栏 ✨ 按钮之前。
-> 关联需求：无（v1.0.1 现状快照）。
 > 最后更新：2026-09-13
 > 来源：原 prd.md §4.8 + 原 docs/impl-contract.md §2（generateTitle 注释）；API 见 `../contracts/impl-contract.md` §2
 

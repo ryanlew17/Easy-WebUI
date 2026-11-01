@@ -1,5 +1,5 @@
 /**
- * Easy WebUI — v1.0.1 UI 修复走查截图脚本（fix/v1.0.1-ui-polish）。
+ * Easy WebUI — UI 发布前走查截图脚本。
  * 复用 e2e-chat-ux.mjs 的 harness（puppeteer-core + 系统 Edge 无头 + 进程内静态服务器服 dist/）。
  *
  * 产出 build/e2e-shots/50-*.png ~ 57-*.png（不入库；docs/screenshots 仅保留 README 引用的 8 张精选图）：

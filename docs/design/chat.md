@@ -2,8 +2,7 @@
 
 > 适用范围：会话页三栏布局、生成编排（发送/重生成/续写共用）、流式渲染、失败重试、单生成锁、思考开关、生成统计口径与展示。
 > 何时读取：改会话页布局、`electron/chat.ts` 编排、流式渲染、统计展示之前。
-> 关联需求：无（v1.0.1 现状快照）。
-> 最后更新：2026-09-13
+> 最后更新：2026-11-01
 > 来源：原 prd.md §4.1/§4.4/§4.6/§4.7 + 原 docs/impl-contract.md §11.2/§11.4；分支操作语义见 `./message-tree.md`，参数见 `./params.md`
 
 ## 1. 会话页布局（三栏）
@@ -19,6 +18,7 @@
 - 编排顺序：落库 user 消息 → 裁剪组装（`./context-trim.md`）→ 调适配层（`./gateway.md`）→ 流式回推（`chat:delta`，reasoning 与 content 分流）→ 落库 assistant 消息。
 - 流式期间：输入框禁用、显示"停止"按钮；取消后主进程 abort（`AbortController.abort()`），已收部分内容落库（`partial: true`）。
 - 请求失败：已收内容与错误一并落库，消息以气泡内错误卡片呈现（状态码 + 脱敏后信息），提供"重试"按钮；重试复用同一条用户消息，不产生重复记录。
+- 后台 `run()` 启动点必须兜底捕获尾部 DAO/广播异常并记录脱敏日志，避免 fire-and-forget 产生未处理 Promise 拒绝（@req REQ-2026-002）。
 - **同会话同一时间只允许一个进行中的生成**（单生成锁；违反报 `generation_in_progress`）。
 - 流式渲染：气泡内三点 typing 指示器 → 首个 delta 替换为正文；delta 进增量缓冲，50ms 节流 flush。
 - `generateResponse`：激活叶为 user 时直接生成 assistant 子消息（输入坞上方胶囊）；否则报 `nothing_to_generate`。

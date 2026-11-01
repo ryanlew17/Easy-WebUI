@@ -2,7 +2,6 @@
 
 > 适用范围：生效参数的分层合成语义（全局预设 ← 用户预设 ← 会话 overrides）、`ParamValues` 全量字段行为、覆盖/修剪规则、协议差异提示原则。
 > 何时读取：改参数面板、预设管理、`shared/params.ts` 合成逻辑之前。
-> 关联需求：无（v1.0.1 现状快照）。
 > 最后更新：2026-09-13
 > 来源：原 prd.md §4.2；类型契约见 `../contracts/impl-contract.md` §1，协议映射见 `../contracts/protocol-mapping.md` §5
 

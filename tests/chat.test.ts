@@ -76,8 +76,8 @@ function lastFetchBody(): Record<string, unknown> {
 
 const fakeCrypto: CryptoService = {
   status: () => ({ method: 'machine-fallback', available: true }),
-  encryptString: (p: string) => p,
-  decryptString: (c: string) => c,
+  encryptString: async (p: string) => p,
+  decryptString: async (c: string) => c,
 };
 
 let db: DB;
@@ -243,6 +243,39 @@ describe('send / regenerate 分支模型', () => {
       orchestrator.regenerateMessage({ conversationId: convId, messageId: sent.userMessageId! }),
       'invalid_target',
     );
+  });
+
+  it('异步解密期间并发 send：后一个拒绝且不产生重复消息或请求（@req REQ-2026-001）', async () => {
+    const { convId } = setup();
+    fetchMock.mockImplementation(async () =>
+      sseResponse(sseChunksOpenAi([{ content: 'x', finish: 'stop' }])),
+    );
+    const originalDecrypt = fakeCrypto.decryptString;
+    let releaseDecrypt!: () => void;
+    const decryptGate = new Promise<void>((resolve) => {
+      releaseDecrypt = resolve;
+    });
+    fakeCrypto.decryptString = async (cipher: string) => {
+      await decryptGate;
+      return cipher;
+    };
+    try {
+      const first = orchestrator.sendMessage({ conversationId: convId, content: 'q1' });
+      const second = orchestrator.sendMessage({ conversationId: convId, content: 'q2' });
+      releaseDecrypt();
+      const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(firstResult.status).toBe('fulfilled');
+      expect(secondResult.status).toBe('rejected');
+      if (secondResult.status === 'rejected') {
+        expect((secondResult.reason as { code?: unknown }).code).toBe('generation_in_progress');
+      }
+      expect(messages.list(convId)).toHaveLength(2);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      releaseDecrypt();
+      fakeCrypto.decryptString = originalDecrypt;
+    }
   });
 
   it('setActiveLeaf 后 send 在其下开新分支；siblingOf 以同级身份插入', async () => {
@@ -503,5 +536,64 @@ describe('流式累计上限', () => {
     const msg = lastMessage(payload.messageId as string);
     expect(msg.partial).toBe(true);
     expect(msg.content.length).toBeGreaterThan(4_000_000); // 已收内容保留落库
+  });
+});
+
+describe('后台生成异常兜底（@req REQ-2026-002）', () => {
+  it('尾部落库异常被捕获并记录，不产生未处理拒绝', async () => {
+    const { convId } = setup();
+    fetchMock.mockImplementation(async () =>
+      sseResponse(sseChunksOpenAi([{ content: 'x', finish: 'stop' }])),
+    );
+    const { logger } = await import('../electron/logger');
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.spyOn(messages, 'update').mockImplementation(() => {
+      throw new Error('disk full');
+    });
+    const rejection = vi.fn();
+    process.on('unhandledRejection', rejection);
+    try {
+      await orchestrator.sendMessage({ conversationId: convId, content: 'q' });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(warn).toHaveBeenCalledWith(
+        'chat pipeline failed',
+        expect.objectContaining({ code: 'request_failed', message: 'disk full' }),
+      );
+      expect(rejection).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', rejection);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('continue 尾部落库异常同样被捕获并记录', async () => {
+    const { convId } = setup();
+    fetchMock.mockImplementation(async () =>
+      sseResponse(sseChunksOpenAi([{ content: 'x', finish: 'stop' }])),
+    );
+    const sent = await orchestrator.sendMessage({ conversationId: convId, content: 'q' });
+    await waitEvent('chat:done');
+    const { logger } = await import('../electron/logger');
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.spyOn(messages, 'update').mockImplementation(() => {
+      throw new Error('disk full');
+    });
+    const rejection = vi.fn();
+    process.on('unhandledRejection', rejection);
+    try {
+      await orchestrator.continueMessage({
+        conversationId: convId,
+        messageId: sent.assistantMessageId,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(warn).toHaveBeenCalledWith(
+        'chat pipeline failed',
+        expect.objectContaining({ code: 'request_failed', message: 'disk full' }),
+      );
+      expect(rejection).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', rejection);
+      vi.restoreAllMocks();
+    }
   });
 });
