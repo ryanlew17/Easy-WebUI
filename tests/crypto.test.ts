@@ -169,3 +169,99 @@ describe('safeStorage 异步适配（@req REQ-2026-001）', () => {
     expect(decryptCalls).toBe(2);
   });
 });
+
+
+describe('safeStorage 重加密条件回写（@req REQ-2026-003）', () => {
+  function rotatedStorage() {
+    let decryptCalls = 0;
+    let encryptCalls = 0;
+    return {
+      get decryptCalls() {
+        return decryptCalls;
+      },
+      get encryptCalls() {
+        return encryptCalls;
+      },
+      isAsyncEncryptionAvailable: async () => true,
+      encryptStringAsync: async () => {
+        encryptCalls += 1;
+        return Buffer.from('renewed', 'utf8');
+      },
+      decryptStringAsync: async (encrypted: Buffer) => {
+        decryptCalls += 1;
+        return {
+          result: 'sk-latest',
+          shouldReEncrypt: encrypted.toString('utf8') === 'legacy',
+        };
+      },
+    };
+  }
+
+  it('旧密文首次回写后，后续使用新密文且只解密一次', async () => {
+    const { createCryptoService } = await import('../electron/crypto');
+    const { decryptProviderKey } = await import('../electron/crypto/provider');
+    const { openDatabase } = await import('../electron/db');
+    const { createProvidersDao } = await import('../electron/db/providers');
+    const db = openDatabase(':memory:');
+    try {
+      const providers = createProvidersDao(db);
+      const legacy = `v1:ss:${Buffer.from('legacy').toString('base64')}`;
+      const provider = providers.insert({
+        name: 'Rotation',
+        base_url: 'https://api.test.com',
+        api_format: 'openai-chat',
+        api_key_cipher: Buffer.from(legacy, 'utf8'),
+      });
+      const safeStorage = rotatedStorage();
+      const crypto = await createCryptoService({ dataDir: 'unused', safeStorage });
+
+      expect(await decryptProviderKey(crypto, providers, provider.id, legacy)).toBe('sk-latest');
+      const renewed = providers.getRow(provider.id)!.api_key_cipher!.toString('utf8');
+      expect(renewed).not.toBe(legacy);
+      expect(await decryptProviderKey(crypto, providers, provider.id, renewed)).toBe('sk-latest');
+      expect(safeStorage.decryptCalls).toBe(3);
+      expect(safeStorage.encryptCalls).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('重加密回写失败不阻断本次解密', async () => {
+    const { createCryptoService } = await import('../electron/crypto');
+    const safeStorage = rotatedStorage();
+    const crypto = await createCryptoService({ dataDir: 'unused', safeStorage });
+    let callbackCalls = 0;
+    const legacy = `v1:ss:${Buffer.from('legacy').toString('base64')}`;
+    await expect(
+      crypto.decryptString(legacy, () => {
+        callbackCalls += 1;
+        throw new Error('read only database');
+      }),
+    ).resolves.toBe('sk-latest');
+    expect(callbackCalls).toBe(1);
+  });
+
+  it('条件写不会覆盖新密钥或恢复已清除密钥', async () => {
+    const { openDatabase } = await import('../electron/db');
+    const { createProvidersDao } = await import('../electron/db/providers');
+    const db = openDatabase(':memory:');
+    try {
+      const providers = createProvidersDao(db);
+      const provider = providers.insert({
+        name: 'Rotation',
+        base_url: 'https://api.test.com',
+        api_format: 'openai-chat',
+        api_key_cipher: Buffer.from('old', 'utf8'),
+      });
+      expect(providers.updateKeyCipherIfUnchanged(provider.id, 'old', 'new')).toBe(true);
+      expect(providers.updateKeyCipherIfUnchanged(provider.id, 'old', 'stale')).toBe(false);
+      expect(providers.getRow(provider.id)!.api_key_cipher!.toString('utf8')).toBe('new');
+
+      providers.update(provider.id, { api_key_cipher: null });
+      expect(providers.updateKeyCipherIfUnchanged(provider.id, 'new', 'stale')).toBe(false);
+      expect(providers.getRow(provider.id)!.api_key_cipher).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+});

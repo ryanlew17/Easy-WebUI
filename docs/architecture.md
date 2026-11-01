@@ -2,7 +2,7 @@
 
 > 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置（tsconfig / vite / 依赖）、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
-> 最后更新：2026-11-01
+> 最后更新：2026-11-02
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
 
 ## 1. 技术选型（当前锁定版本）
@@ -15,7 +15,7 @@
 | 存储 | **better-sqlite3**（主进程，WAL 模式） | 单文件、事务、查询快；原生模块已按 Electron ABI 预编译 |
 | 网络 | 主进程 `net.fetch` | 绕过 CORS，统一 SSE 流式处理 |
 | 状态 / i18n | Zustand / i18next + react-i18next | 轻量；两份 JSON 语言包 |
-| Markdown | react-markdown 10 + remark-gfm + highlight.js + DOMPurify；ReleaseNotes 增加 rehype-raw/sanitize | GFM 表格、代码高亮、渲染前消毒；GitHub 摘要白名单 HTML 按需加载，聊天仍禁 raw HTML |
+| Markdown | react-markdown 10 + remark-gfm + highlight.js 核心/语言按需加载 + DOMPurify；ReleaseNotes 增加 rehype-raw/sanitize | GFM 表格、代码高亮、渲染前消毒；聊天与 GitHub 摘要渲染器及高亮语言均按需加载，聊天仍禁 raw HTML |
 | 备份 | adm-zip | 纯 JS 免原生编译 |
 | 更新 | electron-updater（GitHub Releases 通道） | 增量 blockmap + sha512 校验 |
 
@@ -62,7 +62,7 @@ EasyWebUI/
 │   ├── window-state*.ts #   窗口尺寸记忆（纯函数核心 + fs 壳，可测）
 │   └── paths.ts / storage-migrate.ts / logger.ts
 ├── shared/              # 跨进程唯一共享层：types（EasyUiApi 契约）/ params / presets /
-│                        #   appearance / reasoning / title / errors / ipc
+│                        #   appearance / reasoning / title / errors / ipc / ipc-constants（无 zod）
 ├── src/                 # 渲染进程（Vite + React 18 + strict + Tailwind 4）
 │   ├── bridge/          #   getApi()：Electron 桥或 localStorage mock
 │   ├── pages/           #   chat/（三栏会话页）、settings/（五标签设置页）
@@ -91,4 +91,4 @@ EasyWebUI/
 
 ## 5. 测试与验证体系
 
-验证、打包与发布门槛见 `./release.md`。
+验证、打包与发布门槛见 `./release.md`。REQ-2026-003 增加 `npm run perf`（构建 + 内存 SQLite/临时目录主进程基准 + 50 气泡三轮渲染基准）与 `npm run perf:electron`（临时应用和隔离 userData 的三次冷启动）；结果记录 commit、dirty 状态和工作树内容哈希，不触碰真实业务数据。

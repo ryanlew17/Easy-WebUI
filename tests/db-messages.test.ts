@@ -408,3 +408,74 @@ describe('树形消息 DAO', () => {
     expect(a.stats).toEqual({ reasoning_ms: 10, ttft_ms: 20, total_ms: 30, finish_reason: 'length' });
   });
 });
+
+
+describe('共享索引重构不变量（@req REQ-2026-003）', () => {
+  it('重叠多根删除只删目标子树，激活叶落到存活分支最深后代', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const conversations = createConversationsDao(db);
+      const messages = createMessagesDao(db);
+      const convId = conversations.create().id;
+      const root = messages.insert({ conversation_id: convId, role: 'user', content: 'root', created_at: 1 });
+      const a1 = messages.insert({ conversation_id: convId, parent_id: root.id, role: 'assistant', content: 'a1', created_at: 2 });
+      const a1Child = messages.insert({ conversation_id: convId, parent_id: a1.id, role: 'user', content: 'a1 child', created_at: 3 });
+      const a1Leaf = messages.insert({ conversation_id: convId, parent_id: a1Child.id, role: 'assistant', content: 'a1 leaf', created_at: 4 });
+      const a2 = messages.insert({ conversation_id: convId, parent_id: root.id, role: 'assistant', content: 'a2', created_at: 5 });
+      const a2Child = messages.insert({ conversation_id: convId, parent_id: a2.id, role: 'user', content: 'a2 child', created_at: 6 });
+      const a2Leaf = messages.insert({ conversation_id: convId, parent_id: a2Child.id, role: 'assistant', content: 'a2 leaf', created_at: 7 });
+      messages.setActiveLeaf(convId, a1Leaf.id);
+
+      expect(messages.deleteWithDescendants(convId, [a1.id, a1Child.id])).toBe(3);
+      const path = messages.list(convId);
+      expect(path.map((m) => m.id)).toEqual([root.id, a2.id, a2Child.id, a2Leaf.id]);
+      expect(path.every((m) => m.branch === undefined)).toBe(true);
+      expect(messages.get(a1.id)).toBeNull();
+      expect(messages.get(a2Leaf.id)).not.toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
+  it('父缺失与 parent 环都按既有截断语义有限返回', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const conversations = createConversationsDao(db);
+      const messages = createMessagesDao(db);
+      const convId = conversations.create().id;
+      const root = messages.insert({ conversation_id: convId, role: 'user', content: 'root', created_at: 1 });
+      const leaf = messages.insert({ conversation_id: convId, parent_id: root.id, role: 'assistant', content: 'leaf', created_at: 2 });
+      db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?').run('missing-parent', leaf.id);
+      expect(messages.list(convId).map((m) => m.id)).toEqual([leaf.id]);
+
+      db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?').run(leaf.id, root.id);
+      db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?').run(root.id, leaf.id);
+      expect(messages.list(convId).map((m) => m.id)).toEqual([root.id, leaf.id]);
+      expect(messages.subtreeIds(root.id)).toHaveLength(2);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+
+describe('删除异常父链的激活叶恢复（@req REQ-2026-003）', () => {
+  it('父节点缺失时不把不存在的 ID 写成 active_leaf_id', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const conversations = createConversationsDao(db);
+      const messages = createMessagesDao(db);
+      const convId = conversations.create().id;
+      const survivor = messages.insert({ conversation_id: convId, role: 'user', content: 'survivor', created_at: 1 });
+      const orphan = messages.insert({ conversation_id: convId, parent_id: 'missing', role: 'assistant', content: 'orphan', created_at: 2 });
+      messages.setActiveLeaf(convId, orphan.id);
+
+      expect(messages.deleteWithDescendants(convId, [orphan.id])).toBe(1);
+      const conv = db.prepare('SELECT active_leaf_id FROM conversations WHERE id = ?').get(convId) as { active_leaf_id: string | null };
+      expect(conv.active_leaf_id).toBeNull();
+      expect(messages.list(convId).map((m) => m.id)).toEqual([survivor.id]);
+    } finally {
+      db.close();
+    }
+  });
+});

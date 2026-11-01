@@ -10,8 +10,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import {
-  IPC,
-  EVT,
   createParamPresetSchema,
   paramOverridesPatchSchema,
   updateParamPresetSchema,
@@ -21,9 +19,13 @@ import {
   messageAnchorSchema,
   updateMessageContentSchema,
   deleteMessagesSchema,
+} from '../shared/ipc';
+import {
+  IPC,
+  EVT,
   MAX_BACKUP_PASSWORD_CHARS,
   MAX_PROVIDER_MODELS,
-} from '../shared/ipc';
+} from '../shared/ipc-constants';
 import { PRESETS } from '../shared/presets';
 import { serializeIpcError } from '../shared/errors';
 import {
@@ -45,6 +47,7 @@ import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '../shared/url';
 import { isAppFrameUrl } from './webcontents-guard';
 import { isAllowedRestorePath, normalizeFsPath } from './backup/core';
 import type { CryptoService } from './crypto';
+import { decryptProviderKey } from './crypto/provider';
 import type { DB } from './db';
 import type { ProvidersDao } from './db/providers';
 import type { ConversationsDao } from './db/conversations';
@@ -239,7 +242,12 @@ async function resolveEndpoint(
     const row = deps.providers.getRow(input.providerId);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = await deps.crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await decryptProviderKey(
+      deps.crypto,
+      deps.providers,
+      row.id,
+      row.api_key_cipher.toString('utf8'),
+    );
     registerSecret(key);
     return { baseUrl: row.base_url, format: row.api_format, apiKey: key };
   }
@@ -317,7 +325,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const row = providers.getRow(pid);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await decryptProviderKey(crypto, providers, row.id, row.api_key_cipher.toString('utf8'));
     registerSecret(key);
     const check = await testModel({
       baseUrl: row.base_url,
@@ -334,7 +342,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const row = providers.getRow(pid);
     if (!row) throw new Error('provider_not_found');
     if (!row.api_key_cipher) throw new Error('missing_api_key');
-    const key = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
+    const key = await decryptProviderKey(crypto, providers, row.id, row.api_key_cipher.toString('utf8'));
     registerSecret(key);
     const provider = providers.get(pid);
     const modelIds = (provider?.models ?? [])
@@ -360,7 +368,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (!apiKey && input.providerId) {
       const row = providers.getRow(input.providerId);
       if (row?.api_key_cipher) {
-        apiKey = await crypto.decryptString(row.api_key_cipher.toString('utf8'));
+        apiKey = await decryptProviderKey(crypto, providers, row.id, row.api_key_cipher.toString('utf8'));
       }
     }
     if (apiKey) registerSecret(apiKey);

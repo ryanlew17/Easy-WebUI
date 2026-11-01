@@ -61,6 +61,26 @@ describe('ReleaseNotes', () => {
     }
   });
 
+  it('代码 pre 的单元素数组子节点保留语言 class（@req REQ-2026-003）', async () => {
+    const { extractCode } = await import('../src/components/Markdown');
+    const extracted = extractCode([<code className="language-ts">const answer = 42;</code>]);
+    expect(extracted.className).toBe('language-ts');
+    expect(extracted.code).toBe('const answer = 42;');
+  });
+
+  it('流式代码延后高亮，最终按需加载语言并保持消毒（@req REQ-2026-003）', async () => {
+    const content = '```ts\nconst answer: number = 42;\n```';
+    const streaming = renderToStaticMarkup(<Markdown content={content} streaming />);
+    expect(streaming).not.toContain('class="hljs');
+    expect(streaming).toContain('const answer: number = 42;');
+
+    const { ensureHighlightLanguage } = await import('../src/components/highlight-languages');
+    await ensureHighlightLanguage('typescript');
+    const hljs = (await import('highlight.js/lib/core')).default;
+    expect(hljs.getLanguage('typescript')?.name).toBe('TypeScript');
+    expect(renderToStaticMarkup(<Markdown content={content} />)).not.toContain('<script');
+  });
+
   it('聊天 Markdown 仍不渲染 raw HTML', () => {
     const html = renderToStaticMarkup(<Markdown content={'<strong>raw</strong>'} />);
     expect(html).not.toContain('<strong>raw</strong>');

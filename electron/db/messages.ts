@@ -3,13 +3,8 @@
  * "激活路径"（active_leaf → 根，反转后正序），路径上有同级分支的消息填充
  * branch 元数据（index 1 起 / count / ids，同级按 created_at,rowid 排序）。
  *
- * - active_leaf_id 存于 conversations 表；为空时叶 = 最新一条消息；
- * - stats（MessageStats）由 reasoning_ms / ttft_ms / total_ms / finish_reason
- *   四列组装，全 NULL 时 stats 缺省；
- * - switchToSibling = setActiveLeaf(deepestDescendant(siblingId))：切到目标
- *   同级分支后沿"最新子"下钻到最深后代；
- * - deleteWithDescendants 删各节点子树；active_leaf 落在被删集合时回退到
- *   最近存活祖先并沿最新存活子下钻（全删光则 NULL）。
+ * @req REQ-2026-003 每个公开树操作单次读取会话并共享 id/children 索引；
+ * visited 防环保留，消除子树、下钻和删除的 N+1 SQL。
  */
 import { randomUUID } from 'node:crypto';
 import type { DB } from './index';
@@ -75,11 +70,14 @@ export function rowToMessage(row: MessageRow): Message {
   };
 }
 
-/** 由全量行建索引：id→row、parent→子行数组（按 created_at,rowid 升序） */
-function indexRows(rows: MessageRow[]): {
+interface MessageTreeIndex {
+  rows: MessageRow[];
   byId: Map<string, MessageRow>;
   childrenOf: Map<string | null, MessageRow[]>;
-} {
+}
+
+/** 由全量行建索引：id→row、parent→子行数组（输入已按 created_at,rowid 升序） */
+function indexRows(rows: MessageRow[]): MessageTreeIndex {
   const byId = new Map<string, MessageRow>();
   const childrenOf = new Map<string | null, MessageRow[]>();
   for (const r of rows) {
@@ -89,7 +87,7 @@ function indexRows(rows: MessageRow[]): {
     if (arr) arr.push(r);
     else childrenOf.set(key, [r]);
   }
-  return { byId, childrenOf };
+  return { rows, byId, childrenOf };
 }
 
 /** 从叶沿 parent_id 上溯到根，返回正序（根在前）；父缺失/成环时截断防御 */
@@ -99,10 +97,48 @@ function pathFromLeaf(byId: Map<string, MessageRow>, leafId: string): MessageRow
   let cur: MessageRow | undefined = byId.get(leafId);
   while (cur && !seen.has(cur.id)) {
     seen.add(cur.id);
-    path.unshift(cur);
+    path.push(cur);
     cur = cur.parent_id != null ? byId.get(cur.parent_id) : undefined;
   }
+  path.reverse();
   return path;
+}
+
+/** 沿最新子下钻；visited 同时防止恶意 parent 环导致死循环。 */
+function deepestDescendantFromIndex(
+  childrenOf: Map<string | null, MessageRow[]>,
+  messageId: string,
+): string {
+  let cur = messageId;
+  const seen = new Set<string>([cur]);
+  for (;;) {
+    const children = childrenOf.get(cur) ?? [];
+    const next = children[children.length - 1];
+    if (!next || seen.has(next.id)) return cur;
+    seen.add(next.id);
+    cur = next.id;
+  }
+}
+
+/** 子树全部 id（含自身；先序），共享 children 索引并保留环守卫。 */
+function subtreeIdsFromIndex(
+  childrenOf: Map<string | null, MessageRow[]>,
+  messageId: string,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>([messageId]);
+  const stack = [messageId];
+  while (stack.length > 0) {
+    const id = stack.pop() as string;
+    out.push(id);
+    for (const child of childrenOf.get(id) ?? []) {
+      if (!seen.has(child.id)) {
+        seen.add(child.id);
+        stack.push(child.id);
+      }
+    }
+  }
+  return out;
 }
 
 export function createMessagesDao(db: DB) {
@@ -120,30 +156,28 @@ export function createMessagesDao(db: DB) {
        @partial, @error_json, @reasoning_ms, @ttft_ms, @total_ms, @finish_reason, @created_at)`,
   );
   const activeLeafStmt = db.prepare('SELECT active_leaf_id FROM conversations WHERE id = ?');
+  const setActiveLeafStmt = db.prepare('UPDATE conversations SET active_leaf_id = ? WHERE id = ?');
 
   const getRow = (id: string): MessageRow | undefined => getStmt.get(id) as MessageRow | undefined;
+  const loadConversationIndex = (conversationId: string): MessageTreeIndex =>
+    indexRows(allOfConvStmt.all(conversationId) as MessageRow[]);
 
   /** 激活叶：active_leaf_id 有效则用之，否则最新一条（created_at,rowid 最大）；空会话 → undefined */
-  function resolveLeafRow(convId: string, rows: MessageRow[]): MessageRow | undefined {
+  function resolveLeafRow(
+    convId: string,
+    index: MessageTreeIndex,
+  ): MessageRow | undefined {
     const conv = activeLeafStmt.get(convId) as { active_leaf_id: string | null } | undefined;
     if (conv?.active_leaf_id) {
-      const hit = rows.find((r) => r.id === conv.active_leaf_id);
-      if (hit) return hit; // 指针失效（外部删库等）→ 回退最新一条
+      const hit = index.byId.get(conv.active_leaf_id);
+      if (hit) return hit;
     }
-    return rows[rows.length - 1];
+    return index.rows[index.rows.length - 1];
   }
 
-  /** 沿"最新子"（created_at,rowid 最大）下钻到最深后代 */
   function deepestDescendantId(convId: string, messageId: string): string {
-    let cur = messageId;
-    const seen = new Set<string>([cur]);
-    for (;;) {
-      const children = childrenStmt.all(convId, cur) as MessageRow[];
-      const next = children[children.length - 1];
-      if (!next || seen.has(next.id)) return cur;
-      seen.add(next.id);
-      cur = next.id;
-    }
+    const index = loadConversationIndex(convId);
+    return deepestDescendantFromIndex(index.childrenOf, messageId);
   }
 
   return {
@@ -185,21 +219,17 @@ export function createMessagesDao(db: DB) {
       return row ? rowToMessage(row) : null;
     },
 
-    /**
-     * 激活路径解析：active_leaf（空=最新一条）→ 沿 parent_id 上溯 → 反转为正序；
-     * 路径上每条消息若其 parent 的子消息数 > 1，填充 branch={index(1 起), count, ids}。
-     */
+    /** 激活路径解析，并为路径上的分叉填充 branch 元数据。 */
     list(conversationId: string): Message[] {
-      const rows = allOfConvStmt.all(conversationId) as MessageRow[];
-      if (rows.length === 0) return [];
-      const { byId, childrenOf } = indexRows(rows);
-      const leaf = resolveLeafRow(conversationId, rows);
+      const index = loadConversationIndex(conversationId);
+      if (index.rows.length === 0) return [];
+      const leaf = resolveLeafRow(conversationId, index);
       if (!leaf) return [];
-      const path = pathFromLeaf(byId, leaf.id);
+      const path = pathFromLeaf(index.byId, leaf.id);
       return path.map((row) => {
         const msg = rowToMessage(row);
         if (row.parent_id != null) {
-          const siblings = childrenOf.get(row.parent_id) ?? [];
+          const siblings = index.childrenOf.get(row.parent_id) ?? [];
           if (siblings.length > 1) {
             msg.branch = {
               index: siblings.findIndex((s) => s.id === row.id) + 1,
@@ -212,13 +242,12 @@ export function createMessagesDao(db: DB) {
       });
     },
 
-    /** 根到指定消息的路径（正序；生成编排组装请求历史用，不含 branch 元数据） */
+    /** 根到指定消息的路径（生成编排组装请求历史用，不含 branch 元数据） */
     pathTo(messageId: string): Message[] {
       const anchor = getRow(messageId);
       if (!anchor) return [];
-      const rows = allOfConvStmt.all(anchor.conversation_id) as MessageRow[];
-      const { byId } = indexRows(rows);
-      return pathFromLeaf(byId, messageId).map(rowToMessage);
+      const index = loadConversationIndex(anchor.conversation_id);
+      return pathFromLeaf(index.byId, messageId).map(rowToMessage);
     },
 
     /** 指定消息的直接子消息（按 created_at,rowid 升序） */
@@ -230,23 +259,8 @@ export function createMessagesDao(db: DB) {
     subtreeIds(messageId: string): string[] {
       const anchor = getRow(messageId);
       if (!anchor) return [];
-      const out: string[] = [];
-      // @req REQ-2026-001 I6：环守卫——恶意备份可注入 parent_id 环（A↔B），
-      // 无 seen 集合时本遍历死循环且 out 无限增长
-      const seen = new Set<string>([messageId]);
-      const stack = [messageId];
-      while (stack.length > 0) {
-        const id = stack.pop() as string;
-        out.push(id);
-        const children = childrenStmt.all(anchor.conversation_id, id) as MessageRow[];
-        for (const c of children) {
-          if (!seen.has(c.id)) {
-            seen.add(c.id);
-            stack.push(c.id);
-          }
-        }
-      }
-      return out;
+      const index = loadConversationIndex(anchor.conversation_id);
+      return subtreeIdsFromIndex(index.childrenOf, messageId);
     },
 
     /** 沿"最新子"下钻到的最深后代 id（无子即自身） */
@@ -258,13 +272,13 @@ export function createMessagesDao(db: DB) {
 
     /** 会话当前激活叶（指针失效/空会话回退最新一条；空会话 → null） */
     activeLeaf(convId: string): Message | null {
-      const rows = allOfConvStmt.all(convId) as MessageRow[];
-      const leaf = resolveLeafRow(convId, rows);
+      const index = loadConversationIndex(convId);
+      const leaf = resolveLeafRow(convId, index);
       return leaf ? rowToMessage(leaf) : null;
     },
 
     setActiveLeaf(convId: string, leafId: string | null): void {
-      db.prepare('UPDATE conversations SET active_leaf_id = ? WHERE id = ?').run(leafId, convId);
+      setActiveLeafStmt.run(leafId, convId);
     },
 
     /** 切换分支：激活叶 = 目标同级分支沿"最新子"下钻的最深后代 */
@@ -272,54 +286,56 @@ export function createMessagesDao(db: DB) {
       this.setActiveLeaf(convId, deepestDescendantId(convId, siblingId));
     },
 
-    /**
-     * 删除各节点及其整个子树；active_leaf 落在被删集合时，回退到被删路径上
-     * 最近的存活祖先、并沿"最新存活子"下钻到该位置的最新分支（仅指回祖先本身
-     * 会让路径停在半截、其余分支全部"消失"，且后续新消息会挂成新同级分支）。
-     * 祖先也全被删则 NULL。返回删除行数。
-     */
+    /** 删除各目标子树；激活叶在被删集合时回退最近存活祖先并下钻最新存活后代。 */
     deleteWithDescendants(convId: string, ids: readonly string[]): number {
+      const index = loadConversationIndex(convId);
       const toDelete = new Set<string>();
       for (const id of ids) {
-        for (const sub of this.subtreeIds(id)) toDelete.add(sub);
+        if (!index.byId.has(id)) continue;
+        for (const sub of subtreeIdsFromIndex(index.childrenOf, id)) toDelete.add(sub);
       }
       if (toDelete.size === 0) return 0;
 
-      // active_leaf 回退：从激活叶沿 parent 上溯找第一个不在删除集合里的祖先
       const conv = activeLeafStmt.get(convId) as { active_leaf_id: string | null } | undefined;
       const leafHit = !!conv?.active_leaf_id && toDelete.has(conv.active_leaf_id);
       let survivor: string | null = null;
       if (leafHit) {
-        let cur = getRow(conv.active_leaf_id as string);
+        let cur = index.byId.get(conv.active_leaf_id as string);
         const seen = new Set<string>();
         while (cur && !seen.has(cur.id)) {
           seen.add(cur.id);
-          const parentId: string | null = cur.parent_id;
+          const parentId = cur.parent_id;
           if (parentId == null) break;
-          if (!toDelete.has(parentId)) {
+          if (!toDelete.has(parentId) && index.byId.has(parentId)) {
             survivor = parentId;
             break;
           }
-          cur = getRow(parentId);
+          cur = parentId ? index.byId.get(parentId) : undefined;
         }
       }
 
-      const del = db.prepare('DELETE FROM messages WHERE id = ?');
       let count = 0;
       const tx = db.transaction(() => {
-        for (const id of toDelete) count += del.run(id).changes;
+        const doomed = [...toDelete];
+        for (let offset = 0; offset < doomed.length; offset += 500) {
+          const chunk = doomed.slice(offset, offset + 500);
+          const placeholders = chunk.map(() => '?').join(',');
+          count += db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...chunk).changes;
+        }
+        if (leafHit) {
+          let nextLeaf: string | null = null;
+          if (survivor !== null) {
+            const remaining = indexRows(index.rows.filter((row) => !toDelete.has(row.id)));
+            nextLeaf = deepestDescendantFromIndex(remaining.childrenOf, survivor);
+          }
+          setActiveLeafStmt.run(nextLeaf, convId);
+        }
       });
       tx();
-
-      // 删完再下钻：此时"最新子"查询天然只含存活分支
-      if (leafHit) this.setActiveLeaf(convId, survivor === null ? null : deepestDescendantId(convId, survivor));
       return count;
     },
 
-    /**
-     * stats 合并语义：patch.stats 中出现的键覆盖对应列，缺省键保持原值
-     * （continue 场景的累加值由 chat.ts 算好后整体传入）。
-     */
+    /** stats 合并语义：patch.stats 中出现的键覆盖对应列，缺省键保持原值。 */
     update(
       id: string,
       patch: {

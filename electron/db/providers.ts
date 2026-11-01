@@ -123,6 +123,14 @@ export function createProvidersDao(db: DB) {
       return rowToProvider(next);
     },
 
+    /** @req REQ-2026-003 旧密文维护写必须输给并发换钥/清钥，且不扰动用户可见 updated_at。 */
+    updateKeyCipherIfUnchanged(id: string, previousCipher: string, nextCipher: string): boolean {
+      const result = db
+        .prepare('UPDATE providers SET api_key_cipher = ? WHERE id = ? AND api_key_cipher = ?')
+        .run(Buffer.from(nextCipher, 'utf8'), id, Buffer.from(previousCipher, 'utf8'));
+      return result.changes === 1;
+    },
+
     /** 更新某个模型的 last_check（连接检测结果持久化，docs/design/provider.md） */
     updateModelCheck(id: string, modelId: string, check: ProviderModel['last_check']): void {
       const row = this.getRow(id);

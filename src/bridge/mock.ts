@@ -47,8 +47,8 @@ import {
 } from '@shared/params';
 import { PRESETS } from '@shared/presets';
 import { resolveTitleTarget, sanitizeTitle } from '@shared/title';
-import { isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
-import { MAX_BACKUP_PASSWORD_CHARS, MAX_PROVIDER_MODELS, openExternalSchema } from '@shared/ipc';
+import { isValidBaseUrl, isValidExternalUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
+import { MAX_BACKUP_PASSWORD_CHARS, MAX_PROVIDER_MODELS } from '@shared/ipc-constants';
 
 const PREFIX = 'easyui_mock_';
 
@@ -171,18 +171,58 @@ function convMessages(all: Message[], convId: string): Message[] {
     .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 }
 
+interface MockTreeIndex {
+  rows: Message[];
+  byId: Map<string, Message>;
+  childrenOf: Map<string | null, Message[]>;
+}
+
+/** @req REQ-2026-003 每次树操作只排序/扫描一次，后续共用 Map 索引。 */
+function indexConvMessages(all: Message[], convId: string): MockTreeIndex {
+  const rows = convMessages(all, convId);
+  const byId = new Map<string, Message>();
+  const childrenOf = new Map<string | null, Message[]>();
+  for (const row of rows) {
+    byId.set(row.id, row);
+    const children = childrenOf.get(row.parent_id) ?? [];
+    children.push(row);
+    childrenOf.set(row.parent_id, children);
+  }
+  return { rows, byId, childrenOf };
+}
+
 /** 同 parent 的子消息（含 parent=null 的根），按 created_at,id 排序 —— 分支排序的唯一依据 */
 function childrenOf(all: Message[], convId: string, parentId: string | null): Message[] {
   return convMessages(all, convId).filter((m) => m.parent_id === parentId);
 }
 
-/** 沿"最新子"下潜到最深后代（分叉处取最新子，与契约 switchBranch 语义一致） */
+function activeLeafFromIndex(index: MockTreeIndex, convId: string): string | null {
+  const stored = loadActiveLeaves()[convId];
+  if (stored && index.byId.get(stored)?.conversation_id === convId) return stored;
+  return index.rows.length > 0 ? index.rows[index.rows.length - 1].id : null;
+}
+
+/** 沿最新子下潜到最深后代；环时停在重复节点前。 */
 function deepestLeaf(all: Message[], convId: string, id: string): string {
+  const index = indexConvMessages(all, convId);
   let cur = id;
+  const seen = new Set<string>([cur]);
   for (;;) {
-    const kids = childrenOf(all, convId, cur);
-    if (kids.length === 0) return cur;
-    cur = kids[kids.length - 1].id;
+    const kids = index.childrenOf.get(cur) ?? [];
+    const next = kids[kids.length - 1];
+    if (!next || seen.has(next.id)) return cur;
+    seen.add(next.id);
+    cur = next.id;
+  }
+}
+
+function collectSubtree(index: MockTreeIndex, rootId: string, doomed: Set<string>): void {
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop() as string;
+    if (doomed.has(id)) continue;
+    doomed.add(id);
+    for (const child of index.childrenOf.get(id) ?? []) stack.push(child.id);
   }
 }
 
@@ -209,18 +249,20 @@ function setActiveLeafId(convId: string, leafId: string | null): void {
  * 有同级分支的消息填充 branch 元数据（index 从 1 起，ids 按排序序）。
  */
 function resolvePath(convId: string): Message[] {
-  const all = loadMessages();
-  const leaf = getActiveLeaf(all, convId);
+  const index = indexConvMessages(loadMessages(), convId);
+  const leaf = activeLeafFromIndex(index, convId);
   if (!leaf) return [];
-  const byId = new Map(all.map((m) => [m.id, m]));
   const chain: Message[] = [];
-  let cur: Message | undefined = byId.get(leaf);
-  while (cur && cur.conversation_id === convId) {
-    chain.unshift(cur);
-    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  const seen = new Set<string>();
+  let cur: Message | undefined = index.byId.get(leaf);
+  while (cur && cur.conversation_id === convId && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    chain.push(cur);
+    cur = cur.parent_id ? index.byId.get(cur.parent_id) : undefined;
   }
+  chain.reverse();
   return chain.map((m) => {
-    const siblings = childrenOf(all, convId, m.parent_id);
+    const siblings = index.childrenOf.get(m.parent_id) ?? [];
     if (siblings.length <= 1) {
       const { branch: _drop, ...rest } = m;
       return rest as Message;
@@ -893,34 +935,35 @@ export const mockApi: EasyUiApi = {
   async deleteMessages(input) {
     const all = loadMessages();
     const convId = input.conversationId;
-    const byId = new Map(all.map((m) => [m.id, m]));
-    // 收集各目标节点的整棵子树
+    const index = indexConvMessages(all, convId);
     const doomed = new Set<string>();
-    const collect = (id: string): void => {
-      if (doomed.has(id)) return;
-      doomed.add(id);
-      for (const m of all) {
-        if (m.conversation_id === convId && m.parent_id === id) collect(m.id);
-      }
-    };
-    let survivorAnc: string | null = null;
     for (const id of input.ids) {
-      const node = byId.get(id);
+      const node = index.byId.get(id);
       if (!node || node.conversation_id !== convId) continue;
-      // 激活叶回退点：被删节点的最近存活祖先（多目标任取其一，UI 删除入口同层）
-      let anc = node.parent_id;
-      while (anc) {
-        if (!doomed.has(anc) && !input.ids.includes(anc)) break;
-        anc = byId.get(anc)?.parent_id ?? null;
-      }
-      if (anc) survivorAnc = anc;
-      collect(id);
+      collectSubtree(index, id, doomed);
     }
+
+    // 与 DAO 一致：只沿激活叶 ancestry 找最近存活祖先，与输入目标顺序无关
+    const leaf = loadActiveLeaves()[convId];
+    let survivorAnc: string | null = null;
+    if (leaf && doomed.has(leaf)) {
+      let cur = index.byId.get(leaf);
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        const parentId = cur.parent_id;
+        if (parentId === null) break;
+        if (!doomed.has(parentId) && index.byId.has(parentId)) {
+          survivorAnc = parentId;
+          break;
+        }
+        cur = parentId ? index.byId.get(parentId) : undefined;
+      }
+    }
+
     const remaining = all.filter((m) => !doomed.has(m.id));
     save('messages', remaining);
-    // 激活叶在被删子树内时：回退到存活祖先后，沿"最新子"下钻到剩余分支的最深后代
-    // （与 DAO deleteWithDescendants 同语义；下钻必须用删完后的剩余集合）
-    const leaf = loadActiveLeaves()[convId];
+    // 下钻必须使用删完后的剩余集合，保证恢复的是实际存活叶
     if (leaf && doomed.has(leaf)) {
       setActiveLeafId(convId, survivorAnc ? deepestLeaf(remaining, convId, survivorAnc) : null);
     }
@@ -1143,7 +1186,7 @@ export const mockApi: EasyUiApi = {
 
   async openExternal(url: string) {
     // @req REQ-2026-001：与主进程 openExternalSchema 同一 http(s) 白名单
-    openExternalSchema.parse(url);
+    if (!isValidExternalUrl(url)) throw new Error('invalid_input');
     window.open(url, '_blank', 'noopener,noreferrer');
   },
 

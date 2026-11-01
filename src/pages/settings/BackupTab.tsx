@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BackupFileInfo, ImportResult } from '@shared/types';
-import { MAX_BACKUP_PASSWORD_CHARS } from '@shared/ipc';
+import { MAX_BACKUP_PASSWORD_CHARS } from '@shared/ipc-constants';
 import { getApi } from '../../bridge';
 import { useUiStore } from '../../store/ui';
 import { useProvidersStore } from '../../store/providers';

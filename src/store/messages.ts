@@ -68,6 +68,7 @@ interface MessagesState {
 /* ---------- 流式增量缓冲（不直接 set，50ms 节流 flush） ---------- */
 
 interface PendingBuf {
+  conversationId: string;
   content: string;
   reasoning: string;
 }
@@ -87,12 +88,19 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
     if (pending.size === 0) return;
     const batch = new Map(pending);
     pending.clear();
+    const byConversation = new Map<string, Map<string, PendingBuf>>();
+    for (const [messageId, buf] of batch) {
+      const deltas = byConversation.get(buf.conversationId) ?? new Map<string, PendingBuf>();
+      deltas.set(messageId, buf);
+      byConversation.set(buf.conversationId, deltas);
+    }
     set((state) => {
       const byConv = { ...state.byConv };
-      for (const [convId, msgs] of Object.entries(byConv)) {
-        if (!msgs.some((m) => batch.has(m.id))) continue;
+      for (const [convId, deltas] of byConversation) {
+        const msgs = byConv[convId];
+        if (!msgs) continue;
         byConv[convId] = msgs.map((m) => {
-          const buf = batch.get(m.id);
+          const buf = deltas.get(m.id);
           if (!buf) return m;
           return {
             ...m,
@@ -253,7 +261,11 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
     },
 
     handleDelta: (p) => {
-      const buf = pending.get(p.messageId) ?? { content: '', reasoning: '' };
+      const buf = pending.get(p.messageId) ?? {
+        conversationId: p.conversationId,
+        content: '',
+        reasoning: '',
+      };
       buf.content += p.delta ?? '';
       buf.reasoning += p.reasoning_delta ?? '';
       pending.set(p.messageId, buf);
@@ -291,14 +303,22 @@ export const useMessagesStore = create<MessagesState>()((set, get) => {
     },
 
     handleError: (p) => {
-      clearPendingFor(p.messageId);
+      const buf = clearPendingFor(p.messageId);
       set((state) => {
         const msgs = state.byConv[p.conversationId] ?? [];
         return {
           byConv: {
             ...state.byConv,
             [p.conversationId]: msgs.map((m) =>
-              m.id === p.messageId ? { ...m, error: p.error, partial: false } : m,
+              m.id === p.messageId
+                ? {
+                    ...m,
+                    content: m.content + (buf?.content ?? ''),
+                    reasoning: (m.reasoning ?? '') + (buf?.reasoning ?? ''),
+                    error: p.error,
+                    partial: false,
+                  }
+                : m,
             ),
           },
         };

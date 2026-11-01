@@ -31,7 +31,10 @@ export interface CryptoService {
   status(): EncryptionStatus;
   /** 返回带前缀的密文字符串（适合以 BLOB/TEXT 落库） */
   encryptString(plain: string): Promise<string>;
-  decryptString(cipher: string): Promise<string>;
+  decryptString(
+    cipher: string,
+    onReEncrypt?: (nextCipher: string) => void | Promise<void>,
+  ): Promise<string>;
 }
 
 const PREFIX_SAFE = 'v1:ss:';
@@ -104,12 +107,26 @@ export async function createCryptoService(opts: {
       return PREFIX_MACH + aesGcmEncrypt(getFallbackKey(), plain).toString('base64');
     },
 
-    async decryptString(cipher: string): Promise<string> {
+    async decryptString(
+      cipher: string,
+      onReEncrypt?: (nextCipher: string) => void | Promise<void>,
+    ): Promise<string> {
       if (cipher.startsWith(PREFIX_SAFE)) {
         if (!ss) throw new Error('safestorage_unavailable');
         const encrypted = Buffer.from(cipher.slice(PREFIX_SAFE.length), 'base64');
         let decrypted = await ss.decryptStringAsync(encrypted);
-        if (decrypted.shouldReEncrypt) decrypted = await ss.decryptStringAsync(encrypted);
+        if (decrypted.shouldReEncrypt) {
+          decrypted = await ss.decryptStringAsync(encrypted);
+          if (onReEncrypt) {
+            try {
+              const nextCipher =
+                PREFIX_SAFE + (await ss.encryptStringAsync(decrypted.result)).toString('base64');
+              await onReEncrypt(nextCipher);
+            } catch {
+              // @req REQ-2026-003 回写/重加密失败不影响本次已成功的解密
+            }
+          }
+        }
         return decrypted.result;
       }
       if (cipher.startsWith(PREFIX_MACH)) {

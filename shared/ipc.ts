@@ -1,83 +1,16 @@
 /**
- * IPC 通道名常量 + 参数/预设的 zod 入参 schema —— 主进程（ipcMain.handle）
- * 与 preload（ipcRenderer.invoke/on）必须使用这里的常量，禁止散写字符串字面量。
- *
- * 注意：本文件仅被 electron/ 侧（main、preload、ipc）消费；渲染进程 UI 只感知
- * window.easyui 接口（shared/types.ts 的 EasyUiApi），不直接触碰通道名与 schema。
- * Web 预览 mock 桥同样不经过 IPC（但复用 shared/params.ts 的同一套纯函数）。
+ * 参数/预设及消息操作的 zod 入参 schema，主进程 handle 端逐一校验。
+ * 轻量消费者从 ./ipc-constants 读取通道与限制常量，避免仅为常量引入 zod。
  */
 import { z } from 'zod';
 
-/** invoke/handle 通道（请求-响应） */
-export const IPC = {
-  listProviders: 'providers:list',
-  createProvider: 'providers:create',
-  updateProvider: 'providers:update',
-  deleteProvider: 'providers:delete',
-  getPresets: 'providers:presets',
-  fetchModels: 'providers:fetch-models',
-  testModel: 'providers:test-model',
-  testAllModels: 'providers:test-all-models',
-  detectFormat: 'providers:detect-format',
-
-  listConversations: 'conversations:list',
-  createConversation: 'conversations:create',
-  updateConversation: 'conversations:update',
-  deleteConversation: 'conversations:delete',
-  listMessages: 'conversations:list-messages',
-  generateTitle: 'conversations:generate-title',
-  switchBranch: 'conversations:switch-branch',
-  setActiveLeaf: 'conversations:set-active-leaf',
-  updateMessageContent: 'conversations:update-message',
-  deleteMessages: 'conversations:delete-messages',
-
-  listParamPresets: 'params:list-presets',
-  createParamPreset: 'params:create-preset',
-  updateParamPreset: 'params:update-preset',
-  deleteParamPreset: 'params:delete-preset',
-  resetGlobalPreset: 'params:reset-global-preset',
-
-  sendMessage: 'chat:send',
-  stopGeneration: 'chat:stop',
-  regenerateMessage: 'chat:regenerate',
-  continueMessage: 'chat:continue',
-  generateResponse: 'chat:generate',
-
-  getSettings: 'settings:get',
-  setSettings: 'settings:set',
-  getSystemInfo: 'system:info',
-  pickDataDir: 'system:pick-data-dir',
-  setDataDir: 'system:set-data-dir',
-  relaunchApp: 'system:relaunch',
-  openExternal: 'system:open-external',
-
-  updateCheck: 'update:check',
-  updateDownload: 'update:download',
-  updateInstall: 'update:install',
-  updateGetState: 'update:get-state',
-
-  listBackups: 'backups:list',
-  createBackup: 'backups:create',
-  restoreBackup: 'backups:restore',
-  deleteBackup: 'backups:delete',
-  openBackupsDir: 'backups:open-dir',
-  pickBackupFile: 'backups:pick',
-} as const;
-
-/** 事件推送通道（webContents.send → ipcRenderer.on） */
-export const EVT = {
-  chatDelta: 'chat:delta',
-  chatDone: 'chat:done',
-  chatError: 'chat:error',
-  modelCheck: 'model:check',
-  titleUpdated: 'title:updated',
-  titleFailed: 'title:failed',
-  updateProgress: 'update:progress',
-  updateAvailable: 'update:available',
-} as const;
-
-export type IpcChannel = (typeof IPC)[keyof typeof IPC];
-export type EventChannel = (typeof EVT)[keyof typeof EVT];
+export {
+  IPC,
+  EVT,
+  MAX_PROVIDER_MODELS,
+  MAX_BACKUP_PASSWORD_CHARS,
+} from './ipc-constants';
+export type { IpcChannel, EventChannel } from './ipc-constants';
 
 /* ---------------- 参数/预设 zod schema（主进程 handle 端逐一校验） ---------------- */
 
@@ -106,10 +39,7 @@ export const paramValuesSchema = z.object({
   stream: z.boolean(),
 });
 
-/**
- * 会话 overrides patch：每键可缺省（不触碰）、可 null（删除该 override 键）、
- * 或合法新值（主进程做等值修剪）。
- */
+/** 会话 overrides patch：每键可缺省、可 null 删除，或设为合法新值。 */
 export const paramOverridesPatchSchema = z.object({
   system_prompt: z.string().max(100_000).nullish(),
   temperature: z.number().min(0).max(2).nullish(),
@@ -153,12 +83,6 @@ export const openExternalSchema = z
   .min(1)
   .max(1000)
   .regex(/^https?:\/\//i);
-
-/** 单平台模型数量上限（主进程 IPC 与 mock 桥同规则；@req REQ-2026-002） */
-export const MAX_PROVIDER_MODELS = 2000;
-
-/** 备份密码长度上限（创建与恢复共用；@req REQ-2026-001，mock 桥同规则） */
-export const MAX_BACKUP_PASSWORD_CHARS = 32;
 
 /* ---------------- 树形消息 / 分支操作入参（schema v3） ---------------- */
 

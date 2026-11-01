@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { IPC } from '../shared/ipc';
+import { IPC } from '../shared/ipc-constants';
 import { registerIpcHandlers, type IpcDeps } from '../electron/ipc';
 import { mockApi } from '../src/bridge/mock';
 

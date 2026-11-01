@@ -9,6 +9,8 @@ import AdmZip from 'adm-zip';
 import type { DB } from '../db';
 import { backfillParentLinks, SCHEMA_VERSION } from '../db';
 import type { CryptoService } from '../crypto';
+import { decryptProviderKey } from '../crypto/provider';
+import { createProvidersDao } from '../db/providers';
 import type { BackupFileInfo, GeneralSettings, ImportResult } from '../../shared/types';
 import { FACTORY_DEFAULTS } from '../../shared/params';
 import type { ProviderRow } from '../db/providers';
@@ -78,6 +80,10 @@ function collectRows(db: DB, settings: GeneralSettings): ExportRows {
 export function createBackupService(deps: BackupDeps) {
   const { db, crypto } = deps;
   const dir = () => backupsDir(deps.dataDir);
+  const manifestCache = new Map<
+    string,
+    { size: number; mtimeMs: number; includesKeys: boolean; createdAt: number }
+  >();
 
   function writeZip(
     data: BackupDataJson,
@@ -122,6 +128,7 @@ export function createBackupService(deps: BackupDeps) {
     dir,
 
     async createBackup(input: { includeKeys: boolean; password?: string }): Promise<BackupFileInfo> {
+      const providersDao = createProvidersDao(db);
       const settingsRow = db.prepare("SELECT value FROM settings WHERE key = 'general'").get() as
         | { value: string }
         | undefined;
@@ -137,7 +144,8 @@ export function createBackupService(deps: BackupDeps) {
       const { data, manifest } = await buildBackup(rows, {
         includeKeys: input.includeKeys,
         password: input.password,
-        decryptKey: (cipher) => crypto.decryptString(cipher),
+        decryptKey: (cipher, providerId) =>
+          decryptProviderKey(crypto, providersDao, providerId, cipher),
         appVersion: deps.appVersion,
         schemaVersion: SCHEMA_VERSION,
       });
@@ -269,9 +277,25 @@ export function createBackupService(deps: BackupDeps) {
         .filter((f) => BACKUP_NAME_RE.test(f))
         .sort()
         .reverse();
+      const currentPaths = new Set(files.map((filename) => path.join(dir(), filename)));
+      for (const cachedPath of manifestCache.keys()) {
+        if (!currentPaths.has(cachedPath)) manifestCache.delete(cachedPath);
+      }
       return files.map((filename) => {
         const full = path.join(dir(), filename);
         const stat = fs.statSync(full);
+        const cached = manifestCache.get(full);
+        if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+          return {
+            filename,
+            path: full,
+            size: stat.size,
+            created_at: cached.createdAt,
+            includes_keys: cached.includesKeys,
+          };
+        }
+
+        manifestCache.delete(full);
         let includesKeys = false;
         let createdAt = stat.mtimeMs;
         try {
@@ -281,6 +305,13 @@ export function createBackupService(deps: BackupDeps) {
             const manifest = JSON.parse(manifestEntry.getData().toString('utf8')) as BackupManifest;
             includesKeys = manifest.includes_keys === true;
             if (typeof manifest.created_at === 'number') createdAt = manifest.created_at;
+            // @req REQ-2026-003 仅成功解析的展示字段可缓存；损坏/超限永不入库
+            manifestCache.set(full, {
+              size: stat.size,
+              mtimeMs: stat.mtimeMs,
+              includesKeys,
+              createdAt,
+            });
           }
         } catch {
           /* manifest 损坏时按不含密钥展示 */

@@ -539,3 +539,29 @@ describe('备份密码上限（F4：8–32 位）', () => {
     expect(restored.providers[0].api_key_cipher).toBe('cipher-of-key-A');
   });
 });
+
+
+describe('breakParentCycles 线性遍历（@req REQ-2026-003）', () => {
+  it('后代先出现时也能断环，且不破坏正常根', () => {
+    const rows = [
+      { id: 'descendant', conversation_id: 'c1', parent_id: 'b' },
+      { id: 'b', conversation_id: 'c1', parent_id: 'c' },
+      { id: 'c', conversation_id: 'c1', parent_id: 'b' },
+      { id: 'root', conversation_id: 'c1', parent_id: null },
+    ];
+    const out = breakParentCycles(rows);
+    const byId = new Map(out.map((row) => [row.id, row]));
+    expect(out).toHaveLength(4);
+    expect(byId.get('root')?.parent_id).toBeNull();
+    expect(byId.get('b')?.parent_id === null || byId.get('c')?.parent_id === null).toBe(true);
+    for (const row of out) {
+      const seen = new Set<string>();
+      let current: (typeof row) | undefined = row;
+      while (current) {
+        expect(seen.has(current.id)).toBe(false);
+        seen.add(current.id);
+        current = current.parent_id ? byId.get(current.parent_id) : undefined;
+      }
+    }
+  });
+});

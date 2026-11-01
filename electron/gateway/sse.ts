@@ -107,12 +107,14 @@ export async function* iterateSse(
       if (buf.length > maxEventChars) {
         throw new ResponseBodyTooLargeError(`sse line exceeds ${maxEventChars} chars`);
       }
+      let start = 0;
       let idx: number;
-      while ((idx = buf.indexOf('\n')) !== -1) {
-        const line = buf.slice(0, idx);
-        buf = buf.slice(idx + 1);
+      while ((idx = buf.indexOf('\n', start)) !== -1) {
+        const line = buf.slice(start, idx);
+        start = idx + 1;
         yield* processLine(line);
       }
+      if (start > 0) buf = buf.slice(start);
     }
   } finally {
     try {

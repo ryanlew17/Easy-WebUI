@@ -5,7 +5,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
-import { IPC, EVT } from '../shared/ipc';
+import { IPC, EVT } from '../shared/ipc-constants';
 import type { EasyUiApi } from '../shared/types';
 
 const invoke = (channel: string, ...args: unknown[]): Promise<unknown> =>

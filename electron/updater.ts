@@ -22,7 +22,7 @@
  * 错误语义：网络/配置失败不 reject，以 UpdateCheckResult.status 表达；仅参数级错误 reject。
  * electron-updater 以懒加载 require 引入 —— vitest 纯 Node 环境 import 本文件不得拉起 electron。
  */
-import { EVT } from '../shared/ipc';
+import { EVT } from '../shared/ipc-constants';
 import type {
   UpdateCheckResult,
   UpdateDownloadResult,

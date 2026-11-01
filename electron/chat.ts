@@ -33,7 +33,8 @@ import {
   timeoutSignal,
   TITLE_TIMEOUT_MS,
 } from '../shared/title';
-import { EVT } from '../shared/ipc';
+import { EVT } from '../shared/ipc-constants';
+import { decryptProviderKey } from './crypto/provider';
 import type { ConversationsDao } from './db/conversations';
 import type { MessagesDao } from './db/messages';
 import type { ProvidersDao } from './db/providers';
@@ -266,7 +267,12 @@ export class ChatOrchestrator {
     if (!providerRow.api_key_cipher) {
       throw new GatewayError('missing_api_key', 'provider has no api key');
     }
-    const apiKey = await this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
+    const apiKey = await decryptProviderKey(
+      this.deps.crypto,
+      this.deps.providers,
+      providerRow.id,
+      providerRow.api_key_cipher.toString('utf8'),
+    );
     registerSecret(apiKey); // 红线：此后日志/错误中该密钥一律脱敏
     return { params, providerRow, apiKey, model };
   }
@@ -552,7 +558,12 @@ export class ChatOrchestrator {
         'title provider missing or has no api key',
       );
     }
-    const apiKey = await this.deps.crypto.decryptString(providerRow.api_key_cipher.toString('utf8'));
+    const apiKey = await decryptProviderKey(
+      this.deps.crypto,
+      this.deps.providers,
+      providerRow.id,
+      providerRow.api_key_cipher.toString('utf8'),
+    );
     registerSecret(apiKey); // 红线：此后日志/错误中该密钥一律脱敏
 
     const firstUser = messages.list(conversationId).find((m) => m.role === 'user');

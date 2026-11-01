@@ -4,7 +4,7 @@
  * shouldClearKeyOnBaseUrlChange 的 host 变更三态。
  */
 import { describe, expect, it } from 'vitest';
-import { hostOf, isValidBaseUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
+import { hostOf, isValidBaseUrl, isValidExternalUrl, shouldClearKeyOnBaseUrlChange } from '@shared/url';
 
 describe('hostOf', () => {
   it('提取 hostname 并小写化', () => {
@@ -35,6 +35,18 @@ describe('isValidBaseUrl', () => {
   it('拒绝携带 userinfo 的 URL（密钥可能随 URL 进日志）', () => {
     expect(isValidBaseUrl('https://sk-abc@api.openai.com/v1')).toBe(false);
     expect(isValidBaseUrl('https://user:pass@api.openai.com')).toBe(false);
+  });
+});
+
+describe('isValidExternalUrl（@req REQ-2026-003）', () => {
+  it('与原 openExternalSchema 一样只接受 1–1000 字符的 http/https', () => {
+    expect(isValidExternalUrl('https://github.com/ryanlew17/Easy-WebUI')).toBe(true);
+    expect(isValidExternalUrl('http://localhost:5173')).toBe(true);
+    expect(isValidExternalUrl(`https://example.com/${'x'.repeat(980)}`)).toBe(true);
+    expect(isValidExternalUrl(`https://example.com/${'x'.repeat(981)}`)).toBe(false);
+    expect(isValidExternalUrl('file:///etc/passwd')).toBe(false);
+    expect(isValidExternalUrl('javascript:alert(1)')).toBe(false);
+    expect(isValidExternalUrl('')).toBe(false);
   });
 });
 

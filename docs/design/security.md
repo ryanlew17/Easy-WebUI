@@ -3,12 +3,13 @@
 > 适用范围：API 密钥加密存储、日志与错误脱敏、渲染进程安全（CSP/隔离/消毒）、隐私边界。
 > 何时读取：改 `electron/crypto/`、CSP、日志、任何接触密钥或错误消息的代码之前——**接触密钥的改动必须先读本文件**。
 > 关联需求：REQ-2026-001（2026-10 安全审计修复）。
-> 最后更新：2026-11-01
+> 最后更新：2026-11-02
 > 来源：原 prd.md §8 + 原 docs/impl-contract.md §2（安全红线）
 
 ## 1. 密钥存储
 
 - 首选 `safeStorage.encryptStringAsync` → Base64 存 `providers.api_key_cipher`，自描述前缀 `v1:ss:`；启动时以 `isAsyncEncryptionAvailable()` 判定可用性，旧密文经 `decryptStringAsync` 解密，格式与既有数据兼容（REQ-2026-001，Electron 45 异步迁移）。
+- `shouldReEncrypt=true` 的旧密文在成功取得新明文后重加密，并由 `decryptProviderKey` 以旧密文未变化为条件回写（REQ-2026-003）；后续使用不再重复双解密。重加密/回写失败不影响本次解密，条件写不得覆盖并发换钥或恢复已清除密钥；不缓存明文。
 - safeStorage 不可用时：机器指纹（hostname+username+platform 的 SHA-256）经 scrypt 派生密钥做 AES-256-GCM，前缀 `v1:mf:`，盐存 `data/keyring.bin`（权限 600），设置页常驻黄色提示（`EncryptionStatus.method = 'machine-fallback'`）。
   - **machine-fallback 威胁边界**：机器指纹熵低（hostname/username/platform/arch 可枚举），该模式的实际保密性 = keyring.bin 随机盐 + 文件系统 ACL。能读到 data 目录的本地攻击者可自行推导并解密密钥——相比 safeStorage/DPAPI 的"读文件 ≠ 能解密"是明确降级（Windows 上 chmod 600 为 no-op）。这是已接受的取舍，UI 常驻提示即为此服务。
 - **密钥明文只允许存在于主进程内存的请求组装瞬间**，不出现在：日志、错误消息、IPC 返回、渲染进程、备份默认导出。

@@ -98,11 +98,20 @@ export function MessageList({
     () => (messages ?? []).filter((m) => m.role !== 'system'),
     [messages],
   );
-  const visible = all.length > shownCount ? all.slice(all.length - shownCount) : all;
+  const visible = useMemo(
+    () => (all.length > shownCount ? all.slice(all.length - shownCount) : all),
+    [all, shownCount],
+  );
   const hiddenCount = all.length - visible.length;
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   // 最后一条 assistant 是否流式中（typing 指示器用）
-  const lastAssistantId = [...all].reverse().find((m) => m.role === 'assistant')?.id;
+  const lastAssistantId = useMemo(() => {
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].role === 'assistant') return all[i].id;
+    }
+    return undefined;
+  }, [all]);
 
   // 内容变化（含流式 flush）时，若贴底则滚到底
   useEffect(() => {
@@ -152,7 +161,7 @@ export function MessageList({
               streaming={generating && msg.id === lastAssistantId && i === visible.length - 1}
               generating={generating}
               selectionMode={selectionMode}
-              selected={selectedIds.includes(msg.id)}
+              selected={selectedIdSet.has(msg.id)}
               onEnterSelection={enterSelection}
               onToggleSelect={toggleSelect}
               onRetry={callbacks.onRetry}

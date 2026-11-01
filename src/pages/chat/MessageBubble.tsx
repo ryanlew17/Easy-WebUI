@@ -10,7 +10,7 @@
  * - 选择模式（右键进入）：左侧复选框，操作行只剩 delete，分支导航隐藏；
  * - 错误：气泡内三段式错误卡片 + IconButton 重试（regenerate）。
  */
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ApiError, Message, MessageStats } from '@shared/types';
 import { Markdown } from '../../components/Markdown';
@@ -267,7 +267,7 @@ export interface BubbleProps {
   onSwitchBranch: (msg: Message, targetId: string) => void;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   msg,
   streaming,
   generating,
@@ -424,7 +424,7 @@ export function MessageBubble({
                         {msg.content}
                       </div>
                     ) : (
-                      <Markdown content={msg.content} />
+                      <Markdown content={msg.content} streaming={streaming} />
                     )
                   ) : streaming ? (
                     <TypingIndicator />
@@ -539,4 +539,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

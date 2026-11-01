@@ -23,7 +23,7 @@ import { registerIpcHandlers } from './ipc';
 import { setGatewayFetch } from './gateway';
 import { isAllowedNavigationUrl, shouldOpenExternally } from './webcontents-guard';
 import { defaultWindowSize, loadWindowState, saveWindowState } from './window-state';
-import { EVT } from '../shared/ipc';
+import { EVT } from '../shared/ipc-constants';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 // @req REQ-2026-001：CSP 硬化（object/base/frame/form 全部封死；应用无 iframe/object/form 使用面）

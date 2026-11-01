@@ -16,7 +16,7 @@
 import path from 'node:path';
 import type { BackupManifest, GeneralSettings } from '../../shared/types';
 import { migrateLegacyParamsJson } from '../../shared/params';
-import { MAX_BACKUP_PASSWORD_CHARS } from '../../shared/ipc';
+import { MAX_BACKUP_PASSWORD_CHARS } from '../../shared/ipc-constants';
 import { aesGcmDecrypt, aesGcmEncrypt, BACKUP_KDF, randomSalt, scryptDerive } from '../crypto/lowlevel';
 
 /* ---------- 导出/导入的行形状（与 DB 列一一对应，cipher 用 utf8 字符串） ---------- */
@@ -214,7 +214,7 @@ export async function buildBackup(
     includeKeys: boolean;
     password?: string;
     /** 注入：本机密文 → 明文（生产为 CryptoService.decryptString） */
-    decryptKey: (cipher: string) => string | Promise<string>;
+    decryptKey: (cipher: string, providerId: string) => string | Promise<string>;
     appVersion: string;
     schemaVersion: number;
     now?: number;
@@ -261,7 +261,7 @@ export async function buildBackup(
         .filter((p) => p.api_key_cipher)
         .map(async (p) => ({
           provider_id: p.id,
-          api_key: await opts.decryptKey(p.api_key_cipher as string),
+          api_key: await opts.decryptKey(p.api_key_cipher as string, p.id),
         })),
     );
     const salt = randomSalt(16);
@@ -375,19 +375,25 @@ export function planImport<T extends { id: string }>(
 export function breakParentCycles<T extends { id: string; conversation_id: string; parent_id: string | null }>(
   rows: T[],
 ): T[] {
-  const parentOf = new Map(rows.map((r) => [r.id, r.parent_id]));
-  for (const r of rows) {
-    if (r.parent_id === null) continue;
-    const seen = new Set<string>([r.id]);
-    let cur: string | null = r.parent_id;
-    while (cur !== null && parentOf.has(cur)) {
-      if (seen.has(cur)) {
-        r.parent_id = null; // 断边降级挂根
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const state = new Map<string, 'visiting' | 'done'>();
+  for (const row of rows) {
+    if (state.get(row.id) === 'done') continue;
+    const chain: T[] = [];
+    let cur: T | undefined = row;
+    while (cur) {
+      const status = state.get(cur.id);
+      if (status === 'done') break;
+      if (status === 'visiting') {
+        // @req REQ-2026-003 成环节点降级挂根；每条父链只访问一次
+        cur.parent_id = null;
         break;
       }
-      seen.add(cur);
-      cur = parentOf.get(cur) ?? null;
+      state.set(cur.id, 'visiting');
+      chain.push(cur);
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
     }
+    for (const item of chain) state.set(item.id, 'done');
   }
   return rows;
 }

@@ -5,7 +5,7 @@
  * - 全局快捷键（docs/design/ux-guidelines.md，快捷键）：Ctrl/Cmd+N 新会话、Ctrl/Cmd+, 设置、Esc 停止生成
  *   （模态打开时 Esc 优先关模态，经 ui.modalDepth 协调）。
  */
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApi } from './bridge';
 import { useSettingsStore } from './store/settings';
@@ -15,8 +15,11 @@ import { usePresetsStore } from './store/presets';
 import { useMessagesStore } from './store/messages';
 import { useUiStore } from './store/ui';
 import { ChatPage } from './pages/chat/ChatPage';
-import { SettingsPage } from './pages/settings/SettingsPage';
 import { ToastHost } from './components/Toast';
+
+const SettingsPage = lazy(() =>
+  import('./pages/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })),
+);
 
 export default function App() {
   const { t } = useTranslation();
@@ -120,7 +123,13 @@ export default function App() {
     <div className="h-full w-full overflow-hidden">
       {/* key 切换触发 .page-swap 挂载入场（--dur-slow 面板缓动，reduced-motion 下无动画） */}
       <div key={page} className="page-swap h-full w-full">
-        {page === 'chat' ? <ChatPage /> : <SettingsPage />}
+        {page === 'chat' ? (
+          <ChatPage />
+        ) : (
+          <Suspense fallback={null}>
+            <SettingsPage />
+          </Suspense>
+        )}
       </div>
       <ToastHost />
     </div>

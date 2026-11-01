@@ -26,6 +26,11 @@ export function isValidBaseUrl(url: string): boolean {
   }
 }
 
+/** 外链规则与 openExternalSchema 一致：1–1000 字符，仅 http/https。 */
+export function isValidExternalUrl(url: string): boolean {
+  return url.length >= 1 && url.length <= 1000 && /^https?:\/\//i.test(url);
+}
+
 /** base_url 的 host 是否变化（换 host = 已存密钥可能被发往新端点 → 须清除重输） */
 export function shouldClearKeyOnBaseUrlChange(oldUrl: string, newUrl: string): boolean {
   return hostOf(oldUrl) !== hostOf(newUrl);

@@ -39,6 +39,8 @@ npm run dev:electron   # desktop dev; run npm run build once first
 npm run typecheck      # Web + Electron configs
 npm test               # Vitest
 npm run build          # dist/ + dist-electron/ + preload
+npm run perf           # build + isolated main/renderer performance baselines
+npm run perf:electron  # build + 3 cold starts in temporary app/userData dirs
 npx electron-builder --win portable nsis --publish never
 node scripts/probe-verify-portal.mjs
 node scripts/e2e-ui-polish.mjs
