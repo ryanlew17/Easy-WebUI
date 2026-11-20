@@ -46,6 +46,10 @@ More in [docs/screenshots/](./docs/screenshots/) — welcome page, settings, the
 - Where the data lives: portable build → `data/` next to the exe; installed build → `%APPDATA%/easy-webui/data`; custom path via Settings → General → Data storage path (migrated automatically, effective after restart).
 - Detail: [docs/design/security.md](./docs/design/security.md), [docs/design/storage.md](./docs/design/storage.md).
 
+## Development
+
+Node.js `>=26.13.1 <27` is required. Use `npm ci`; `engine-strict` covers install/ci, while the shared version guard also covers npm scripts and directly executed `scripts/*.mjs` entry points.
+
 ## Documentation
 
 - [Documentation map](./docs/README.md) — product, architecture, module behavior, contracts, and ADRs.

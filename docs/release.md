@@ -22,7 +22,7 @@ node scripts/e2e-ui-polish.mjs         # UI 走查
 npm run shot                           # 重生成 docs/screenshots/ 的 8 张截图
 ```
 
-E2E 使用 puppeteer-core、系统 Edge 无头（硬编码 `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`）和进程内 `dist/` 静态服务器。打包后还需真实应用冒烟：玻璃模糊、窗口尺寸记忆、SQLite 读写、密钥密文、在线升级检查，以及启动—关闭日志。
+E2E 使用 puppeteer-core、系统 Edge 无头（默认 `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`，可用 `EASYUI_BROWSER_PATH` 指定其他 Chromium 可执行文件）和进程内 `dist/` 静态服务器。打包后还需真实应用冒烟：玻璃模糊、窗口尺寸记忆、SQLite 读写、密钥密文、在线升级检查，以及启动—关闭日志。文档须区分实际走查浏览器与构建目标，不得将某一浏览器结果外推为其他浏览器实测。
 
 ## 3. 打包
 
@@ -34,7 +34,9 @@ npx electron-builder --win portable nsis --publish never
 
 ## 4. 发布前依赖审计
 
-`npm audit --omit=dev` 当前为 0。全量 `npm audit` 剩 15 项 moderate、0 项 high，全部位于 electron-builder 的 minimatch/glob 等开发传递链，不随应用分发。普通 `npm audit fix` 已清理可安全升级项；剩余项只能由 npm 建议降级到 electron-builder 20.23.1，故不采用该建议，也禁止用 `npm audit fix --force` 掩盖结果。后续处置见 [REQ-2026-002](./requirements/archive/REQ-2026-002-input-and-protocol-safety.md)。
+当前 `npm audit --omit=dev` 与全量 `npm audit` 均为 0。`package.json` 以两条版本键限定 override（`minimatch@^9.0.0`、`minimatch@^10.0.0` → `^11.0.1`）修复 electron-builder 开发链，实际解析至 11.0.9；glob@7、dir-compare、filelist 的 3.x／5.x 实例保持不变。不得使用裸 override 或会向整棵子树传播的嵌套对象形式。干净 `npm ci`、全量测试、类型检查、构建及真实 Setup／Portable 打包均已验证。
+
+后续升级应先检查上游是否已内置 minimatch ≥11.0.1；有则直接升级并移除不再需要的 override。不得使用裸 override、强制降级、`npm audit fix --force` 或审计／警告抑制。若未来只能保留 moderate，必须同时记录上游无补丁和 override 实测破坏功能的证据，仅“已审查”不构成保留理由。
 
 ## 5. 发布步骤
 

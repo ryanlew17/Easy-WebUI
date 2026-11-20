@@ -2,17 +2,17 @@
 
 > 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
-> 最后更新：2026-11-02
+> 最后更新：2026-11-20
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
 
 ## 1. 技术选型（当前锁定版本）
 
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
-| 外壳 | **Electron 45** | 桌面分发；渲染进程直连服务商 API 受 CORS 限制；异步 `safeStorage` 密钥加密 |
+| 外壳 | **Electron 45.4.1**（Node 24.22.3 / Chromium 156） | 桌面分发；渲染进程直连服务商 API 受 CORS 限制；异步 `safeStorage` 密钥加密 |
 | 前端 | Vite 8 + React 18 + TypeScript 7（strict，`@typescript/native`） | 原生编译器提升类型检查与构建速度；不依赖 TS 编程 API |
 | 样式 | Tailwind CSS 4（@tailwindcss/vite）+ CSS 自定义属性 | 液态玻璃与双主题依赖设计令牌；插件取代 PostCSS/autoprefixer |
-| 存储 | **better-sqlite3**（主进程，WAL） | 单文件、事务、查询快；原生模块按 Electron ABI 预编译 |
+| 存储 | **better-sqlite3**（主进程，WAL） | 单文件、事务、查询快；按平台提供 N-API 预编译产物，必要时按 Electron 重编译 |
 | 网络 | 主进程 `net.fetch` | 绕过 CORS，统一 SSE 流式处理 |
 | 状态 / i18n | Zustand / i18next + react-i18next | 轻量；两份 JSON 语言包 |
 | Markdown | react-markdown 10 + remark-gfm + highlight.js 核心/语言按需加载 + DOMPurify；ReleaseNotes 另加 rehype-raw/sanitize | 渲染前消毒；聊天禁 raw HTML，语言按需加载 |
@@ -69,16 +69,16 @@ EasyWebUI/
 │   ├── store/           #   zustand（conversations/messages/presets/providers/settings/ui）
 │   ├── i18n/ lib/ styles/
 ├── tests/               # vitest 单测（gateway/trim/crypto/backup/db/窗口状态…）
-├── scripts/             # 走查与探针（puppeteer-core + 系统 Edge 无头）、截图、冒烟、性能基准
+├── scripts/             # 走查与探针（puppeteer-core + Chromium 无头，默认系统 Edge）、截图、冒烟、性能基准
 ├── build/               # 应用图标
 └── release/             # electron-builder 产物
 ```
 
 ## 4. 工程与构建
 
-- npm，Node ≥22.12.0；命令清单见 AGENTS.md。三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict，相对 `paths` 无 `baseUrl`）、`tsconfig.electron.json`（electron/ + shared/，NodeNext，rootDir `.`，outDir `dist-electron`，发射 CommonJS）。`@typescript/native` 提供 TS7 的 `tsc`；`typescript` 5.9 保留满足旧 peer。
+- npm，Node `>=26.13.1 <27`；`.npmrc` 的 `engine-strict` 负责 install/ci，统一 `scripts/node-version-guard.mjs` 覆盖 npm pre-hook 与直接执行的脚本入口。命令清单见 AGENTS.md。三份 tsconfig：`tsconfig.json`（基础 + references）、`tsconfig.web.json`（src/ + shared/，DOM lib，strict，相对 `paths` 无 `baseUrl`）、`tsconfig.electron.json`（electron/ + shared/，NodeNext，rootDir `.`，outDir `dist-electron`，发射 CommonJS）。`@typescript/native` 提供 TS7 的 `tsc`；`typescript` 5.9 保留满足旧 peer。
 - `build` 产物链：web typecheck → vite build（→ `dist/`）→ tsc 主进程（→ `dist-electron/`，**保留 electron/ + shared/ 目录结构**，故 `package.json → main` 为 `dist-electron/electron/main.js`）→ esbuild 自包含打包 preload（`--external:electron`，最后一步）。
-- `vite.config.mts`：`base: './'`（Electron `file://` 需要相对路径，**不许改**）；server.port 5173；`.mts` 保持 ESM 原生加载；Tailwind 4 经 `@tailwindcss/vite`，旧 JS 配置经 `@config` 保留，`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`；CSS 目标 Safari 16.4+ / Firefox 128+。
-- better-sqlite3 ABI：开发期报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 需 better-sqlite3 ≥ 12（本项目 v13）**；纯 Web 预览与 `npm test` 不依赖原生模块，安装失败可 `npm install --ignore-scripts` 保底。
-- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。`build.npmRebuild: false`（原生模块已按 Electron ABI 预编译，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 Windows 解压 rename EPERM）是**测得的工程决策，不许"清理"**。排障：构建 PATH 需含 PowerShell；winCodeSign 缓存解包失败用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
+- `vite.config.mts`：`base: './'`（Electron `file://` 需要相对路径，**不许改**）；server.port 5173；`.mts` 保持 ESM 原生加载；Tailwind 4 经 `@tailwindcss/vite`，旧 JS 配置经 `@config` 保留，`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`；CSS／构建目标 Chrome／Edge 120+、Safari 16.4+、Firefox 128+。这些是构建目标，不代表对应浏览器均已完成实测。
+- better-sqlite3 ABI：开发期报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 需 better-sqlite3 ≥ 12（本项目 v13）**；纯 Web 预览安装可 `npm install --ignore-scripts` 保底，但桌面完整验收必须执行安装脚本并实载原生模块。Electron 45.4.1 包提供 `install-electron` 而不自动执行二进制下载，本项目以根 `postinstall: install-electron` 在干净安装后准备 `dist`。`allowScripts` 仅为声明性约定；项目未安装 `@lavamoat/allow-scripts`，该字段不参与安装门控。
+- electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。`build.npmRebuild: false`（预编译原生模块已经目标 Electron 实载验证，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 Windows 解压 rename EPERM）是**测得的工程决策，不许"清理"**。排障：构建 PATH 需含 PowerShell；winCodeSign 缓存解包失败用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
 - 验证、打包与发布门槛见 `./release.md`；`npm run perf` / `npm run perf:electron`（REQ-2026-003）为隔离基准（内存 SQLite / 临时目录 / 隔离 userData），不触碰真实业务数据。

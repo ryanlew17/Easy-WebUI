@@ -46,6 +46,10 @@
 - 数据位置：便携版 → exe 旁 `data/`；安装版 → `%APPDATA%/easy-webui/data`；自定义路径：设置 → 通用 → 数据存储路径（自动迁移，重启后生效）。
 - 详见 [docs/design/security.md](./docs/design/security.md)、[docs/design/storage.md](./docs/design/storage.md)。
 
+## 开发环境
+
+要求 Node.js `>=26.13.1 <27`。使用 `npm ci` 安装依赖；`engine-strict` 负责 install/ci，统一版本预检同时覆盖 npm 脚本和直接执行的 `scripts/*.mjs` 入口。
+
 ## 文档
 
 - [文档地图](./docs/README.md)——产品、架构、模块行为、接口契约与 ADR。
