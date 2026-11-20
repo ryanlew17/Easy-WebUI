@@ -1,4 +1,5 @@
 /* 视觉探针：驱动真实安装版 Easy WebUI，打开下拉/弹窗截图，验证 backdrop-filter 是否生效（只读，不写数据）。 */
+import './node-version-guard.mjs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';

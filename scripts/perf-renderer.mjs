@@ -1,3 +1,4 @@
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync } from 'node:fs';
@@ -5,7 +6,7 @@ import { measurementIdentity } from './perf-identity.mjs';
 import { extname, join, normalize } from 'node:path';
 import os from 'node:os';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

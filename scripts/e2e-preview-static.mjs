@@ -1,11 +1,12 @@
 /** 一次性包装器：进程内静态服务 dist/ + 以 E2E_BASE 跑既有 e2e-preview.mjs 回归，子进程退出即释放 */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { spawn } from 'node:child_process';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

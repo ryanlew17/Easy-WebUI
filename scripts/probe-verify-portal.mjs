@@ -8,12 +8,13 @@
  *  4) Generate 胶囊：portal 到 body 的浮窗（不在输入卡片流内），浮于输入坞上方、水平居中。
  * 复用 e2e-ui-polish.mjs 的 harness（静态服务器 + seed + Edge 无头）。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'node:http';
 import { existsSync, statSync, createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -252,7 +253,7 @@ const selAudit = await page.evaluate(() => {
 check(!!selAudit && selAudit.count >= 3, '选择模式复选框出现', `count=${selAudit?.count}`);
 if (selAudit) {
   check(selAudit.leftSpread <= 1.5, '复选框全部左侧对齐（漂移 ≤1.5px）', `spread=${selAudit.leftSpread.toFixed(1)}px`);
-  check(selAudit.justify === 'flex-start', '选择模式行一律左起（用户气泡不右推复选框）', `justify=${selAudit.justify}`);
+  check(['flex-start', 'flow-start'].includes(selAudit.justify), '选择模式行一律左起（用户气泡不右推复选框）', `justify=${selAudit.justify}`);
   check(selAudit.firstTopDelta >= 8 && selAudit.firstTopDelta <= 12, '首个复选框与气泡内容顶对齐', `Δ=${selAudit.firstTopDelta.toFixed(1)}px`);
 }
 

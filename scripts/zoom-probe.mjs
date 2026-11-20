@@ -1,7 +1,8 @@
 /** 临时实验：CSS zoom 下 getBoundingClientRect / fixed 定位 / innerWidth / visualViewport / clientWidth 的坐标系关系 */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const browser = await puppeteer.launch({
   executablePath: EDGE,
   headless: true,

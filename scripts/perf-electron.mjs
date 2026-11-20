@@ -1,3 +1,4 @@
+import './node-version-guard.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
@@ -8,6 +9,9 @@ import { measurementIdentity } from './perf-identity.mjs';
 
 const ROOT = process.cwd();
 const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe');
+const electronVersion = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'node_modules', 'electron', 'package.json'), 'utf8'),
+).version;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const results = [];
 
@@ -80,7 +84,7 @@ for (let run = 0; run < 3; run++) {
     if (!page) throw new Error('Electron application page not found');
     await page.waitForFunction(
       () => window.easyui !== undefined && document.querySelector('textarea, button') !== null,
-      { timeout: 10000 },
+      { timeout: 10000, polling: 100 },
     );
     const info = await page.evaluate(() => window.easyui.getSystemInfo());
     if (path.resolve(info.dataPath) !== path.join(appDir, 'data')) {
@@ -124,7 +128,7 @@ console.log(
         platform: process.platform,
         release: os.release(),
         cpu: os.cpus()[0]?.model ?? 'unknown',
-        electron: '45.2.1',
+        electron: electronVersion,
         updateChannel: 'deterministic mock (no external update request)',
         dataDir: 'isolated temporary app and userData under build/',
       },

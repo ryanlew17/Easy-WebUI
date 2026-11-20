@@ -166,7 +166,7 @@ app.whenReady().then(async () => {
   migrateStorageDir(dataDir, resolution.legacyDirs, (msg, extra) => logger.info(msg, extra));
 
   // @req REQ-2026-001 C2：网关走 Chromium 网络栈——Brotli/gzip 解压不进 Node 主进程
-  // Electron 45.2.1 已带 Node 24.22.1 修复；net.fetch 继续作为纵深防御
+  // @req REQ-2026-004 Electron 45.4.1 已带 Node 24.22.3 修复；net.fetch 继续作为纵深防御
   setGatewayFetch((url, init) => net.fetch(url, init));
 
   const db = openDatabase(path.join(dataDir, 'easyui.db'));

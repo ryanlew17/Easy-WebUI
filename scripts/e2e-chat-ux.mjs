@@ -1,6 +1,6 @@
 /**
  * Easy WebUI — 会话 UX 走查脚本（feat/ui-motion-overhaul，树形分支 + LM Studio 式交互）。
- * 复用 e2e-ui-motion.mjs 的 harness（puppeteer-core + 系统 Edge 无头 + 进程内静态服务器服 dist/）。
+ * 复用 e2e-ui-motion.mjs 的 harness（puppeteer-core + Chromium 无头，默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖）。
  *
  * 产出 docs/screenshots/30-chat-*.png ~ 34-chat-*.png，并断言关键交互：
  * - regenerate 后出现分支导航 ‹ 2/2 ›；
@@ -10,12 +10,13 @@
  * - Generate Response 触发生成（出现停止按钮）。
  * 脚本退出即关闭浏览器与服务器，不留后台进程。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const OUT = 'docs/screenshots';
 mkdirSync(OUT, { recursive: true });
 

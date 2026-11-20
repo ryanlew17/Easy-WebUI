@@ -4,6 +4,7 @@
  * → SQLite + safeStorage，覆盖 M1（启动建库）/ M2（平台 CRUD）/ M4（密钥红线、备份）。
  * 用法：node scripts/smoke-electron.mjs（脚本自行拉起并结束 Electron 进程）
  */
+import './node-version-guard.mjs';
 import { spawn, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

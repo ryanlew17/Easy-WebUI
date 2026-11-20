@@ -1,4 +1,5 @@
 /* 探针：CSS zoom 是否杀死 backdrop-filter（Chromium/Edge 无头）。输出三张裁剪截图人工对比。 */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +23,7 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 
 const browser = await puppeteer.launch({
   headless: true,
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  executablePath: process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   args: ['--force-device-scale-factor=1'],
 });
 const page = await browser.newPage();

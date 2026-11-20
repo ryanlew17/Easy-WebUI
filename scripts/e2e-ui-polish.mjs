@@ -1,6 +1,6 @@
 /**
  * Easy WebUI — UI 发布前走查截图脚本。
- * 复用 e2e-chat-ux.mjs 的 harness（puppeteer-core + 系统 Edge 无头 + 进程内静态服务器服 dist/）。
+ * 复用 e2e-chat-ux.mjs 的 harness（puppeteer-core + Chromium 无头，默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖）。
  *
  * 产出 build/e2e-shots/50-*.png ~ 57-*.png（不入库；docs/screenshots 仅保留 README 引用的 8 张精选图）：
  * - 50 模型下拉打开且背后有聊天文字（浮层 portal 到 body，生产构建玻璃模糊生效、不透字）；
@@ -11,12 +11,13 @@
  * - 57 Generate Response 胶囊（portal 浮窗，浮于输入坞上方 12px 居中，Ctrl/Cmd+R 触发）。
  * 脚本退出即关闭浏览器与服务器，不留后台进程。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 // 走查截图输出到 build/e2e-shots（不入库）：docs/screenshots 仅保留 README 引用的 8 张精选图
 const OUT = 'build/e2e-shots';
 mkdirSync(OUT, { recursive: true });

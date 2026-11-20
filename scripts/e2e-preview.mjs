@@ -1,12 +1,13 @@
 /**
  * Easy WebUI — 临时浏览器验证脚本（不进交付依赖树的运行时路径）。
- * 用系统 Edge 无头模式走通核心流程并截图到 docs/screenshots/。
+ * 用 Chromium 无头模式走通核心流程并截图到 docs/screenshots/；默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖。
  * 前提：vite dev server 已在 5173 端口运行（由外层命令起停）。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'node:fs';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173/';
 const OUT = 'docs/screenshots';
 mkdirSync(OUT, { recursive: true });

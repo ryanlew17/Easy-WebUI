@@ -7,6 +7,7 @@
  *   node scripts/test-live-update.mjs verify    重启后验证版本号与数据完整性
  * 调试端口 9555；脚本结束时尽量恢复现场（杀调试实例）。
  */
+import './node-version-guard.mjs';
 import { spawn, execSync } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 

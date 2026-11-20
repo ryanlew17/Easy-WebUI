@@ -1,15 +1,16 @@
 /**
  * Easy WebUI — UI/动效改造走查脚本（feat/ui-motion-overhaul）。
- * 复用 e2e-preview.mjs 的 harness（puppeteer-core + 系统 Edge 无头 + vite dev server 5173）。
+ * 复用 e2e-preview.mjs 的 harness（puppeteer-core + Chromium 无头，默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖）。
  * 产出 docs/screenshots/20-ui-*.png ~ 27-ui-*.png，并对 InfoTip 做视口内几何断言
  * （zoom=1 与 zoom=2 两档，回归右缘溢出 bug）。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const OUT = 'docs/screenshots';
 mkdirSync(OUT, { recursive: true });
 

@@ -1,4 +1,5 @@
 /* 深度诊断：安装版应用中 .glass-pop 的 backdrop-filter 为何不生效（只读）。 */
+import './node-version-guard.mjs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';

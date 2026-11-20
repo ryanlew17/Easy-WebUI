@@ -6,12 +6,13 @@
  * 状态：欢迎页 / 设置 / 新增平台弹窗(聚焦密钥框) / 模型下拉模糊 / 聊天浅色 /
  *       多行输入坞+生成胶囊 / 深色聊天 / 生成中思考态。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const OUT = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
   : 'docs/screenshots';

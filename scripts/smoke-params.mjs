@@ -5,11 +5,12 @@
  *   另存为预设→设置页预设 Tab→恢复出厂默认。
  * 结束时主动杀掉 dev server 进程树。
  */
+import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 
 const NPM = 'C:/Users/Ryan/AppData/Roaming/kimi-desktop/daimon-share/daimon/command-process-owner/bin/npm.cmd';
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 5181;
 const BASE = `http://localhost:${PORT}/`;
 
