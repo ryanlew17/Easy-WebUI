@@ -5,6 +5,7 @@
 
 | 版本 | 主题 | 要点 |
 | --- | --- | --- |
+| v1.0.4 | 安全与工具链 | Node.js 开发基线收紧至 26.13.1 及以上的 26.x；Electron 45.4.1（Node 24.22.3 / Chromium 156）；统一 npm 与直接脚本版本预检；minimatch 审计清零 |
 | v0.1.0 | MVP | 平台管理、三协议适配、流式对话、参数面板、上下文裁剪、密钥加密、备份、液态玻璃 UI、双语、Win 安装包 |
 | v0.1.1 | 数据与外观 | 数据目录体系（便携/安装/自定义 + 迁移抢救）、外观定制、InfoTip、关于页 + 在线升级 |
 | v0.1.2-beta | 升级链路验证 | 在线升级 E2E 实测 |
@@ -15,6 +16,4 @@
 
 兼容性：v1.0.2 起备份密码限制为 8–32 位。此前使用超过 32 位密码创建的备份需先用旧版本恢复，再以合规密码重新导出。
 
-开发环境：v1.0.3 起 Node.js 要求 ≥22.12.0；Tailwind 4 的浏览器目标为 Safari 16.4+ / Firefox 128+。TypeScript 构建由 `@typescript/native` 提供 7.0.2，`typescript` 保留 5.9 以满足旧 peer 依赖。
-
-当前未发布变更（REQ-2026-004）：开发／构建 Node.js 要求改为 `>=26.13.1 <27`；Electron 45.4.1 内嵌 Node 24.22.3；统一版本预检，minimatch 审计清零。浏览器构建目标保持 Chrome／Edge 120+、Firefox 128+、Safari 16.4+；构建目标不等于对应浏览器均已完成实测。
+开发环境：v1.0.4 起 Node.js 要求 `>=26.13.1 <27`，Electron 45.4.1 内嵌 Node 24.22.3；浏览器构建目标保持 Chrome／Edge 120+、Firefox 128+、Safari 16.4+（构建目标不等于对应浏览器均已完成实测）。TypeScript 构建由 `@typescript/native` 提供 7.0.2，`typescript` 保留 5.9 以满足旧 peer 依赖。
