@@ -1,7 +1,7 @@
 # REQ-2026-001：安全审计修复
 
-状态：done（2026-11-01）
-来源：2026-10 内部安全审计与后续复审
+状态：done
+来源：inner (内部安全审计与复审)
 关联设计：`docs/design/security.md`、`docs/design/gateway.md`、`docs/contracts/backup-format.md`
 影响模块：`shared/`、`electron/`、`src/`
 非目标：独立依赖审计项及 PRD 已排除的功能

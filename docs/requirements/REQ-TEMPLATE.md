@@ -1,7 +1,7 @@
 - # REQ-YYYY-NNN: 标题
 
   状态: active
-  来源: 内部 / GitHub owner/repo#123
+  来源: inner / owner / repo#123
   关联设计: docs/design/xxx.md（受影响的快照；无则写"新增，落地后建"）
   影响模块: 如 src/domain/、src/presentation/
   非目标: 本需求明确不做的部分

@@ -1,7 +1,7 @@
 # REQ-2026-004：Node 26 基线与 Electron 45 安全升级
 
-状态：done（2026-11-20）
-来源：用户安全基线与维护成本决策
+状态：done
+来源：owner (安全基线与维护成本决策)
 关联设计：`docs/architecture.md`、`docs/design/security.md`、`docs/design/gateway.md`、`docs/release.md`
 影响模块：`package.json`／`package-lock.json`／`.npmrc`、`scripts/`、`electron/main.ts`、验证与项目文档
 非目标：其他框架或工具库 major 升级、业务契约／数据格式／UI 行为变更、正式发布

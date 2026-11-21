@@ -1,7 +1,7 @@
 # REQ-2026-003：安全修复后的性能评估与深度优化
 
-状态：done（2026-11-02）
-来源：REQ-2026-001 至 REQ-2026-002 的修复与项目内性能评估
+状态：done
+来源：owner (安全修复后的性能评估)
 关联设计：`docs/design/security.md`、`docs/design/chat.md`、`docs/design/message-tree.md`、`docs/design/storage.md`
 影响模块：`electron/`、`src/`、`shared/`、`scripts/`、`tests/`
 非目标：降低安全限制、缓存明文密钥、更换框架/数据库及无测量依据的 worker 或虚拟化改造

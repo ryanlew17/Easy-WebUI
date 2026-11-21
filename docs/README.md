@@ -39,7 +39,7 @@
 
 ## 架构决策（`adr/`）
 
-ADR-001 Electron（非 Tauri）· ADR-002 浮层 portal 到 `document.body` · ADR-003 Mock 桥与主进程语义一致 · ADR-004 安装版数据放用户目录。
+ADR-001 Electron（非 Tauri）· ADR-002 浮层 portal 到 `document.body` · ADR-003 Mock 桥与主进程语义一致 · ADR-004 安装版数据放用户目录 · ADR-005 液态玻璃三轨道与 vendored 折射引擎。
 
 ADR 只记录决策背景与后果；现行规则以 `design/` 和 `contracts/` 为准。新 ADR 用 `ADR-NNN-短标题.md`，含 Status / Date / Context / Decision / Consequences / Alternatives。
 

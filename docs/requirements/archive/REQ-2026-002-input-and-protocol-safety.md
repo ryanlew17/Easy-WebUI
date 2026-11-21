@@ -1,7 +1,7 @@
 # REQ-2026-002：输入、工具链与升级摘要安全跟进
 
-状态：done（2026-11-01）
-来源：外部独立安全审查及范围扩展
+状态：done
+来源：inner (独立安全审查及范围扩展)
 关联设计：`docs/contracts/impl-contract.md`、`docs/contracts/protocol-mapping.md`、`docs/design/security.md`、`docs/design/ux-guidelines.md`
 影响模块：`shared/`、`electron/`、`src/`、构建与发布链
 非目标：REQ-2026-003 的性能改造、无需求驱动的框架大版本迁移及 PRD 已排除的功能
