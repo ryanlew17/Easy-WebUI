@@ -2,7 +2,7 @@
 
 **English** | [简体中文](./README.zh-CN.md)
 
-A lightweight, **local-first** multi-provider LLM chat client for the desktop, built with Electron + React 18 + TypeScript. All data lives on your machine; API keys are encrypted at rest and never leave the main process.
+A lightweight, **local-first** multi-provider LLM chat client for the desktop, built with Electron + React 19 + TypeScript. All data lives on your machine; API keys are encrypted at rest and never leave the main process.
 
 ## Download
 

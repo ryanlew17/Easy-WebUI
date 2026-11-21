@@ -2,7 +2,7 @@
 
 [English](./README.md) | **简体中文**
 
-轻量级、**本地优先**（local-first）的多供应商大模型对话桌面客户端，基于 Electron + React 18 + TypeScript。全部数据保存在本机；API 密钥加密落盘，渲染进程永远接触不到密钥。
+轻量级、**本地优先**（local-first）的多供应商大模型对话桌面客户端，基于 Electron + React 19 + TypeScript。全部数据保存在本机；API 密钥加密落盘，渲染进程永远接触不到密钥。
 
 ## 下载安装
 

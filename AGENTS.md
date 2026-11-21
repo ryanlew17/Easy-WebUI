@@ -1,6 +1,6 @@
 # AGENTS.md — Easy WebUI
 
-Electron + React 18 + TypeScript local-first multi-provider LLM chat client. Windows + Git Bash. Product scope: `docs/prd.md`.
+Electron + React 19 + TypeScript local-first multi-provider LLM chat client. Windows + Git Bash. Product scope: `docs/prd.md`.
 
 ## Context
 
