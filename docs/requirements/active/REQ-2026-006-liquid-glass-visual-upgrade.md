@@ -2,7 +2,7 @@
 
 状态：active
 来源：owner (视觉升级目标)
-前置需求：[REQ-2026-005](./REQ-2026-005-react-19-upgrade.md)（React 19 渲染基线）
+前置需求：[REQ-2026-005](../archive/REQ-2026-005-react-19-upgrade.md)（React 19 渲染基线）
 关联决策：`docs/adr/ADR-005-liquid-glass-rendering-strategy.md`
 关联设计：`docs/design/ui-liquid-glass.md`、`docs/design/popover.md`、`docs/design/ux-guidelines.md`、`docs/architecture.md`、`docs/release.md`
 影响模块：`src/styles/`、`src/components/`、`src/pages/`、`src/vendor/liquid-glass/`、`vite.config.mts`、`scripts/`、`tests/`、项目文档

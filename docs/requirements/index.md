@@ -14,7 +14,7 @@
 | [REQ-2026-002](./archive/REQ-2026-002-input-and-protocol-safety.md) | 输入、工具链与升级摘要安全跟进 | done | 外部独立审查与范围扩展 | shared/、electron/、src/、构建与发布链 | contracts/impl-contract.md、contracts/protocol-mapping.md、design/security.md、design/ux-guidelines.md | 2026-11-01 |
 | [REQ-2026-003](./archive/REQ-2026-003-performance-optimization.md) | 安全修复后的性能评估与深度优化 | done | REQ-2026-001 至 REQ-2026-002 修复与项目内性能评估 | electron/、src/、shared/、scripts/、tests/ | design/security.md、design/chat.md、design/message-tree.md、design/storage.md | 2026-11-02 |
 | [REQ-2026-004](./archive/REQ-2026-004-node-26-electron-45-security.md) | Node 26 基线与 Electron 45 安全升级 | done | 用户安全基线与维护成本决策 | 构建工具链、electron/、scripts/、文档 | architecture.md、design/security.md、design/gateway.md、release.md | 2026-11-20 |
-| [REQ-2026-005](./active/REQ-2026-005-react-19-upgrade.md) | React 19 渲染基线升级 | active | 用户长期技术栈与组件生态维护决策 | package.json、package-lock.json、src/、tests/、文档 | architecture.md、design/popover.md、design/ux-guidelines.md、release.md | 2026-11-21 |
+| [REQ-2026-005](./archive/REQ-2026-005-react-19-upgrade.md) | React 19 渲染基线升级 | done | 用户长期技术栈与组件生态维护决策 | package.json、package-lock.json、src/、tests/、文档 | architecture.md、design/popover.md、design/ux-guidelines.md、release.md | 2026-11-21 |
 | [REQ-2026-006](./active/REQ-2026-006-liquid-glass-visual-upgrade.md) | 液态玻璃视觉系统升级 | active | 用户视觉升级目标与已认可动机稿；依赖 REQ-2026-005 | src/、vite.config.mts、scripts/、tests/、文档 | adr/ADR-005、design/ui-liquid-glass.md、design/popover.md、design/ux-guidelines.md、architecture.md、release.md | 2026-11-21 |
 
 ## 状态流转

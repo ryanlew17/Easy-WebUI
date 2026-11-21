@@ -2,7 +2,7 @@
 
 > 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
-> 最后更新：2026-11-20
+> 最后更新：2026-11-21
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
 
 ## 1. 技术选型（当前锁定版本）
@@ -10,7 +10,7 @@
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
 | 外壳 | **Electron 45.4.1**（Node 24.22.3 / Chromium 156） | 桌面分发；渲染进程直连服务商 API 受 CORS 限制；异步 `safeStorage` 密钥加密 |
-| 前端 | Vite 8 + React 18 + TypeScript 7（strict，`@typescript/native`） | 原生编译器提升类型检查与构建速度；不依赖 TS 编程 API |
+| 前端 | Vite 8 + React 19.3.1 + TypeScript 7（strict，`@typescript/native`） | 原生编译器提升类型检查与构建速度；不依赖 TS 编程 API |
 | 样式 | Tailwind CSS 4（@tailwindcss/vite）+ CSS 自定义属性 | 液态玻璃与双主题依赖设计令牌；插件取代 PostCSS/autoprefixer |
 | 存储 | **better-sqlite3**（主进程，WAL） | 单文件、事务、查询快；按平台提供 N-API 预编译产物，必要时按 Electron 重编译 |
 | 网络 | 主进程 `net.fetch` | 绕过 CORS，统一 SSE 流式处理 |
@@ -62,7 +62,7 @@ EasyWebUI/
 │   └── paths.ts / storage-migrate.ts / logger.ts
 ├── shared/              # 跨进程唯一共享层：types（EasyUiApi 契约）/ params / presets /
 │                        #   appearance / reasoning / title / errors / ipc / ipc-constants（无 zod）
-├── src/                 # 渲染进程（Vite + React 18 + strict + Tailwind 4）
+├── src/                 # 渲染进程（Vite + React 19 + strict + Tailwind 4）
 │   ├── bridge/          #   getApi()：Electron 桥或 localStorage mock
 │   ├── pages/           #   chat/（三栏会话页）、settings/（五标签设置页）
 │   ├── components/      #   Modal / Toast / Markdown / Popover / controls / icons / params

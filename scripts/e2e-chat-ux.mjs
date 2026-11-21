@@ -303,8 +303,11 @@ try {
   if (!ringBox) throw new Error('上下文环未渲染');
   await page.mouse.move(ringBox.x, ringBox.y);
   await sleep(400);
+  // @req REQ-2026-005：按 portal 的 role 与上下文百分比定位浮层。
   const tipVisible = await page.evaluate(() => {
-    const tip = document.querySelector('.ctx-tip');
+    const tip = [...document.querySelectorAll('body > [role="tooltip"].glass-pop')].find((el) =>
+      el.textContent.includes('%'),
+    );
     if (!tip) return false;
     return getComputedStyle(tip).visibility === 'visible';
   });
