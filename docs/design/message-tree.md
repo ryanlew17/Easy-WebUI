@@ -1,35 +1,39 @@
-# 树形分支与消息操作（schema v3）
+# 消息树与分支操作
 
-> 适用范围：消息树模型（parent_id + active_leaf_id）、激活路径解析、分支操作语义（发送/分叉/重生成/续写/切换/删除）、气泡操作与批量选择。
-> 何时读取：改 `electron/db/messages.ts`、分支导航 UI、消息操作按钮、`src/bridge/mock.ts` 分支逻辑之前；**此处的行为改动需要回归测试（tests/db-messages.test.ts）**。
-> 最后更新：2026-11-02
-> 来源：原 prd.md §4.5 + 原 docs/impl-contract.md §11.1；列级契约见 `../contracts/db-schema.md`，API 见 `../contracts/impl-contract.md` §2
+> 权威范围：消息树模型、激活路径、分支操作、删除恢复和批量选择语义。
+> 何时读取：修改消息 DAO、分支导航、消息操作或 Mock 分支逻辑之前。
+> 代码事实来源：`electron/db/messages.ts`、`src/bridge/mock.ts`、`src/pages/chat/MessageBubble.tsx`。
+> 最后更新：2026-11-22
 
-## 1. 模型
+列结构见 `../contracts/db-schema.md`；生成流程见 `./chat.md`；视觉和焦点规则见 `./ui-liquid-glass.md`。
 
-- 消息是 **parent_id 树**；`conversations.active_leaf_id` 指向激活叶（空 = 最新一条为叶）。
-- `listMessages` 返回根 → 激活叶的线性路径；路径上同 parent 子消息数 >1 的消息带 `branch={index, count, ids}`（同级按 created_at,rowid 排序，index 从 1 起）。
-- v2→v3 迁移与旧备份恢复共用 `backfillParentLinks()` 回填（幂等，规则见 `../contracts/db-schema.md` §3）。
-- 不可信导入中的 `parent_id` 环必须断边挂根；子树遍历与删除使用 `visited` 防环，不得影响其他分支的可达性（@req REQ-2026-001）。
-- 主进程每次树操作单次读取会话并共享 id/children 索引，子树、下钻和重叠删除不做逐节点 SQL；删除分批执行并与激活叶恢复处于同一事务（REQ-2026-003）。Web Mock 同样按操作建索引并保留环守卫。
+## 1. 数据模型与不变量
+
+- 消息以 `parent_id` 构成树，`conversations.active_leaf_id` 指向激活叶；空值表示以最新消息为叶。
+- `listMessages` 返回根到激活叶的线性路径。路径上同 parent 子消息数大于 1 时附带 `branch={index,count,ids}`；同级按 `created_at,rowid` 排序，index 从 1 开始。
+- v2→v3 与旧备份恢复共用幂等的 `backfillParentLinks()`。不可信导入中的环必须断边挂根，所有子树遍历使用 `visited` 防环。
+- 树操作共享当次 id/children 索引，避免逐节点 SQL；删除分批执行，并与激活叶恢复处于同一事务。Mock 保留相同索引和防环语义。
+
+**任何操作不得破坏其他分支的可达性；删除后激活路径必须解析到存活分支。**
 
 ## 2. 操作语义
 
-| 操作 | 语义 |
+| 操作 | 树行为 |
 | --- | --- |
-| `sendMessage` | 新 user 消息 parent = 当前激活叶；`siblingOf`（编辑后重发）时 parent = 原消息的 parent → **开新分支，原分支保留** |
-| `setActiveLeaf`（branch 按钮） | 激活叶精确设为该消息——"在此消息之后分叉聊天"，之后 sendMessage 即在其下开辟新分支 |
-| `regenerateMessage` | 目标 assistant 的 parent 下新建同级分支（**不删除旧分支**），激活叶切到新分支 |
-| `switchBranch` | 激活叶 = 目标分支最深后代（分叉取最新子） |
-| `continueMessage` | 不建行，delta 追加到同一消息（计时/字数对总内容累计，见 `./chat.md` §4） |
-| `generateResponse` | 激活叶为 user 时直接生成 assistant 子消息；否则报 `nothing_to_generate` |
-| `updateMessageContent` | assistant 原地改内容，不触发生成 |
-| `deleteMessages` | 各节点子树连删（事务）；**激活叶在被删子树内时回退到最近存活祖先、再下钻其最新存活后代**（删除后再解析，保证 2/2 分支删除其一后另一分支完整可达；全删光置 NULL）；同级只剩 1 支后不渲染 `‹1/1›` 徽标 |
+| `sendMessage` | 新 user 消息以当前激活叶为 parent；编辑后重发通过 `siblingOf` 以原消息 parent 为 parent，保留原分支 |
+| `setActiveLeaf` | 将激活叶精确设为所选消息，后续发送从该消息分叉 |
+| `regenerateMessage` | 在目标 assistant 的 parent 下新建同级分支，不删除旧分支 |
+| `switchBranch` | 激活叶切到目标分支最深后代；分叉取最新子 |
+| `continueMessage` | 不新建节点，追加到同一 assistant 消息 |
+| `updateMessageContent` | 原地修改 assistant 内容，不触发生成 |
+| `deleteMessages` | 事务内删除各节点子树；激活叶被删时先回退到最近存活祖先，再下钻最新存活后代；全删后置 NULL |
 
-**不变量：任何分支操作/删除不得破坏其他分支的可达性，删除后激活路径必须恢复到存活分支。**
+生成入口的节点位置和资格检查由 `./chat.md` 统一描述。
 
-## 3. 气泡操作 UI
+## 3. 消息操作与批量选择
 
-- user/assistant 均有 branch/copy/edit/delete 四个 icon 按钮（统一 `IconButton` + `icons.tsx` 图标库，见 `./ui-liquid-glass.md` §6）；assistant 额外 regenerate/continue；生成中全部禁用。
-- 分支导航 `‹ n/N ›` 只在 count>1 时出现（取自 `branch` 元数据）。
-- **右键任一气泡进入批量选择模式**：左侧统一对齐的复选框列、隐藏其余操作（分支导航暂隐藏），底部浮层显示计数 + 删除 + 退出（Esc 亦可）；delete 弹确认框。
+- user/assistant 提供 branch/copy/edit/delete，assistant 另有 regenerate/continue；生成中禁用这些操作。
+- 分支导航仅在 `count > 1` 时显示，不渲染 `‹1/1›`。
+- 右键气泡进入批量选择：复选框统一在左侧，隐藏普通操作和分支导航；底部工具栏提供计数、删除和退出。
+- 选择模式的浮层互斥与草稿保留见 `./ui-liquid-glass.md`；删除确认与 Esc 行为见 `./ux-guidelines.md`。
+- 修改本文件所述行为必须回归 `tests/db-messages.test.ts`。

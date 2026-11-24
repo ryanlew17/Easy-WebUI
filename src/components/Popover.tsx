@@ -1,5 +1,6 @@
 /**
- * AnchoredPopover：portal 到 document.body 的锚点浮层定位器（.glass-pop 液态玻璃）。
+ * AnchoredPopover：portal 到 document.body 的锚点浮层定位器。
+ * 默认使用 .glass-pop；variant=bare 时只负责定位，由内容自身承担材质。
  *
  * 为什么必须 portal：浮层若仍作为带 backdrop-filter 祖先（.glass-bar 顶栏 / 输入坞 /
  * .modal-overlay）的 DOM 子孙，祖先即构成 backdrop root，子层的 backdrop-filter 只能
@@ -19,11 +20,19 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+// @req REQ-2026-006：应用变量优先，零宽锚点仍保留正确缩放坐标。
+export function resolvePopoverZoom(appZoom: string, measuredZoom: number): number {
+  const preferred = Number.parseFloat(appZoom);
+  if (Number.isFinite(preferred) && preferred > 0) return preferred;
+  return Number.isFinite(measuredZoom) && measuredZoom > 0 ? measuredZoom : 1;
+}
+
 export function AnchoredPopover({
   anchorRef,
   popoverRef,
   mounted,
   closing,
+  variant = 'popover',
   placement = 'bottom',
   align = 'start',
   matchAnchorWidth = false,
@@ -43,6 +52,8 @@ export function AnchoredPopover({
   mounted: boolean;
   /** 退场动画期（data-closing，播反向动画，不重定位） */
   closing: boolean;
+  /** bare 只提供 body portal 与定位，由内容自身承担材质。 */
+  variant?: 'popover' | 'bare';
   /** bottom=锚点下方（下拉）；top=锚点上方（悬停提示类） */
   placement?: 'top' | 'bottom';
   /** start=与锚点左缘对齐（下拉）；center=相对锚点水平居中（提示类）；end=与锚点右缘对齐 */
@@ -73,7 +84,10 @@ export function AnchoredPopover({
       const br = anchor.getBoundingClientRect();
       // 缩放系数：视觉 px / layout px（zoom=1 时恒为 1，任何实现下自校准）
       const k = anchor.offsetWidth > 0 ? br.width / anchor.offsetWidth : 1;
-      const zoom = k > 0 ? k : 1;
+      const zoom = resolvePopoverZoom(
+        getComputedStyle(document.documentElement).getPropertyValue('--app-zoom'),
+        k,
+      );
       // 视口可用区（视觉 px 系）
       const vv = window.visualViewport;
       const rootRect = document.documentElement.getBoundingClientRect();
@@ -128,10 +142,12 @@ export function AnchoredPopover({
         tipRef.current = node;
         if (popoverRef) popoverRef.current = node;
       }}
-      className={`glass-pop pop-layer fixed z-50 ${className}`}
+      className={`${variant === 'bare' ? 'popover-bare' : 'glass-pop glass-optics'} pop-layer fixed z-50 ${className}`}
+      data-anchored-popover={variant}
       role={role}
       aria-label={ariaLabel}
       data-closing={closing ? 'true' : undefined}
+      data-positioned={pos ? 'true' : undefined}
       style={
         pos
           ? { top: pos.top, left: pos.left, ...(pos.width ? { width: pos.width } : null), ...style }

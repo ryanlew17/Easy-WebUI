@@ -1,51 +1,34 @@
-# 模型平台管理（Provider）
+# 模型平台
 
-> 适用范围：平台的增删改查、预置模板、模型列表拉取、连通性检测、API 格式自动探测的当前行为。
-> 何时读取：改设置页平台管理 UI、`fetchModels`/`testModel`/`detectFormat` 相关主进程或 mock 逻辑之前。
-> 最后更新：2026-09-13
-> 来源：原 prd.md §3；字段契约见 `shared/types.ts`，预置模板见 `shared/presets.ts`
+> 权威范围：平台编辑、预置模板、模型列表、连通性检测和格式自动探测。
+> 何时读取：修改平台设置页、`fetchModels`、`testModel`、`detectFormat` 或对应 Mock 之前。
+> 代码事实来源：`shared/types.ts`、`shared/presets.ts`、`electron/gateway/`。
+> 最后更新：2026-11-22
 
-## 1. 数据字段
+## 1. 数据与密钥边界
 
-每个"平台"（Provider）包含（类型定义见 contracts）：
+Provider、ProviderDraft、模型和检测结果的字段以 `shared/types.ts` 为准。
 
-| 字段 | 说明 |
-| --- | --- |
-| `id` | UUID v4 |
-| `name` | 用户自定义名称，如"OpenAI 官方""DeepSeek 中转" |
-| `base_url` | API 地址；存储时去掉末尾 `/`（端点拼接见 `../contracts/protocol-mapping.md` §1） |
-| `api_format` | 枚举：`openai-chat` / `openai-responses` / `anthropic` |
-| `api_key_cipher` | **加密后**的密钥密文，永不存明文；**只在主进程 DB 中存在**，渲染进程拿到的是 `has_key: boolean` |
-| `models` | 已启用模型列表：`{ id, display_name?, enabled, last_check? }`，`last_check: { status, latency_ms?, checked_at?, error? }` |
-| `created_at` / `updated_at` | 时间戳 |
+- `base_url` 存储时去掉末尾 `/`，端点拼接见 `../contracts/protocol-mapping.md`。
+- 渲染进程只获得 `has_key: boolean`，不获得 `api_key_cipher`；草稿密钥只用于本次保存或检测。
+- `models` 保存启用状态、可选显示名和 `last_check`。密钥加密、换 host 清钥与脱敏规则统一见 `./security.md`。
 
-## 2. 交互流程
+## 2. 新增与编辑
 
-**新增/编辑平台**（模态框）：
+1. 从 `shared/presets.ts` 的 12 家模板快捷填充，或使用完全自定义配置；点选模板不写数据库。
+2. 填写名称、API 地址和密钥，选择响应格式或使用自动探测。
+3. “检测模型列表”支持未保存的草稿密钥；成功后在复选列表中勾选启用模型。
+4. 列表获取失败时仍可手动输入模型 ID，不因列表接口不可用而阻断保存。
+5. 检测失败在表单内显示可读、已脱敏的错误。
 
-1. 12 家**预置模板**作为快捷填充（点选自动填 base_url/format，名称可改，不预写数据库；模板见 `shared/presets.ts`）；也支持完全自定义。
-2. 填写名称、API 地址、API 密钥，选择响应格式（默认 `openai-chat`，提供"自动探测"，见 §4）。
-3. 点击**"检测模型列表"**：openai 系 `GET /v1/models` + Bearer 头；anthropic 加 `x-api-key` + `anthropic-version` 头。超时 15s；失败在输入框下方给可读错误（状态码 + 服务商 message，**密钥已脱敏**）。支持用未保存的草稿密钥直接拉取。
-4. 成功后弹出模型复选列表，勾选写入 `models`（`enabled: true`）。
-5. **列表获取失败允许"手动添加模型"**（直接输入模型 ID）——很多中转站屏蔽列表接口，这是硬性要求。
+## 3. 连通性检测
 
-**连接检测**：
+- 单模型检测和全部检测使用最小请求：user 内容 `ping`、`max_tokens=1`、非流式。
+- 主进程检测并发为 4，通过 `model:check` 逐条推送进度，并持久化 `last_check`。
+- 状态徽章和交互式危险色遵循 `./ui-liquid-glass.md`，不在本文另定义颜色。
 
-- 单模型"检测"与"全部检测"（主进程并发 = 4，逐个事件回报 `model:check`）。
-- 检测 = 最小开销请求：`messages=[{role:'user',content:'ping'}]`、`max_tokens=1`、非流式。
-- 结果持久化到 `last_check`：绿色圆点 + 延迟毫秒数 / 红色圆点 + 悬浮错误详情。
+删除平台时通过 `affectedConversations` 提示关联会话会保留但需要重新指定模型；确认规则见 `./ux-guidelines.md`。
 
-**删除保护**：删除平台需确认，提示"该平台的 N 个会话将保留，但需重新指定模型"（`affectedConversations`）。
+## 4. 格式自动探测
 
-## 3. 密钥流转
-
-`ProviderDraft.api_key` 仅在新建/编辑的本次 IPC 传输中出现，主进程立即加密落库；渲染进程任何时刻只见 `has_key`。加解密与脱敏规则见 `./security.md`。
-
-## 4. 格式自动探测（尽力而为，可失败）
-
-按顺序尝试：
-
-1. Bearer 头 `GET /v1/models` → 成功则 `openai-chat`；
-2. 换 `x-api-key` + `anthropic-version` 头 → 成功则 `anthropic`。
-
-均失败保持用户选择并提示"无法自动识别，请手动选择"。探测只是辅助，**不阻断保存**。
+依次尝试 Bearer 头的 OpenAI 模型列表请求和 `x-api-key + anthropic-version` 的 Anthropic 请求；成功分别选择 openai-chat 或 anthropic。均失败时保留用户选择并提示手动选择，不阻断保存。

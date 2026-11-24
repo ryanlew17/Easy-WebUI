@@ -117,7 +117,7 @@ try {
   await shot('05-provider-saved');
 
   // 5. 平台卡片：全部检测（mock 随机延迟 300~900ms × N，并发 4）
-  must(await clickExact('全部检测'), '全部检测');
+  must(await clickAria('全部检测'), '全部检测');
   await sleep(3500);
   await shot('06-test-all-results');
 
@@ -260,7 +260,7 @@ try {
   await sleep(600);
   const aboutState = await page.evaluate(() => {
     const hasUpdateCard = !!document.querySelector('[aria-label="Online updates"]') ||
-      [...document.querySelectorAll('h3')].some((h) => h.textContent.includes('Online updates'));
+      [...document.querySelectorAll('h2,h3')].some((h) => h.textContent.includes('Online updates'));
     const checkBtn = [...document.querySelectorAll('button')].find(
       (b) => b.textContent.trim() === 'Check for updates',
     );

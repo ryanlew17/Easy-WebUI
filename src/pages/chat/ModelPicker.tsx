@@ -1,4 +1,5 @@
 /**
+ * @req REQ-2026-006：选中态使用可读的语义强调色。
  * 模型选择器：按平台分组列出已启用模型（enabledModelsByProvider）。
  * 触发按钮显示当前模型（长名 ellipsis）；弹层为 .glass-pop 强玻璃浮层（临时态，防透底），
  * 经 AnchoredPopover portal 到 document.body —— 顶栏 .glass-bar 自带 backdrop-filter，
@@ -11,6 +12,8 @@ import { enabledModelsByProvider, useProvidersStore } from '../../store/provider
 import { useUiStore } from '../../store/ui';
 import { useDelayedUnmount } from '../../lib/useDelayedUnmount';
 import { AnchoredPopover } from '../../components/Popover';
+import { useGlassSurface } from '../../components/GlassMaterialProvider';
+import { IconCheck, IconChevronDown } from '../../components/icons';
 
 export function ModelPicker({
   providerId,
@@ -28,6 +31,7 @@ export function ModelPicker({
   const pop = useDelayedUnmount(open, 150);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  useGlassSurface('model-picker', listRef, open && pop.mounted);
 
   useEffect(() => {
     if (!open) return;
@@ -51,29 +55,22 @@ export function ModelPicker({
   const currentLabel = model ?? t('chat.selectModel');
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
+    <div ref={rootRef} className="model-picker-root relative min-w-0">
       <button
         type="button"
-        className="btn btn-surface max-w-full"
+        className="btn model-picker-trigger max-w-full"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={t('aria.modelPicker')}
       >
         <span className="truncate">{currentLabel}</span>
-        <svg
-          width="10"
-          height="6"
-          viewBox="0 0 10 6"
-          aria-hidden="true"
-          className="flex-none"
-          style={{
-            transform: open ? 'rotate(180deg)' : undefined,
-            transition: 'transform var(--dur-fast) var(--ease-interactive)',
-          }}
+        <span
+          className="inline-flex flex-none transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : undefined }}
         >
-          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        </svg>
+          <IconChevronDown />
+        </span>
       </button>
 
       {pop.mounted ? (
@@ -104,7 +101,7 @@ export function ModelPicker({
           ) : (
             groups.map(({ provider, models }) => (
               <div key={provider.id} className="mb-1 last:mb-0">
-                <div className="truncate px-2.5 pb-1 pt-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-tertiary">
+                <div className="truncate px-2.5 pb-1 pt-1.5 text-caption font-semibold uppercase tracking-wide text-tertiary">
                   {provider.name}
                 </div>
                 {models.map((m) => {
@@ -118,7 +115,7 @@ export function ModelPicker({
                       className="select-option w-full"
                       style={{
                         background: active ? 'var(--accent-soft)' : undefined,
-                        color: active ? 'var(--accent)' : undefined,
+                        color: active ? 'var(--accent-text)' : undefined,
                       }}
                       onClick={() => {
                         onSelect(provider.id, m.id);

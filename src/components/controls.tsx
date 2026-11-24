@@ -1,4 +1,5 @@
 /**
+ * @req REQ-2026-006：选中态文字与实心填充使用分离的对比度令牌。
  * 表单控件集：Toggle / Checkbox / SliderField（滑块+数字）/ NumberField / TextField /
  * TextAreaField / SelectField / SegmentedControl / FieldRow。
  * 最小点击区 ≥32px（docs/design/ui-liquid-glass.md，缩放鲁棒性）；全部可 Tab 到达、aria-label 由调用方传 i18n 文案。
@@ -13,6 +14,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { createPortal } from 'react-dom';
 import { useDelayedUnmount } from '../lib/useDelayedUnmount';
 import { AnchoredPopover } from './Popover';
+import { FormRow } from './FormLayout';
+import { IconChevronDown, IconTrash } from './icons';
 
 /** 按 step 的小数位取整（step=1 → 整数；step=0.05 → 两位小数） */
 export function roundForStep(v: number, step: number): number {
@@ -37,6 +40,7 @@ export function IconButton({
   disabled,
   disabledHint,
   active,
+  expanded,
   onClick,
   children,
   className,
@@ -56,6 +60,8 @@ export function IconButton({
   disabledHint?: string;
   /** 开启态高亮（Think 胶囊等 toggle 场景） */
   active?: boolean;
+  /** disclosure 展开状态 */
+  expanded?: boolean;
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
   className?: string;
@@ -70,22 +76,17 @@ export function IconButton({
           : 'btn-ghost';
   const dim =
     size === 'sm'
-      ? { minWidth: '1.5rem', minHeight: '1.5rem', padding: '0.25rem' }
-      : { minWidth: '2rem', minHeight: '2rem', padding: '0.375rem' };
+      ? { minWidth: '1.5rem', minHeight: '1.5rem', padding: round ? '0' : '0.25rem' }
+      : { minWidth: '2rem', minHeight: '2rem', padding: round ? '0' : '0.375rem' };
   return (
     <button
       type="button"
-      className={`btn ${variantClass}${className ? ` ${className}` : ''}`}
-      style={{
-        ...dim,
-        borderRadius: round ? 'var(--radius-pill)' : 'var(--radius-m)',
-        ...(active
-          ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
-          : undefined),
-      }}
+      className={`btn icon-button${round ? ' btn-round' : ''} ${variantClass}${className ? ` ${className}` : ''}`}
+      style={dim}
       title={disabled ? (disabledHint ?? title ?? label) : (title ?? label)}
       aria-label={label}
       aria-pressed={active === undefined ? undefined : active}
+      aria-expanded={expanded}
       disabled={disabled}
       onClick={onClick}
     >
@@ -144,16 +145,8 @@ export function SegmentedControl<T extends string>({
           type="button"
           aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
-          className="btn btn-ghost"
-          style={{
-            minHeight: '1.75rem',
-            padding: '0 0.75rem',
-            fontSize: '0.75rem',
-            borderRadius: 'var(--radius-pill)',
-            background: value === opt.value ? 'var(--row-bg-active)' : 'transparent',
-            boxShadow: value === opt.value ? '0 1px 3px rgba(0,0,0,0.12)' : undefined,
-            color: value === opt.value ? 'var(--text-primary)' : 'var(--text-secondary)',
-          }}
+          className="btn btn-ghost seg-option"
+          data-active={value === opt.value ? 'true' : undefined}
         >
           {opt.label}
         </button>
@@ -530,26 +523,13 @@ export function SelectField<T extends string>({
           }
         }}
       >
-        <span className="truncate">{selectedLabel}</span>
-        <svg
-          width="10"
-          height="6"
-          viewBox="0 0 10 6"
-          aria-hidden="true"
-          className="flex-none"
-          style={{
-            transform: open ? 'rotate(180deg)' : undefined,
-            transition: 'transform var(--dur-fast) var(--ease-interactive)',
-          }}
+        <span className="select-label">{selectedLabel}</span>
+        <span
+          className="inline-flex flex-none transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : undefined }}
         >
-          <path
-            d="M1 1l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
+          <IconChevronDown />
+        </span>
       </button>
 
       {pop.mounted ? (
@@ -579,12 +559,12 @@ export function SelectField<T extends string>({
                     : active
                       ? 'var(--row-bg-hover)'
                       : undefined,
-                  color: selected ? 'var(--accent)' : undefined,
+                  color: selected ? 'var(--accent-text)' : undefined,
                 }}
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={() => commit(i)}
               >
-                <span className="truncate">{opt.label}</span>
+                <span className="select-label">{opt.label}</span>
                 {selected ? (
                   <svg
                     width="11"
@@ -743,7 +723,7 @@ export function InfoTip({ text }: { text: string }) {
             <div
               ref={tipRef}
               role="tooltip"
-              className="glass-pop pop-layer fixed z-50 whitespace-normal px-2.5 py-2 text-left text-xs leading-relaxed"
+              className="glass-pop glass-optics pop-layer fixed z-50 whitespace-normal px-2.5 py-2 text-left text-xs leading-relaxed"
               data-closing={pop.closing ? 'true' : undefined}
               style={
                 pos
@@ -767,6 +747,7 @@ export function FieldRow({
   modified,
   onReset,
   resetLabel,
+  layout = 'inline',
   children,
 }: {
   label: string;
@@ -777,40 +758,32 @@ export function FieldRow({
   onReset?: () => void;
   /** 垃圾桶按钮的 aria-label / title（i18n） */
   resetLabel?: string;
+  layout?: 'inline' | 'stack';
   children: ReactNode;
 }) {
   return (
-    <div className="py-2">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        {modified ? <span className="param-dot" aria-hidden="true" /> : null}
-        <span
-          className="text-xs font-medium"
-          style={{ color: modified ? 'var(--accent)' : 'var(--text-secondary)' }}
-        >
-          {label}
-        </span>
-        {hint ? <InfoTip text={hint} /> : null}
-        {modified && onReset ? (
-          <button
-            type="button"
-            className="btn btn-ghost param-icon-btn"
-            title={resetLabel}
-            aria-label={resetLabel}
-            onClick={onReset}
-          >
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9.5h6.6L12 4"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        ) : null}
-      </div>
+    <FormRow
+      layout={layout}
+      label={
+        <>
+          {modified ? <span className="param-dot" aria-hidden="true" /> : null}
+          <span style={{ color: modified ? 'var(--accent-text)' : undefined }}>{label}</span>
+          {hint ? <InfoTip text={hint} /> : null}
+          {modified && onReset ? (
+            <button
+              type="button"
+              className="btn btn-ghost param-icon-btn"
+              title={resetLabel}
+              aria-label={resetLabel}
+              onClick={onReset}
+            >
+              <IconTrash />
+            </button>
+          ) : null}
+        </>
+      }
+    >
       {children}
-    </div>
+    </FormRow>
   );
 }

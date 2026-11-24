@@ -27,7 +27,7 @@ export function ToastHost() {
           <div
             key={toast.id}
             role="status"
-            className="toast-item glass-pop pointer-events-auto flex items-start gap-2 px-3 py-2.5"
+            className="toast-item glass-pop glass-optics pointer-events-auto flex items-start gap-2 px-3 py-2.5"
             data-closing={closing ? 'true' : undefined}
             aria-hidden={closing || undefined}
           >

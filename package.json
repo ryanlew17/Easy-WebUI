@@ -1,6 +1,6 @@
 {
   "name": "easy-webui",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "private": true,
   "description": "Easy WebUI — local-first multi-provider LLM chat client",
   "main": "dist-electron/electron/main.js",
@@ -15,6 +15,10 @@
     "test": "vitest run",
     "preperf": "node scripts/node-version-guard.mjs",
     "perf": "npm run build && node scripts/perf-main.mjs && node scripts/perf-renderer.mjs",
+    "preperf:gpu": "node scripts/node-version-guard.mjs",
+    "perf:gpu": "npm run build && node scripts/perf-renderer.mjs --gpu --runs=5",
+    "preperf:glass": "node scripts/node-version-guard.mjs",
+    "perf:glass": "npm run build && node scripts/perf-glass.mjs --runs=1",
     "preperf:electron": "node scripts/node-version-guard.mjs",
     "perf:electron": "npm run build && node scripts/perf-electron.mjs",
     "preshot": "node scripts/node-version-guard.mjs",

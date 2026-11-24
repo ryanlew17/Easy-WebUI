@@ -37,7 +37,7 @@
 | --- | --- |
 | ![模型选择器](docs/screenshots/04-model-picker-blur-zh.png) | ![新增平台](docs/screenshots/03-provider-modal-light-zh.png) |
 
-更多见 [docs/screenshots/](./docs/screenshots/)：欢迎页、设置、生成中「思考中…」状态与多行输入坞（上方浮出「生成回复」液态玻璃胶囊）等 8 张。
+更多见 [docs/screenshots/](./docs/screenshots/)：欢迎页、设置、平台与模型选择、深浅主题会话、流式生成，以及上方浮出「生成回复」液态玻璃胶囊的多行输入坞，共 8 张。
 
 ## 数据与隐私
 

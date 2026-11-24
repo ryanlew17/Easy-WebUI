@@ -83,7 +83,7 @@
       },
       "noConversation": {
         "title": "Start a new conversation",
-        "desc": "Pick a model and type a message to begin. Markdown, code highlighting and streaming are supported.",
+        "desc": "Start with a blank conversation, with Markdown, code highlighting, and streaming responses.",
         "cta": "New conversation",
         "hintShortcut": "Shortcut Ctrl/Cmd+N"
       }
@@ -279,6 +279,8 @@
       "save": "Save provider"
     },
     "general": {
+      "preferences": "Preferences",
+      "systemInfo": "System information",
       "language": "Language",
       "langSystem": "System",
       "theme": "Theme",

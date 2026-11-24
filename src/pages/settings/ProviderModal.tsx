@@ -18,7 +18,8 @@ import { shouldClearKeyOnBaseUrlChange } from '@shared/url';
 import { useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { Modal } from '../../components/Modal';
-import { Checkbox } from '../../components/controls';
+import { Checkbox, IconButton } from '../../components/controls';
+import { IconClose } from '../../components/icons';
 import { summarizeIpcError } from '../../lib/errors';
 
 const FORMATS: ApiFormat[] = ['openai-chat', 'openai-responses', 'anthropic'];
@@ -435,15 +436,13 @@ export function ProviderModal({
                   <span className="truncate" title={m.id}>
                     {m.display_name || m.id}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost icon-btn"
-                    style={{ width: '1.25rem', height: '1.25rem', minHeight: '1.25rem' }}
-                    aria-label={`${t('common.remove')} ${m.id}`}
+                  <IconButton
+                    size="sm"
+                    label={`${t('common.remove')} ${m.id}`}
                     onClick={() => setModels((prev) => prev.filter((x) => x.id !== m.id))}
                   >
-                    ×
-                  </button>
+                    <IconClose />
+                  </IconButton>
                 </span>
               ))}
             </div>

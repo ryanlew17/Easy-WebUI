@@ -46,7 +46,7 @@ Details and current behavior live in the linked documents from `docs/README.md`.
 - Three layers: `electron/` (main), `src/` (renderer), `shared/` (only cross-process location). `shared/types.ts` defines the IPC contract.
 - Renderer never imports `electron/` or Node modules. Keep Vite `base: './'` for Electron `file://` loading.
 - New/modified business code and tests tag comments with `@req REQ-YYYY-NNN` or `@issue #123` where applicable; cite stable paths, not PRD section numbers.
-- Keep the `min-w-0` chain on flex ancestors. Icons use `src/components/icons.tsx`; concise Chinese comments are acceptable.
+- Keep the `min-w-0` chain on flex ancestors. Standard hit targets are ≥32×32, with a ≥24×24 compact tier; small icons may use non-overlapping invisible hit-area expansion. Icons use `src/components/icons.tsx`; concise Chinese comments are acceptable.
 - `build.npmRebuild: false` and `build.electronDist` are measured workarounds—see `docs/architecture.md`; do not clean them up.
 
 ## Commands
@@ -58,10 +58,14 @@ npm run typecheck      # Web + Electron configs
 npm test               # Vitest
 npm run build          # dist/ + dist-electron/ + preload
 npm run perf           # build + isolated main/renderer performance baselines
-npm run perf:electron  # build + 3 cold starts in temporary app/userData dirs
+npm run perf:gpu       # build + GPU renderer baseline
+npm run perf:glass     # build + interactions, frame/Paint and memory checks
+npm run perf:electron  # build + 5 seeded cold starts in temporary app/userData dirs
 npx electron-builder --win portable nsis --publish never
 node scripts/probe-verify-portal.mjs
 node scripts/e2e-ui-polish.mjs
+node scripts/e2e-chat-ux.mjs
+node scripts/e2e-glass-electron.mjs
 npm run shot
 ```
 

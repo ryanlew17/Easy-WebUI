@@ -1,7 +1,7 @@
 /**
  * 单条消息气泡（LM Studio 式交互）：
- * - user：右侧 accent 淡色气泡；assistant：左侧半透明纯色气泡（均不走 blur —— 性能红线）；
- * - 最小宽度：assistant 12rem（思考计时行/消息头/短回复不逐字竖排）、user 3rem（单字不破行）；
+ * - user：右侧中性气泡；assistant：开放阅读排版（均不走 blur —— 性能红线）；
+ * - 最小宽度：user 3rem；assistant 由阅读列约束，短回复保持头部单行；
  * - 操作行（hover/focus-within 显现，IconButton 统一图标）：branch / copy / edit / delete，
  *   assistant 追加 regenerate / continue；生成中全部禁用（置灰 + title 提示）；
  * - 分支导航 ‹ n/N ›：msg.branch.count>1 时显示在操作行左侧，调 switchBranch；
@@ -18,17 +18,13 @@ import { Checkbox, IconButton } from '../../components/controls';
 import {
   IconBranch,
   IconCheck,
-  IconClock,
   IconClose,
   IconContinue,
   IconCopy,
   IconChevronLeft,
   IconChevronRight,
   IconEdit,
-  IconFlag,
-  IconGauge,
   IconRegenerate,
-  IconTokens,
   IconTrash,
 } from '../../components/icons';
 import { classifyError } from '../../lib/errors';
@@ -67,14 +63,11 @@ function ReasoningBlock({
         })
       : t('chat.message.reasoning');
   return (
-    <details
-      className="mb-2 rounded-control px-2.5 py-1.5 text-xs text-secondary"
-      style={{ background: 'var(--code-bg)', border: '0.5px solid var(--separator)' }}
-    >
-      <summary className="cursor-pointer select-none font-medium" style={{ minHeight: '1.5rem' }}>
+    <details className="reasoning-block mb-2 text-caption text-secondary">
+      <summary className="reasoning-summary cursor-pointer select-none font-medium">
         {title}
       </summary>
-      <div className="whitespace-pre-wrap break-words pt-1 leading-relaxed">{reasoning}</div>
+      <div className="reasoning-content whitespace-pre-wrap break-words leading-relaxed">{reasoning}</div>
     </details>
   );
 }
@@ -85,58 +78,48 @@ function StatsRow({ msg }: { msg: Message }) {
   const st = msg.stats;
   if (!st) return null;
   const lang = i18n.language;
-  const items: { icon: React.ReactNode; text: string; key: string }[] = [];
+  const items: { text: string; key: string }[] = [];
   const tokens = msg.token_count ?? 0;
-  // tok/s = token_count / max(total_ms - ttft_ms, 1)s；无 ttft 时用 total
   if (st.total_ms != null && tokens > 0) {
     const genMs = Math.max(st.total_ms - (st.ttft_ms ?? 0), 1);
     items.push({
-      icon: <IconGauge />,
       text: t('chat.stats.tokPerSec', { rate: formatRate(tokens / (genMs / 1000), lang) }),
       key: 'rate',
     });
   }
   if (tokens > 0) {
-    items.push({
-      icon: <IconTokens />,
-      text: t('chat.stats.tokens', { count: tokens }),
-      key: 'tokens',
-    });
+    items.push({ text: t('chat.stats.tokens', { count: tokens }), key: 'tokens' });
   }
   if (st.ttft_ms != null) {
     items.push({
-      icon: <IconClock />,
       text: t('chat.stats.ttft', { duration: formatDurationMs(st.ttft_ms, lang) }),
       key: 'ttft',
     });
   }
   if (st.total_ms != null) {
     items.push({
-      icon: <IconClock />,
       text: t('chat.stats.total', { duration: formatDurationMs(st.total_ms, lang) }),
       key: 'total',
     });
   }
   if (st.finish_reason) {
-    items.push({
-      icon: <IconFlag />,
-      text: t('chat.stats.finishReason', { reason: st.finish_reason }),
-      key: 'finish',
-    });
+    items.push({ text: t('chat.stats.finishReason', { reason: st.finish_reason }), key: 'finish' });
   }
   if (items.length === 0) return null;
+
+  const summary = items.filter((item) => item.key === 'rate' || item.key === 'tokens');
+  const details = items.filter((item) => item.key !== 'rate' && item.key !== 'tokens');
+  const summaryContent = summary.map((item) => <span key={item.key}>{item.text}</span>);
+  if (details.length === 0) {
+    return <div className="message-stats message-stats-summary">{summaryContent}</div>;
+  }
   return (
-    <div
-      className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.6875rem] text-tertiary"
-      aria-hidden="true"
-    >
-      {items.map((it) => (
-        <span key={it.key} className="inline-flex items-center gap-1">
-          {it.icon}
-          <span>{it.text}</span>
-        </span>
-      ))}
-    </div>
+    <details className="message-stats">
+      <summary className="message-stats-summary">{summaryContent}</summary>
+      <div className="message-stats-details">
+        {details.map((item) => <span key={item.key}>{item.text}</span>)}
+      </div>
+    </details>
   );
 }
 
@@ -171,7 +154,7 @@ function BranchNav({
       >
         <IconChevronLeft />
       </IconButton>
-      <span className="min-w-8 text-center text-[0.6875rem] tabular-nums text-tertiary">
+      <span className="min-w-8 text-center text-caption tabular-nums text-tertiary">
         {b.index}/{b.count}
       </span>
       <IconButton
@@ -207,7 +190,7 @@ export function ErrorCard({
         border: '0.5px solid var(--danger)',
       }}
     >
-      <p className="mb-2 text-[0.8125rem] font-semibold" style={{ color: 'var(--danger-text)' }}>
+      <p className="mb-2 text-control font-semibold" style={{ color: 'var(--danger-text)' }}>
         {t('chat.error.title')}
       </p>
       <dl className="m-0 space-y-1.5 text-xs leading-relaxed">
@@ -344,24 +327,17 @@ export const MessageBubble = memo(function MessageBubble({
             长内容由 pre/表格自身的 overflow-x:auto 内部滚动，列表永不出现横向滚动条 */}
         <div className={`group min-w-0 max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
           <div
-            className="row-surface min-w-0 max-w-full px-3.5 py-2.5"
+            className={`row-surface bubble-surface max-w-full ${isUser ? 'bubble-user min-w-12 px-3.5 py-2.5' : 'bubble-assistant min-w-0 py-1'}`}
             style={{
-              background: isUser ? 'var(--bubble-user-bg)' : 'var(--row-bg)',
-              borderRadius: 'var(--radius-panel)',
-              /* 最小宽度：user 7.5rem / assistant 12rem —— 气泡宽度至少能单行容纳
-                 消息头（角色/时间/tokens）与"思考中…"计时行，短回复不再尴尬折行。
-                 （不可用 min(...,100%)：气泡处于 fit-content 宽度上下文中，百分比无法解析会归零） */
-              minWidth: isUser ? '7.5rem' : '12rem',
-              // 选择模式勾选反馈：accent 发丝描边（不动布局）
-              outline: selectionMode && selected ? '1.5px solid var(--accent)' : undefined,
-              outlineOffset: '1px',
+              background: selectionMode && selected ? 'var(--accent-soft)' : undefined,
+              boxShadow: selectionMode && selected ? 'inset 0 0 0 1px var(--accent)' : undefined,
             }}
           >
             {/* 内容区：分支切换时 key=msg.id 触发 150ms 淡入（.fade-in-fast，reduced-motion 门控） */}
             <div key={msg.id} className="fade-in-fast">
               {/* 头部行整体 nowrap：宽度不足时避免"角色/时间/tokens"被 flex 压缩后竖排折行 */}
               <div
-                className="mb-1 flex flex-nowrap items-center gap-2 whitespace-nowrap text-[0.6875rem] text-tertiary"
+                className="message-meta mb-1 flex flex-nowrap items-center gap-2 whitespace-nowrap text-caption text-tertiary"
                 aria-hidden="true"
               >
                 <span className="font-medium">
@@ -420,7 +396,7 @@ export const MessageBubble = memo(function MessageBubble({
                   ) : null}
                   {msg.content ? (
                     isUser ? (
-                      <div className="whitespace-pre-wrap break-words text-[0.875rem] leading-relaxed">
+                      <div className="whitespace-pre-wrap break-words text-body leading-relaxed">
                         {msg.content}
                       </div>
                     ) : (
@@ -430,7 +406,7 @@ export const MessageBubble = memo(function MessageBubble({
                     <TypingIndicator />
                   ) : null}
                   {msg.partial && !streaming ? (
-                    <p className="mt-1.5 text-[0.6875rem]" style={{ color: 'var(--warning-text)' }}>
+                    <p className="mt-1.5 text-caption" style={{ color: 'var(--warning-text)' }}>
                       {t('chat.message.partial')}
                     </p>
                   ) : null}

@@ -1,152 +1,240 @@
 /*
  * 设计令牌：液态玻璃 + 双主题。
  * - 尺寸一律 rem；仅边框线宽允许 px。
- * - 玻璃材质：方向性边缘（顶缘更亮）+ 双 specular 内嵌高光 + 分层环境投影；
- *   布局语言"画布上的卡片"——全屏发丝分隔线一律不用，分组靠圆角卡片与抽屉底色。
- * - 性能红线：同屏玻璃模糊层 ≤ 5（消息流顶栏 / 输入卡片 / 模态）。
- * - 动效：--dur-fast/base/slow + 两档缓动；圆角 xs/s/m/l/panel/pill。
+ * - 内容层保持中性；玻璃材质用于悬浮导航、输入坞和必要浮层。
+ * - 分组依靠标题、留白和抽屉底色，不用通栏发丝线或卡中卡。
+ * - 性能红线：同屏玻璃模糊层 ≤ 5。
+ * - 四档语义圆角：8 / 12 / 16 / pill；统一 squircle 渐进增强。
  */
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  /* 常驻 chrome 玻璃 */
-  --glass-bg: rgba(255, 255, 255, 0.52);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-border-top: rgba(255, 255, 255, 0.85);
-  --glass-blur: 28px;
-  --glass-saturate: 180%;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  /* 浮层玻璃（下拉/菜单/Toast/tooltip） */
-  --glass-bg-pop: rgba(255, 255, 255, 0.72);
-  --glass-blur-pop: 40px;
-  --glass-saturate-pop: 200%;
-  --glass-shadow-pop:
-    0 12px 40px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06);
-  /* 模态玻璃 */
-  --glass-bg-modal: rgba(255, 255, 255, 0.8);
-  --glass-blur-modal: 44px;
-  --glass-shadow-modal:
-    0 24px 64px rgba(0, 0, 0, 0.16),
-    0 4px 16px rgba(0, 0, 0, 0.08);
-  /* specular 内嵌高光（顶亮 / 底微亮，模拟玻璃受光） */
-  --specular-top: rgba(255, 255, 255, 0.7);
-  --specular-bottom: rgba(255, 255, 255, 0.16);
+  /* @req REQ-2026-006：内容层保持中性，透明材质只属于悬浮控制层。 */
+  --surface-canvas-bg: #f2f3f5;
+  --surface-canvas-gradient:
+    radial-gradient(ellipse at 8% 0% in oklab, rgba(113, 158, 215, 0.24), transparent 58%),
+    radial-gradient(ellipse at 95% 92% in oklab, rgba(224, 181, 145, 0.18), transparent 60%);
+  --surface-drawer-bg: rgba(255, 255, 255, 0.34);
+  --surface-chrome-bg: rgba(248, 250, 255, 0.42);
+  --surface-composer-bg: rgba(250, 252, 255, 0.44);
+  --surface-chrome-edge: rgba(255, 255, 255, 0.58);
+  --surface-chrome-edge-top: rgba(255, 255, 255, 0.94);
+  --surface-chrome-blur: 1.5rem;
+  --surface-chrome-saturate: 180%;
+  --surface-chrome-shadow: 0 0.75rem 2.5rem rgba(34, 43, 58, 0.1);
+  --surface-chrome-highlight-top: rgba(255, 255, 255, 0.76);
+  --surface-chrome-highlight-bottom: rgba(118, 154, 199, 0.18);
+  --surface-card-bg: rgba(255, 255, 255, 0.48);
+  --surface-card-hover: rgba(255, 255, 255, 0.66);
+  --surface-card-active: rgba(255, 255, 255, 0.86);
+  --surface-card-shadow: 0 0.375rem 1.5rem rgba(34, 43, 58, 0.06);
+  --surface-control-bg: rgba(91, 96, 110, 0.07);
+  --surface-control-shadow: inset 0 0 0 0.5px var(--control-border);
+  --surface-pop-bg: rgba(250, 252, 255, 0.76);
+  --surface-pop-edge: rgba(255, 255, 255, 0.72);
+  --surface-pop-blur: 1.75rem;
+  --surface-pop-saturate: 180%;
+  --surface-pop-shadow:
+    0 1rem 3rem rgba(34, 43, 58, 0.14),
+    0 0.125rem 0.5rem rgba(34, 43, 58, 0.06);
+  --surface-pop-highlight-top: rgba(255, 255, 255, 0.82);
+  --surface-pop-highlight-bottom: rgba(118, 154, 199, 0.18);
+  --surface-modal-bg: #f7f8fa;
+  --surface-modal-edge: rgba(255, 255, 255, 0.72);
+  --surface-modal-blur: 0rem;
+  --surface-modal-saturate: 100%;
+  --surface-modal-highlight-top: rgba(255, 255, 255, 0.82);
+  --surface-modal-highlight-bottom: rgba(118, 154, 199, 0.12);
+  --surface-modal-shadow:
+    0 1.5rem 4rem rgba(20, 28, 40, 0.2),
+    0 0.25rem 1rem rgba(20, 28, 40, 0.08);
 
-  --text-primary: rgba(0, 0, 0, 0.85);
-  --text-secondary: rgba(0, 0, 0, 0.55);
-  --text-tertiary: rgba(0, 0, 0, 0.38);
-
-  --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.12);
+  --text-primary: #191b20;
+  --text-secondary: #424952;
+  --text-tertiary: #56606d;
+  --accent: #0068c9;
+  --accent-text: #005da9;
+  --accent-fill: #0068bd;
+  --accent-soft: rgba(0, 104, 201, 0.11);
   --on-accent: #ffffff;
+  --control-border: rgba(71, 78, 90, 0.14);
+  --focus-ring: #0068c9;
 
-  --danger: #ff3b30;
-  --danger-text: #d70015;
-  --success: #34c759;
-  --success-text: #248a3d;
-  --warning: #ff9500;
-  --warning-text: #9a5b00;
-  --warning-bg: rgba(255, 204, 0, 0.16);
+  --danger: #d92d20;
+  --danger-text: #b42318;
+  --success: #15803d;
+  --success-text: #166534;
+  --warning: #b45309;
+  --warning-text: #92400e;
+  --warning-bg: rgba(180, 83, 9, 0.1);
 
-  --bg-base: #f2f2f7;
-  /* 抽屉（侧栏 / 右栏）：半透明底色分区，无 blur 无边框 */
-  --drawer-bg: rgba(120, 120, 128, 0.09);
-  /* 列表行 / 气泡 / 卡片：半透明纯色 + 柔和卡片投影（不走 blur） */
-  --row-bg: rgba(255, 255, 255, 0.72);
-  --row-bg-hover: rgba(255, 255, 255, 0.88);
-  --row-bg-active: rgba(255, 255, 255, 0.96);
-  --card-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 6px 20px rgba(0, 0, 0, 0.05);
-  --bubble-user-bg: rgba(10, 132, 255, 0.12);
-  --separator: rgba(60, 60, 67, 0.12);
-  --code-bg: rgba(118, 118, 128, 0.12);
-  --input-bg: rgba(118, 118, 128, 0.1);
-  --input-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-  --overlay-bg: rgba(0, 0, 0, 0.28);
-
-  /* 窗口背景：柔和多段径向渐变，供玻璃"折射" */
-  --bg-gradient:
-    radial-gradient(at 12% 18%, rgba(10, 132, 255, 0.16), transparent 55%),
-    radial-gradient(at 86% 8%, rgba(191, 90, 242, 0.13), transparent 52%),
-    radial-gradient(at 72% 88%, rgba(48, 209, 88, 0.11), transparent 55%),
-    radial-gradient(at 22% 92%, rgba(255, 159, 10, 0.09), transparent 50%);
-  --noise-opacity: 0.028;
+  /* 兼容既有调用点的别名；新样式只引用语义令牌。 */
+  --glass-bg: var(--surface-chrome-bg);
+  --glass-border: var(--surface-chrome-edge);
+  --glass-border-top: var(--surface-chrome-edge-top);
+  --glass-blur: var(--surface-chrome-blur);
+  --glass-saturate: var(--surface-chrome-saturate);
+  --glass-shadow: var(--surface-chrome-shadow);
+  --glass-bg-pop: var(--surface-pop-bg);
+  --glass-blur-pop: var(--surface-pop-blur);
+  --glass-saturate-pop: var(--surface-pop-saturate);
+  --glass-shadow-pop: var(--surface-pop-shadow);
+  --glass-bg-modal: var(--surface-modal-bg);
+  --glass-blur-modal: var(--surface-modal-blur);
+  --glass-shadow-modal: var(--surface-modal-shadow);
+  --specular-top: var(--surface-chrome-highlight-top);
+  --specular-bottom: var(--surface-chrome-highlight-bottom);
+  --bg-base: var(--surface-canvas-bg);
+  --bg-gradient: var(--surface-canvas-gradient);
+  --drawer-bg: var(--surface-drawer-bg);
+  --row-bg: var(--surface-card-bg);
+  --row-bg-hover: var(--surface-card-hover);
+  --row-bg-active: var(--surface-card-active);
+  --card-shadow: var(--surface-card-shadow);
+  --bubble-user-bg: rgba(76, 72, 64, 0.075);
+  --separator: rgba(60, 60, 67, 0.1);
+  --code-bg: rgba(90, 96, 110, 0.09);
+  --input-bg: var(--surface-control-bg);
+  --input-shadow: var(--surface-control-shadow);
+  --overlay-bg: rgba(15, 23, 42, 0.36);
+  --optics-edge-start: rgba(255, 255, 255, 0.94);
+  --optics-edge-middle: rgba(74, 82, 96, 0.16);
+  --optics-edge-end: rgba(255, 255, 255, 0.4);
+  --optics-ring-cool: rgba(255, 255, 255, 0.38);
+  --optics-ring-warm: rgba(95, 103, 116, 0.1);
+  --composer-highlight-core: rgba(255, 255, 255, 0.48);
+  --composer-highlight-color: rgba(105, 115, 130, 0.12);
+  --noise-opacity: 0.012;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --glass-bg: rgba(30, 30, 32, 0.52);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-top: rgba(255, 255, 255, 0.22);
-  --glass-blur: 28px;
-  --glass-saturate: 180%;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --glass-bg-pop: rgba(38, 38, 42, 0.66);
-  --glass-blur-pop: 40px;
-  --glass-saturate-pop: 200%;
-  --glass-shadow-pop:
-    0 12px 40px rgba(0, 0, 0, 0.5),
-    0 2px 8px rgba(0, 0, 0, 0.35);
-  --glass-bg-modal: rgba(32, 32, 36, 0.74);
-  --glass-blur-modal: 44px;
-  --glass-shadow-modal:
-    0 24px 64px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.4);
-  --specular-top: rgba(255, 255, 255, 0.18);
-  --specular-bottom: rgba(255, 255, 255, 0.04);
+  --surface-canvas-bg: #101216;
+  --surface-canvas-gradient:
+    radial-gradient(ellipse at 8% 0% in oklab, rgba(74, 128, 192, 0.18), transparent 58%),
+    radial-gradient(ellipse at 95% 92% in oklab, rgba(137, 105, 165, 0.12), transparent 60%);
+  --surface-drawer-bg: rgba(27, 32, 40, 0.72);
+  --surface-chrome-bg: rgba(23, 28, 37, 0.48);
+  --surface-composer-bg: rgba(25, 31, 41, 0.46);
+  --surface-chrome-edge: rgba(255, 255, 255, 0.16);
+  --surface-chrome-edge-top: rgba(255, 255, 255, 0.32);
+  --surface-chrome-blur: 1.5rem;
+  --surface-chrome-saturate: 180%;
+  --surface-chrome-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.38);
+  --surface-chrome-highlight-top: rgba(255, 255, 255, 0.28);
+  --surface-chrome-highlight-bottom: rgba(115, 177, 255, 0.12);
+  --surface-card-bg: rgba(32, 37, 46, 0.72);
+  --surface-card-hover: rgba(44, 51, 62, 0.82);
+  --surface-card-active: rgba(55, 64, 77, 0.9);
+  --surface-card-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.18);
+  --surface-control-bg: rgba(180, 195, 215, 0.09);
+  --surface-control-shadow: inset 0 0 0 0.5px var(--control-border);
+  --surface-pop-bg: rgba(27, 33, 43, 0.78);
+  --surface-pop-edge: rgba(255, 255, 255, 0.2);
+  --surface-pop-blur: 1.75rem;
+  --surface-pop-saturate: 180%;
+  --surface-pop-shadow:
+    0 1rem 3rem rgba(0, 0, 0, 0.48),
+    0 0.125rem 0.5rem rgba(0, 0, 0, 0.3);
+  --surface-pop-highlight-top: rgba(255, 255, 255, 0.28);
+  --surface-pop-highlight-bottom: rgba(115, 177, 255, 0.12);
+  --surface-modal-bg: #1b2029;
+  --surface-modal-edge: rgba(255, 255, 255, 0.16);
+  --surface-modal-blur: 0rem;
+  --surface-modal-saturate: 100%;
+  --surface-modal-highlight-top: rgba(255, 255, 255, 0.18);
+  --surface-modal-highlight-bottom: rgba(115, 177, 255, 0.08);
+  --surface-modal-shadow:
+    0 1.5rem 4rem rgba(0, 0, 0, 0.56),
+    0 0.25rem 1rem rgba(0, 0, 0, 0.36);
 
-  --text-primary: rgba(255, 255, 255, 0.92);
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-tertiary: rgba(255, 255, 255, 0.42);
+  --text-primary: #f2f4f8;
+  --text-secondary: #c3cad4;
+  --text-tertiary: #a4aeba;
+  --accent: #70b4ff;
+  --accent-text: #93c7ff;
+  --accent-fill: #77afef;
+  --accent-soft: rgba(112, 180, 255, 0.14);
+  --on-accent: #071421;
+  --control-border: rgba(220, 228, 238, 0.18);
+  --focus-ring: #70b4ff;
 
-  --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.24);
-  --on-accent: #ffffff;
+  --danger: #dc2626;
+  --danger-text: #fca5a5;
+  --success: #15803d;
+  --success-text: #86efac;
+  --warning: #b45309;
+  --warning-text: #fcd34d;
+  --warning-bg: rgba(252, 211, 77, 0.1);
 
-  --danger: #ff453a;
-  --danger-text: #ff6961;
-  --success: #30d158;
-  --success-text: #34de60;
-  --warning: #ffd60a;
-  --warning-text: #ffd60a;
-  --warning-bg: rgba(255, 214, 10, 0.12);
-
-  --bg-base: #0b0b0f;
-  --drawer-bg: rgba(255, 255, 255, 0.045);
-  --row-bg: rgba(44, 44, 48, 0.72);
-  --row-bg-hover: rgba(56, 56, 60, 0.78);
-  --row-bg-active: rgba(64, 64, 68, 0.85);
-  --card-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.22);
-  --bubble-user-bg: rgba(10, 132, 255, 0.25);
+  --glass-bg: var(--surface-chrome-bg);
+  --glass-border: var(--surface-chrome-edge);
+  --glass-border-top: var(--surface-chrome-edge-top);
+  --glass-blur: var(--surface-chrome-blur);
+  --glass-saturate: var(--surface-chrome-saturate);
+  --glass-shadow: var(--surface-chrome-shadow);
+  --glass-bg-pop: var(--surface-pop-bg);
+  --glass-blur-pop: var(--surface-pop-blur);
+  --glass-saturate-pop: var(--surface-pop-saturate);
+  --glass-shadow-pop: var(--surface-pop-shadow);
+  --glass-bg-modal: var(--surface-modal-bg);
+  --glass-blur-modal: var(--surface-modal-blur);
+  --glass-shadow-modal: var(--surface-modal-shadow);
+  --specular-top: var(--surface-chrome-highlight-top);
+  --specular-bottom: var(--surface-chrome-highlight-bottom);
+  --bg-base: var(--surface-canvas-bg);
+  --bg-gradient: var(--surface-canvas-gradient);
+  --drawer-bg: var(--surface-drawer-bg);
+  --row-bg: var(--surface-card-bg);
+  --row-bg-hover: var(--surface-card-hover);
+  --row-bg-active: var(--surface-card-active);
+  --card-shadow: var(--surface-card-shadow);
+  --bubble-user-bg: rgba(205, 211, 220, 0.1);
   --separator: rgba(255, 255, 255, 0.1);
-  --code-bg: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(0, 0, 0, 0.22);
-  --input-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.32);
-  --overlay-bg: rgba(0, 0, 0, 0.5);
-
-  --bg-gradient:
-    radial-gradient(at 12% 18%, rgba(10, 132, 255, 0.28), transparent 55%),
-    radial-gradient(at 86% 8%, rgba(191, 90, 242, 0.22), transparent 52%),
-    radial-gradient(at 72% 88%, rgba(48, 209, 88, 0.16), transparent 55%),
-    radial-gradient(at 22% 92%, rgba(255, 159, 10, 0.13), transparent 50%);
-  --noise-opacity: 0.05;
+  --code-bg: rgba(148, 163, 184, 0.1);
+  --input-bg: var(--surface-control-bg);
+  --input-shadow: var(--surface-control-shadow);
+  --overlay-bg: rgba(0, 0, 0, 0.58);
+  --optics-edge-start: rgba(255, 255, 255, 0.58);
+  --optics-edge-middle: rgba(255, 255, 255, 0.1);
+  --optics-edge-end: rgba(255, 255, 255, 0.16);
+  --optics-ring-cool: rgba(255, 255, 255, 0.18);
+  --optics-ring-warm: rgba(190, 200, 214, 0.08);
+  --composer-highlight-core: rgba(255, 255, 255, 0.2);
+  --composer-highlight-color: rgba(190, 200, 214, 0.1);
+  --noise-opacity: 0.018;
 }
 
-/* 主题无关令牌：圆角梯度 + 动效梯度 */
+/* 四档语义圆角、共享布局模数与动效。 */
 :root {
-  --radius-xs: 0.25rem; /* 4px：勾选框 */
-  --radius-s: 0.375rem; /* 6px：kbd / 行内代码 */
-  --radius-m: 0.5rem; /* 8px：icon 按钮 */
-  --radius-l: 0.75rem; /* 12px：控件 / 行 / 卡片 / 浮层 */
-  --radius-panel: 1.25rem; /* 20px：面板 / 气泡 / 模态 / 分组卡 */
+  --radius-xs: 0.5rem;
+  --radius-s: 0.5rem;
+  --radius-m: 0.5rem;
+  --radius-l: 0.75rem;
+  --radius-panel: 1rem;
+  --radius-surface: 1rem;
   --radius-pill: 999px;
   --radius-control: var(--radius-l);
+
+  --sidebar-width: 15rem;
+  --content-max: 52rem;
+  --reading-max: 46rem;
+  --control-column: 16rem;
+  --app-gutter: 0.75rem;
+  --layout-gap: 0.75rem;
+
+  --type-caption: 0.75rem;
+  --type-control: 0.8125rem;
+  --type-body: 0.875rem;
+  --type-title: 1rem;
+  --type-page: 1.25rem;
+  --leading-caption: 1.45;
+  --leading-control: 1.5;
+  --leading-body: 1.65;
+  --weight-medium: 500;
+  --weight-semibold: 600;
 
   --dur-fast: 150ms;
   --dur-base: 200ms;
@@ -167,84 +255,106 @@
    浮层/模态直接逼近不透明（0.97），彻底杜绝文字透底。 */
 @supports not (backdrop-filter: blur(1px)) {
   :root[data-theme='light'] {
-    --glass-bg: rgba(255, 255, 255, 0.92);
-    --glass-bg-pop: rgba(255, 255, 255, 0.97);
-    --glass-bg-modal: rgba(255, 255, 255, 0.97);
+    --surface-chrome-bg: rgba(248, 250, 255, 0.94);
+    --surface-composer-bg: rgba(250, 252, 255, 0.96);
+    --surface-pop-bg: rgba(250, 252, 255, 0.98);
+    --surface-modal-bg: #f7f8fa;
   }
   :root[data-theme='dark'] {
-    --glass-bg: rgba(30, 30, 32, 0.92);
-    --glass-bg-pop: rgba(38, 38, 42, 0.97);
-    --glass-bg-modal: rgba(32, 32, 36, 0.97);
+    --surface-chrome-bg: rgba(24, 29, 38, 0.94);
+    --surface-pop-bg: rgba(25, 31, 40, 0.98);
+    --surface-modal-bg: rgba(25, 31, 40, 0.99);
   }
 }
 
 /* 用户系统级"降低透明度"偏好：浮层/模态直接接近不透明，可读性优先 */
 @media (prefers-reduced-transparency: reduce) {
   :root[data-theme='light'] {
-    --glass-bg: rgba(255, 255, 255, 0.92);
-    --glass-bg-pop: rgba(255, 255, 255, 0.97);
-    --glass-bg-modal: rgba(255, 255, 255, 0.97);
+    --surface-chrome-bg: rgba(248, 250, 255, 0.94);
+    --surface-composer-bg: rgba(250, 252, 255, 0.96);
+    --surface-pop-bg: rgba(250, 252, 255, 0.98);
+    --surface-modal-bg: #f7f8fa;
   }
   :root[data-theme='dark'] {
-    --glass-bg: rgba(30, 30, 32, 0.92);
-    --glass-bg-pop: rgba(38, 38, 42, 0.97);
-    --glass-bg-modal: rgba(32, 32, 36, 0.97);
+    --surface-chrome-bg: rgba(24, 29, 38, 0.94);
+    --surface-pop-bg: rgba(25, 31, 40, 0.98);
+    --surface-modal-bg: rgba(25, 31, 40, 0.99);
   }
 }
 
 /* ---------- 玻璃工具类 ----------
    声明顺序纪律：-webkit- 前缀在前、标准版在后（LightningCSS 压缩会"后者覆盖"合并）。 */
 
-/* 玻璃卡片（输入卡 / 面板）：方向性边缘（顶缘亮）+ 双 specular + 环境投影 */
+/* 玻璃只表达控制层；内容卡片不使用 backdrop-filter。 */
 .glass {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border: 0.5px solid var(--glass-border);
-  border-top-color: var(--glass-border-top);
-  border-radius: var(--radius-panel);
-  box-shadow:
-    var(--glass-shadow),
-    inset 0 1px 0 var(--specular-top),
-    inset 0 -1px 0 var(--specular-bottom);
+  border: 0;
+  border-radius: var(--radius-surface);
+  box-shadow: var(--glass-shadow);
+}
+.composer-shell.glass {
+  background: var(--surface-composer-bg);
 }
 
-/* 顶栏 chrome 玻璃：无边线，靠玻璃本身与内容分层 */
 .glass-bar {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
-/* 抽屉（侧栏 / 右栏）：半透明底色分区，无 blur 无边框 */
 .drawer {
   background: var(--drawer-bg);
+  border-radius: var(--radius-surface);
 }
 
-/* 模态面板 / 一切浮层：双 specular + 分层投影 */
 .glass-strong {
   background: var(--glass-bg-modal);
-  -webkit-backdrop-filter: blur(var(--glass-blur-modal)) saturate(var(--glass-saturate-pop));
-  backdrop-filter: blur(var(--glass-blur-modal)) saturate(var(--glass-saturate-pop));
-  border: 0.5px solid var(--glass-border);
-  border-top-color: var(--glass-border-top);
-  border-radius: var(--radius-panel);
-  box-shadow:
-    var(--glass-shadow-modal),
-    inset 0 1px 0 var(--specular-top),
-    inset 0 -1px 0 var(--specular-bottom);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 0;
+  border-radius: var(--radius-surface);
+  box-shadow: var(--glass-shadow-modal);
 }
 .glass-pop {
   background: var(--glass-bg-pop);
   -webkit-backdrop-filter: blur(var(--glass-blur-pop)) saturate(var(--glass-saturate-pop));
   backdrop-filter: blur(var(--glass-blur-pop)) saturate(var(--glass-saturate-pop));
-  border: 0.5px solid var(--glass-border);
-  border-top-color: var(--glass-border-top);
-  border-radius: var(--radius-l);
-  box-shadow:
-    var(--glass-shadow-pop),
-    inset 0 1px 0 var(--specular-top),
-    inset 0 -1px 0 var(--specular-bottom);
+  border: 0;
+  border-radius: var(--radius-surface);
+  box-shadow: var(--glass-shadow-pop);
+}
+
+@supports (corner-shape: squircle) {
+  :where(
+    .glass,
+    .glass-bar,
+    .glass-strong,
+    .glass-pop,
+    .drawer,
+    .bubble-surface,
+    .btn,
+    .input-surface,
+    .row-surface,
+    .seg,
+    .param-block,
+    .select-option,
+    .checkbox,
+    .kbd,
+    .composer-focus-frame,
+    .workspace-topbar
+  ) {
+    corner-shape: squircle;
+  }
+}
+
+/* 真圆与胶囊使用圆形端点，不被全局 squircle 令牌覆盖。 */
+.btn-round,
+.btn-pill,
+.seg,
+.seg-option {
+  corner-shape: initial;
 }
 
 /* 模态遮罩：把模态后方内容压虚，是模态可读性的关键 */

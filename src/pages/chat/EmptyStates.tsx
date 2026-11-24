@@ -1,55 +1,61 @@
 /**
- * 空状态（docs/design/ux-guidelines.md，空状态与引导）：无平台引导卡片 / 无会话快捷开始卡片。
- * 交错入场：--stagger × 90ms（tokens.css .stagger-in，reduced-motion 下直接显示）。
+ * 空状态：开放画布上的图标、标题、说明与主操作，不再嵌套白卡或图标底块。
+ * 交错入场使用 --stagger × 90ms，reduced-motion 下直接显示。
  */
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui';
 import { useConversationsStore } from '../../store/conversations';
+import { IconNote, IconServer } from '../../components/icons';
 
 const stagger = (i: number): CSSProperties => ({ ['--stagger' as never]: i });
+
+function EmptyFrame({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="empty-state flex min-h-0 flex-1 items-center justify-center p-6">
+      <div className="empty-state-content w-full max-w-md text-center">
+        <div className="stagger-in mb-4 inline-flex text-tertiary" style={stagger(0)} aria-hidden="true">
+          {icon}
+        </div>
+        <h2 className="stagger-in mb-2 text-title" style={stagger(1)}>{title}</h2>
+        <p className="stagger-in mb-6 text-body leading-relaxed text-secondary" style={stagger(2)}>
+          {description}
+        </p>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function EmptyNoProvider() {
   const { t } = useTranslation();
   const openSettings = useUiStore((s) => s.openSettings);
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <div className="row-surface w-full max-w-md px-8 py-10 text-center">
-        <div className="stagger-in" style={stagger(0)}>
-          <div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-panel"
-            style={{ background: 'var(--accent-soft)' }}
-            aria-hidden="true"
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 3l7 4v10l-7 4-7-4V7l7-4z"
-                stroke="var(--accent)"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-              <path d="M12 8v8M8.5 10l7 4M15.5 10l-7 4" stroke="var(--accent)" strokeWidth="1.2" />
-            </svg>
-          </div>
-        </div>
-        <h2 className="stagger-in mb-2 text-base font-semibold" style={stagger(1)}>
-          {t('chat.empty.noProvider.title')}
-        </h2>
-        <p className="stagger-in mb-6 text-sm leading-relaxed text-secondary" style={stagger(2)}>
-          {t('chat.empty.noProvider.desc')}
-        </p>
-        <div className="stagger-in" style={stagger(3)}>
-          <button
-            type="button"
-            className="btn btn-accent btn-pill px-5"
-            style={{ minHeight: '2.25rem' }}
-            onClick={() => openSettings('providers')}
-          >
-            {t('chat.empty.noProvider.cta')}
-          </button>
-        </div>
+    <EmptyFrame
+      icon={<IconServer size={24} />}
+      title={t('chat.empty.noProvider.title')}
+      description={t('chat.empty.noProvider.desc')}
+    >
+      <div className="stagger-in" style={stagger(3)}>
+        <button
+          type="button"
+          className="btn btn-accent btn-pill px-5"
+          onClick={() => openSettings('providers')}
+        >
+          {t('chat.empty.noProvider.cta')}
+        </button>
       </div>
-    </div>
+    </EmptyFrame>
   );
 }
 
@@ -57,44 +63,23 @@ export function EmptyNoConversation() {
   const { t } = useTranslation();
   const create = useConversationsStore((s) => s.create);
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-      <div className="row-surface w-full max-w-md px-8 py-10 text-center">
-        <div className="stagger-in" style={stagger(0)}>
-          <div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-panel"
-            style={{ background: 'var(--accent-soft)' }}
-            aria-hidden="true"
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4V6z"
-                stroke="var(--accent)"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        </div>
-        <h2 className="stagger-in mb-2 text-base font-semibold" style={stagger(1)}>
-          {t('chat.empty.noConversation.title')}
-        </h2>
-        <p className="stagger-in mb-6 text-sm leading-relaxed text-secondary" style={stagger(2)}>
-          {t('chat.empty.noConversation.desc')}
-        </p>
-        <div className="stagger-in flex flex-col items-center gap-2" style={stagger(3)}>
-          <button
-            type="button"
-            className="btn btn-accent btn-pill px-5"
-            style={{ minHeight: '2.25rem' }}
-            onClick={() => void create()}
-          >
-            {t('chat.empty.noConversation.cta')}
-          </button>
-          <span className="text-[0.6875rem] text-tertiary">
-            {t('chat.empty.noConversation.hintShortcut')}
-          </span>
-        </div>
+    <EmptyFrame
+      icon={<IconNote size={24} />}
+      title={t('chat.empty.noConversation.title')}
+      description={t('chat.empty.noConversation.desc')}
+    >
+      <div className="stagger-in flex flex-col items-center gap-2" style={stagger(3)}>
+        <button
+          type="button"
+          className="btn btn-accent btn-pill px-5"
+          onClick={() => void create()}
+        >
+          {t('chat.empty.noConversation.cta')}
+        </button>
+        <span className="text-caption text-tertiary">
+          {t('chat.empty.noConversation.hintShortcut')}
+        </span>
       </div>
-    </div>
+    </EmptyFrame>
   );
 }

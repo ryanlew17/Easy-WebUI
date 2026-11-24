@@ -13,6 +13,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../store/ui';
+import { IconButton } from './controls';
+import { IconClose } from './icons';
 
 /** 模态关闭通道：footer/children 内的按钮用它关闭可播退场动画（与 ✕/Esc 一致） */
 const ModalCloseContext = createContext<() => void>(() => {});
@@ -113,27 +115,18 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`modal-panel glass-strong flex w-full ${maxWidthClass} flex-col`}
+        className={`modal-panel glass-strong glass-optics flex w-full ${maxWidthClass} flex-col`}
         data-closing={closing ? 'true' : undefined}
         style={{ maxHeight: '90vh' }}
       >
         <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
           <h2 className="truncate text-sm font-semibold">{title}</h2>
-          <button
-            type="button"
-            className="btn btn-ghost icon-btn"
+          <IconButton
+            label={t('aria.closeModal')}
             onClick={requestClose}
-            aria-label={t('aria.closeModal')}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path
-                d="M2 2l8 8M10 2l-8 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+            <IconClose />
+          </IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <ModalCloseContext.Provider value={requestClose}>

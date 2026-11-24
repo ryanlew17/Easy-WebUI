@@ -99,7 +99,7 @@ const pinInfoTipAndAssert = async (tag) => {
       (h) => h.textContent.trim() === '会话参数',
     );
     if (!panel) return false;
-    const col = panel.closest('.relative.flex');
+    const col = panel.closest('.app-inspector');
     if (!col) return false;
     const btn = [...col.querySelectorAll('button')].find((el) => el.textContent.trim() === 'ⓘ');
     if (!btn) return false;

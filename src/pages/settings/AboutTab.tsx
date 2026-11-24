@@ -16,6 +16,7 @@ import { useSettingsStore } from '../../store/settings';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
 import { Toggle } from '../../components/controls';
+import { FormRow, FormSection } from '../../components/FormLayout';
 
 const ReleaseNotes = lazy(() =>
   import('../../components/ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })),
@@ -23,19 +24,6 @@ const ReleaseNotes = lazy(() =>
 
 /** GitHub 仓库（与 package.json build.publish 一致） */
 export const REPO_URL = 'https://github.com/ryanlew17/Easy-WebUI';
-
-/** 与 GeneralTab 同款左右 Row（label + hint / 右侧控件） */
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b hairline py-3 last:border-b-0">
-      <div className="min-w-0">
-        <p className="text-[0.8125rem] font-medium">{label}</p>
-        {hint ? <p className="mt-0.5 text-[0.6875rem] text-tertiary">{hint}</p> : null}
-      </div>
-      <div className="flex-none">{children}</div>
-    </div>
-  );
-}
 
 type DownloadState = 'idle' | 'downloading' | 'ready';
 
@@ -159,9 +147,8 @@ export function AboutTab() {
 
   return (
     <section aria-label={t('settings.tabs.about')}>
-      {/* ---------- 卡片一：关于 ---------- */}
-      <div className="row-surface mb-3 px-4">
-        <div className="flex items-center gap-3 border-b hairline py-4">
+      <FormSection title={t('settings.tabs.about')}>
+        <div className="about-identity flex items-center gap-3 pb-4 mb-2">
           {iconFailed ? null : (
             <img
               src="./favicon.svg"
@@ -177,19 +164,19 @@ export function AboutTab() {
             <p className="mt-0.5 text-xs text-secondary">{t('settings.about.appTagline')}</p>
           </div>
         </div>
-        <Row label={t('settings.about.version')}>
+        <FormRow label={t('settings.about.version')}>
           <span className="text-xs text-secondary">{systemInfo?.version ?? '…'}</span>
-        </Row>
-        <Row label={t('settings.about.license')}>
+        </FormRow>
+        <FormRow label={t('settings.about.license')}>
           <span className="text-xs text-secondary">{t('settings.about.licenseValue')}</span>
-        </Row>
-        <Row label={t('settings.about.author')}>
+        </FormRow>
+        <FormRow label={t('settings.about.author')}>
           <span className="text-xs text-secondary">{t('settings.about.authorValue')}</span>
-        </Row>
-        <Row label={t('settings.about.github')}>
+        </FormRow>
+        <FormRow label={t('settings.about.github')} layout="stack">
           <div className="flex items-center gap-2">
             <code
-              className="block max-w-[16rem] truncate rounded-s px-1.5 py-0.5 text-[0.6875rem]"
+              className="block max-w-[16rem] truncate rounded-s px-1.5 py-0.5 text-caption"
               style={{ background: 'var(--code-bg)' }}
               title={t('settings.about.githubValue')}
             >
@@ -204,22 +191,20 @@ export function AboutTab() {
               {t('settings.about.githubOpen')}
             </button>
           </div>
-        </Row>
-      </div>
+        </FormRow>
+      </FormSection>
 
-      {/* ---------- 卡片二：在线升级 ---------- */}
-      <div className="row-surface px-4">
-        <h3 className="pt-3 text-[0.8125rem] font-medium">{t('settings.about.updateTitle')}</h3>
+      <FormSection title={t('settings.about.updateTitle')}>
 
         {!isElectron ? (
           <>
             {/* web 预览：提示桌面独占，控件全部置灰 */}
-            <div className="border-b hairline py-3">
-              <p className="text-[0.8125rem] text-secondary">
+            <div className="mb-2 py-2">
+              <p className="text-control text-secondary">
                 {t('settings.about.updateElectronOnly')}
               </p>
             </div>
-            <Row label={t('settings.about.checkUpdate')}>
+            <FormRow label={t('settings.about.checkUpdate')}>
               <button
                 type="button"
                 className="btn btn-accent"
@@ -228,27 +213,27 @@ export function AboutTab() {
               >
                 {t('settings.about.checkUpdate')}
               </button>
-            </Row>
-            <Row label={t('settings.about.autoUpdate')} hint={t('settings.about.autoUpdateHint')}>
+            </FormRow>
+            <FormRow label={t('settings.about.autoUpdate')} hint={t('settings.about.autoUpdateHint')}>
               <Toggle
                 checked={settings.auto_update}
                 label={t('settings.about.autoUpdate')}
                 disabled
                 onChange={() => undefined}
               />
-            </Row>
-            <Row label={t('settings.about.betaChannel')} hint={t('settings.about.betaChannelHint')}>
+            </FormRow>
+            <FormRow label={t('settings.about.betaChannel')} hint={t('settings.about.betaChannelHint')}>
               <Toggle
                 checked={settings.update_beta}
                 label={t('settings.about.betaChannel')}
                 disabled
                 onChange={() => undefined}
               />
-            </Row>
+            </FormRow>
           </>
         ) : (
           <>
-            <Row label={t('settings.about.checkUpdate')}>
+            <FormRow label={t('settings.about.checkUpdate')}>
               <div className="flex items-center gap-2">
                 {checking ? (
                   <span className="text-xs text-secondary" role="status">
@@ -265,30 +250,30 @@ export function AboutTab() {
                   {checking ? t('settings.about.checking') : t('settings.about.checkUpdate')}
                 </button>
               </div>
-            </Row>
-            <Row label={t('settings.about.autoUpdate')} hint={t('settings.about.autoUpdateHint')}>
+            </FormRow>
+            <FormRow label={t('settings.about.autoUpdate')} hint={t('settings.about.autoUpdateHint')}>
               <Toggle
                 checked={settings.auto_update}
                 label={t('settings.about.autoUpdate')}
                 onChange={(v) => void update({ auto_update: v })}
               />
-            </Row>
-            <Row label={t('settings.about.betaChannel')} hint={t('settings.about.betaChannelHint')}>
+            </FormRow>
+            <FormRow label={t('settings.about.betaChannel')} hint={t('settings.about.betaChannelHint')}>
               <Toggle
                 checked={settings.update_beta}
                 label={t('settings.about.betaChannel')}
                 onChange={(v) => void update({ update_beta: v })}
               />
-            </Row>
+            </FormRow>
 
             {/* 更新块：发现新版本后展示 */}
             {updateInfo ? (
               <div className="row-surface mb-3 mt-1 px-3.5 py-3">
-                <p className="text-[0.8125rem] font-semibold">
+                <p className="text-control font-semibold">
                   {t('settings.about.newVersion', { version: updateInfo.version })}
                 </p>
                 {updateInfo.size ? (
-                  <p className="mt-0.5 text-[0.6875rem] text-tertiary">
+                  <p className="mt-0.5 text-caption text-tertiary">
                     {t('settings.about.updateSize', { size: Math.round(updateInfo.size / 1048576) })}
                   </p>
                 ) : null}
@@ -312,7 +297,7 @@ export function AboutTab() {
                       ✓ {t('settings.about.ready')}
                     </p>
                     <p
-                      className="mt-1 text-[0.6875rem]"
+                      className="mt-1 text-caption"
                       style={{ color: 'var(--warning-text)' }}
                     >
                       ⚠ {t('settings.about.backupWarning')}
@@ -358,7 +343,7 @@ export function AboutTab() {
             ) : null}
           </>
         )}
-      </div>
+      </FormSection>
 
       {confirmingInstall && updateInfo ? (
         <ConfirmDialog

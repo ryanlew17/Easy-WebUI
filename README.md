@@ -37,7 +37,7 @@ No Electron handy? `npm install && npm run dev` starts a **pure-browser preview*
 | --- | --- |
 | ![Model picker](docs/screenshots/04-model-picker-blur-zh.png) | ![Add provider](docs/screenshots/03-provider-modal-light-zh.png) |
 
-More in [docs/screenshots/](./docs/screenshots/) — welcome page, settings, the streaming "thinking…" state, and the multi-line composer with the liquid-glass "Generate Response" pill floating above it, 8 shots in total.
+More in [docs/screenshots/](./docs/screenshots/) — welcome, settings, provider and model selection, light and dark chat, streaming, and the multi-line composer with the liquid-glass "Generate Response" pill; 8 shots in total.
 
 ## Data & Privacy
 

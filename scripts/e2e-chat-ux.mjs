@@ -209,9 +209,14 @@ try {
   await shot('30-chat-actions-branch');
 
   /* ---- 31: reasoning 计时标题 + 统计行 ---- */
+  await page.evaluate(() => document.querySelector('.message-stats summary')?.click());
   const statsInfo = await page.evaluate(() => {
     const body = document.body.innerText;
+    const reasoning = document.querySelector('.reasoning-block');
+    const style = reasoning ? getComputedStyle(reasoning) : null;
     return {
+      reasoningClean: !!style && (style.backgroundColor === 'rgba(0, 0, 0, 0)' || style.backgroundColor === 'transparent')
+        && style.borderTopStyle === 'none',
       thought: /思考了 \d+\.\d{2} 秒/.test(body),
       tokPerSec: /tok\/s/.test(body),
       ttft: /TTFT \d+\.\d{2}s/.test(body) || /TTFT/.test(body),
@@ -219,6 +224,7 @@ try {
       finish: /结束原因：stop/.test(body),
     };
   });
+  ok(statsInfo.reasoningClean, 'reasoning 使用无卡片左边轨而非灰底边框');
   ok(statsInfo.thought, 'reasoning 块标题含「思考了 X.XX 秒」');
   ok(statsInfo.tokPerSec, '统计行含 tok/s');
   ok(statsInfo.ttft, '统计行含 TTFT');

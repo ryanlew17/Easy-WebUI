@@ -83,7 +83,7 @@
       },
       "noConversation": {
         "title": "开始新的对话",
-        "desc": "选择一个模型，输入消息即可开始。支持 Markdown、代码高亮与流式输出。",
+        "desc": "从空白会话开始，支持 Markdown、代码高亮与流式输出。",
         "cta": "新建会话",
         "hintShortcut": "快捷键 Ctrl/Cmd+N"
       }
@@ -279,6 +279,8 @@
       "save": "保存平台"
     },
     "general": {
+      "preferences": "偏好",
+      "systemInfo": "系统信息",
       "language": "语言",
       "langSystem": "跟随系统",
       "theme": "主题",

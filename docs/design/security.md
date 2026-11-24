@@ -1,46 +1,42 @@
-# 安全设计
+# 安全与隐私
 
-> 适用范围：API 密钥加密存储、日志与错误脱敏、渲染进程安全（CSP/隔离/消毒）、隐私边界。
-> 何时读取：改 `electron/crypto/`、CSP、日志、任何接触密钥或错误消息的代码之前——**接触密钥的改动必须先读本文件**。
-> 关联需求：REQ-2026-001（2026-10 安全审计修复）。
-> 最后更新：2026-11-02
-> 来源：原 prd.md §8 + 原 docs/impl-contract.md §2（安全红线）
+> 权威范围：密钥生命周期、脱敏、CSP、渲染隔离、内容消毒和出站隐私。
+> 何时读取：接触密钥、日志、错误消息、CSP、导航或外部内容的代码之前；密钥改动必读。
+> 代码事实来源：`electron/crypto/`、`electron/main.ts`、`electron/webcontents-guard.ts`、`shared/errors.ts`。
+> 最后更新：2026-11-22
 
-## 1. 密钥存储
+## 1. 密钥生命周期
 
-- 首选 `safeStorage.encryptStringAsync` → Base64 存 `providers.api_key_cipher`，自描述前缀 `v1:ss:`；启动时以 `isAsyncEncryptionAvailable()` 判定可用性，旧密文经 `decryptStringAsync` 解密，格式与既有数据兼容（REQ-2026-001，Electron 45 异步迁移）。
-- `shouldReEncrypt=true` 的旧密文在成功取得新明文后重加密，并由 `decryptProviderKey` 以旧密文未变化为条件回写（REQ-2026-003）；后续使用不再重复双解密。重加密/回写失败不影响本次解密，条件写不得覆盖并发换钥或恢复已清除密钥；不缓存明文。
-- safeStorage 不可用时：机器指纹（hostname+username+platform 的 SHA-256）经 scrypt 派生密钥做 AES-256-GCM，前缀 `v1:mf:`，盐存 `data/keyring.bin`（权限 600），设置页常驻黄色提示（`EncryptionStatus.method = 'machine-fallback'`）。
-  - **machine-fallback 威胁边界**：机器指纹熵低（hostname/username/platform/arch 可枚举），该模式的实际保密性 = keyring.bin 随机盐 + 文件系统 ACL。能读到 data 目录的本地攻击者可自行推导并解密密钥——相比 safeStorage/DPAPI 的"读文件 ≠ 能解密"是明确降级（Windows 上 chmod 600 为 no-op）。这是已接受的取舍，UI 常驻提示即为此服务。
-- **密钥明文只允许存在于主进程内存的请求组装瞬间**，不出现在：日志、错误消息、IPC 返回、渲染进程、备份默认导出。
-- `Provider` 类型无 `api_key_cipher` 字段，主进程 DAO 查询时剥离；渲染进程只见 `has_key`。
-- **base_url 换 host 自动清密钥**（REQ-2026-001）：带密钥平台修改 base_url 且 host 变化、未同时提供新密钥 → 主进程自动清除已存密钥（`has_key=false`，需重新输入）。防"换址外发"：恶意调用（如渲染层 XSS）不能把解密后的 key 发往攻击者端点。mock 桥同规则。同 host 改端口/路径不清。
-- `base_url` 仅允许 http/https 且禁止 userinfo（`https://key@host` 形态会让密钥随 URL 进入超时错误消息与日志）。
+- 首选 `safeStorage.encryptStringAsync`，Base64 密文使用 `v1:ss:` 前缀。启动时判断异步加密可用性，旧格式仍可解密。
+- 需要重加密时，先成功取得明文，再以旧密文未变化为条件回写；失败不影响本次解密，也不得覆盖并发换钥或恢复已清除密钥。不缓存明文。
+- safeStorage 不可用时，以机器指纹经 scrypt 派生密钥并执行 AES-256-GCM，使用 `v1:mf:` 前缀；随机盐存于 `data/keyring.bin`。
+- machine-fallback 的保密性依赖随机盐和文件系统 ACL。能读取数据目录的本地攻击者可能推导并解密密钥；Windows chmod 600 不提供实际隔离，因此设置页必须持续提示该降级。
+- 密钥明文只存在于主进程请求组装瞬间，不进入渲染进程、IPC 返回、日志、错误或默认备份。
+- 带密钥平台修改 `base_url` 且 host 变化、又未提供新密钥时，主进程自动清除旧密钥；同 host 改端口或路径不清除。Mock 遵守同一规则。
+- `base_url` 仅允许 http/https 且禁止 userinfo，避免凭据进入 URL、错误和日志。
 
-## 2. 日志与脱敏
+## 2. 脱敏与错误出口
 
-- 主进程日志 `data/logs/app.log`（按日轮转 7 天）；网关不记请求日志（只记错误与生命周期事件，消息体一律过 redact）。
-- 全部已知密钥注册进 `crypto/redact` 登记表，任何出口统一 `redact()`（保留前 3 位 + `***`，即 `key.slice(0,3) + '***'` 模式）：错误消息、IPC 错误、服务商 error message。
-- 服务商可控的错误 `code`/`type` 经 `sanitizeErrorCode` 脱敏 + 截断（≤128 字符、白名单字符集）后才入库/广播；`message` 经 `sanitizeErrorMessage` 脱敏 + 截断（≤2000 字符，先脱敏后截断）后才入库/广播（@req REQ-2026-001）。
+- 已知密钥注册到 `crypto/redact`；错误、IPC 和服务商消息统一经过 `redact()`，保留前三位并以 `***` 替代其余部分。
+- 服务商可控的 `code/type` 经 `sanitizeErrorCode` 限制为白名单字符且最多 128 字符；`message` 经 `sanitizeErrorMessage` 先脱敏再截断到 2000 字符，之后才可入库或广播。
+- 网关不记录请求体；只记录脱敏后的错误与生命周期事件。日志文件和保留规则见 `./storage.md`。
 
-## 3. 渲染进程安全
+## 3. 渲染与导航安全
 
-- CSP `default-src 'self'` + `object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'`；dev 由 Vite 插件剥离以支持 HMR。
-- 防 FOUC 内联脚本（`index.html`）经 `script-src 'sha256-…'` 白名单放行（无 `unsafe-inline`）。**改该脚本（含任何空白）必须重算哈希**——用下面这条精确匹配"无属性 `<script>`"的命令（宽松正则可能误匹配注释中的文字）：
+- CSP 使用 `default-src 'self'`，并设置 `object-src 'none'`、`base-uri 'none'`、`frame-src 'none'`、`form-action 'none'`；开发环境由 Vite 插件剥离 CSP 以支持 HMR。
+- `index.html` 的防 FOUC 内联脚本通过 `script-src 'sha256-…'` 放行，不使用 `unsafe-inline`。修改脚本（包括空白）后必须重算：
 
   ```bash
   node -e "const fs=require('fs'),c=require('crypto');const m=fs.readFileSync('index.html','utf8').match(/<script>(\(function[\s\S]*?)<\/script>/);console.log(c.createHash('sha256').update(m[1],'utf8').digest('base64'))"
   ```
-- `nodeIntegration: false` + `contextIsolation: true` + 显式 `sandbox: true`；`contextBridge` 只暴露白名单 API（`window.easyui.*`，契约见 `shared/types.ts` 的 `EasyUiApi`）。
-- **导航与发送方闸门**（REQ-2026-001）：主窗口 `will-navigate` 白名单（dev=vite origin / prod 一律拦截）；`setWindowOpenHandler` 全部 deny、http(s) 转 `shell.openExternal`；所有 IPC handler 校验 `senderFrame.url` 必须是应用文档（`electron/webcontents-guard.ts` 纯函数）。
-- 单实例锁：第二实例退出并聚焦既有窗口（防双实例并发写同一 sqlite）。
-- 渲染进程代码不得 import `electron/` 下任何模块；跨进程共享类型与纯逻辑一律放 `shared/`。
-- 聊天 Markdown 继续禁止 raw HTML；highlight.js 产出的 HTML 仅经 DOMPurify 消毒后注入（模型输出不可信）。不加载远程字体/脚本。
-- GitHub Release 摘要由独立 `ReleaseNotes` 按需加载，使用 `rehype-raw + rehype-sanitize` 白名单支持 GFM 与安全 HTML；脚本、样式、iframe、表单、事件属性、危险 URL 与远程图片一律移除，链接仅允许 http(s) 并沿用外链闸门（REQ-2026-002）。该例外不得扩散到聊天消息。
-- 外链经 `system:open-external` 仅放行 http(s)（zod 校验）。
-- Web 预览 mock 桥（`src/bridge/mock.ts`）：API key 仅存内存 Map，不落 localStorage；`openExternal` 复用同一 http(s) 白名单。
+
+- 使用 `nodeIntegration:false`、`contextIsolation:true`、`sandbox:true`；`contextBridge` 只暴露 `window.easyui.*` 白名单。
+- 主窗口导航实行白名单，生产导航一律拦截；新窗口全部拒绝，http(s) 外链转 `shell.openExternal`。每个 IPC handler 校验 `senderFrame.url`。
+- 单实例锁阻止多个进程并发写同一数据库。
+- 聊天 Markdown 禁止 raw HTML；highlight.js 输出必须经 DOMPurify 消毒。不得加载远程字体或脚本。
+- GitHub ReleaseNotes 是独立例外：按需加载，使用 rehype-raw + rehype-sanitize 白名单支持 GFM 和安全 HTML，移除脚本、样式、iframe、表单、事件属性、危险 URL 与远程图片。该例外不得扩散到聊天。
+- 外链 IPC 仅放行 http(s)；Web Mock 的 API key 只存内存，不写 localStorage。
 
 ## 4. 隐私
 
-- 零遥测、零自动上报。
-- 出站请求仅两类：用户配置的服务商端点，与在线升级检查（GitHub Releases，`auto_update` 可关）。
+零遥测、零自动上报。出站仅包括用户配置的服务商端点和可关闭的 GitHub 在线升级检查。

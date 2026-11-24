@@ -1,12 +1,25 @@
 import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, writeFileSync } from 'node:fs';
 import { measurementIdentity } from './perf-identity.mjs';
 import { extname, join, normalize } from 'node:path';
 import os from 'node:os';
 
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const args = process.argv.slice(2);
+const option = (name) => {
+  if (args.includes(name)) return args[args.indexOf(name) + 1];
+  const prefix = `${name}=`;
+  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+};
+const DIST = normalize(option('--dist') ?? 'dist');
+const RUNS = Math.max(1, Number(option('--runs') ?? '5'));
+const GPU = args.includes('--gpu');
+const LABEL = option('--label') ?? 'candidate';
+const OUTPUT = option('--output');
+const NO_OPTICS = args.includes('--no-optics');
+const ROUND_CORNERS = args.includes('--round-corners');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -15,9 +28,9 @@ const MIME = {
 };
 const server = createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0]);
-  let file = normalize(join('dist', urlPath === '/' ? 'index.html' : urlPath));
-  if (!file.startsWith('dist') || !existsSync(file) || !statSync(file).isFile()) {
-    file = 'dist/index.html';
+  let file = normalize(join(DIST, urlPath === '/' ? 'index.html' : urlPath));
+  if (!file.startsWith(DIST) || !existsSync(file) || !statSync(file).isFile()) {
+    file = join(DIST, 'index.html');
   }
   res.setHeader('content-type', MIME[extname(file)] ?? 'application/octet-stream');
   createReadStream(file).pipe(res);
@@ -33,11 +46,11 @@ try {
   browser = await puppeteer.launch({
     executablePath: EDGE,
     headless: true,
-    args: ['--disable-gpu', '--no-sandbox', '--force-device-scale-factor=1'],
+    args: [...(GPU ? [] : ['--disable-gpu']), '--no-sandbox', '--force-device-scale-factor=1'],
   });
 
   const seed = () => {
-    const t0 = Date.now() - 60000;
+    const t0 = 1767225600000;
     const messages = [];
     let parent = null;
     for (let i = 0; i < 48; i++) {
@@ -100,7 +113,7 @@ try {
   };
 
   const results = [];
-  for (let run = 0; run < 3; run++) {
+  for (let run = 0; run <= RUNS; run++) {
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -111,6 +124,25 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('.msg-in').length === 48);
     await page.waitForFunction(() => document.querySelectorAll('code.hljs').length === 24, { timeout: 5000 });
     await sleep(300);
+    if (NO_OPTICS) {
+      await page.evaluate(() => {
+        for (const sheet of document.styleSheets) {
+          for (let index = sheet.cssRules.length - 1; index >= 0; index--) {
+            const text = sheet.cssRules[index].cssText;
+            if (text.includes('glass-optics') || text.includes('message-scroll') || text.includes('composer-highlight')) sheet.deleteRule(index);
+          }
+        }
+      });
+    }
+    if (ROUND_CORNERS) {
+      await page.evaluate(() => {
+        for (const sheet of document.styleSheets) {
+          for (let index = sheet.cssRules.length - 1; index >= 0; index--) {
+            if (sheet.cssRules[index].cssText.includes('corner-shape') || sheet.cssRules[index].cssText.includes('bubble-surface')) sheet.deleteRule(index);
+          }
+        }
+      });
+    }
 
     const cdp = await page.createCDPSession();
     await cdp.send('Performance.enable');
@@ -152,6 +184,10 @@ try {
     if (visibleBubbles !== 50) throw new Error(`visible bubble count ${visibleBubbles} != 50`);
     if (highlightedBlocks !== 25) throw new Error(`highlighted block count ${highlightedBlocks} != 25`);
     if (errors.length > 0) throw new Error(`renderer errors: ${errors.join('; ')}`);
+    if (run === 0) {
+      await page.close();
+      continue;
+    }
 
     results.push({
       run: run + 1,
@@ -174,31 +210,31 @@ try {
     await page.close();
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        kind: 'req003-renderer',
-        environment: {
-          ...measurementIdentity(),
-          platform: process.platform,
-          release: os.release(),
-          cpu: os.cpus()[0]?.model ?? 'unknown',
-          node: process.version,
-          viewport: '1440x900',
-          gpu: false,
-        },
-        dataset: '48 seeded Markdown/code/table messages + user + streaming assistant = 50 visible bubbles',
-        summary: {
-          scriptDurationMedianMs: +median(results.map((r) => r.ScriptDuration)).toFixed(2),
-          taskDurationMedianMs: +median(results.map((r) => r.TaskDuration)).toFixed(2),
-          longestTaskMedianMs: +median(results.map((r) => r.longTaskMaxMs)).toFixed(2),
-        },
-        results,
-      },
-      null,
-      2,
-    ),
-  );
+  const report = {
+    kind: 'req003-renderer',
+    environment: {
+      ...measurementIdentity(),
+      platform: process.platform,
+      release: os.release(),
+      cpu: os.cpus()[0]?.model ?? 'unknown',
+      node: process.version,
+      viewport: '1440x900',
+      gpu: GPU,
+      label: LABEL,
+      dist: DIST,
+    },
+    dataset: '48 seeded Markdown/code/table messages + user + streaming assistant = 50 visible bubbles',
+    warmupRuns: 1,
+    summary: {
+      scriptDurationMedianMs: +median(results.map((r) => r.ScriptDuration)).toFixed(2),
+      taskDurationMedianMs: +median(results.map((r) => r.TaskDuration)).toFixed(2),
+      longestTaskMedianMs: +median(results.map((r) => r.longTaskMaxMs)).toFixed(2),
+    },
+    results,
+  };
+  const serialized = JSON.stringify(report, null, 2);
+  if (OUTPUT) writeFileSync(OUTPUT, serialized);
+  else console.log(serialized);
 } finally {
   if (browser) await browser.close();
   server.close();

@@ -1,27 +1,34 @@
-# 浮层与模糊（portal 规则）
+# 浮层与定位
 
-> 适用范围：一切浮层（下拉、弹层、tooltip、悬浮提示、生成胶囊、InfoTip）的 DOM 挂载规则与定位行为。
-> 何时读取：新增/修改任何浮层组件之前——**浮层不 portal 到 body 就是 bug**。
-> 最后更新：2026-09-13
-> 来源：原 prd.md §5.6 + 原 docs/impl-contract.md §10.3
+> 权威范围：浮层挂载、锚点定位、缩放换算、InfoTip 和临时材质生命周期。
+> 何时读取：新增或修改下拉、菜单、tooltip、Toast、Modal、Generate 或选择工具栏之前。
+> 代码事实来源：`src/components/Popover.tsx`、`controls.tsx`、`Modal.tsx`、`Toast.tsx`。
+> 最后更新：2026-11-22
 
-## 1. backdrop root 规律（根因）
+## 1. 挂载规则
 
-**祖先带 `backdrop-filter` 会形成 backdrop root，其后代的模糊只能采样祖先内部内容 → 视觉失效。**
+带 `backdrop-filter` 的祖先会形成 backdrop root，后代的模糊只能采样祖先内部；滚动容器的 overflow 还会裁切绝对定位浮层。因此浮层不得留在模糊或滚动祖先内，统一通过 portal 挂到 `document.body`；Toast 使用既有的根级 fixed host。
 
-因此：**一切浮层（下拉、弹层、tooltip、悬浮提示、生成胶囊）必须 `createPortal(document.body)`**，不得是 `.glass-bar` 等模糊祖先的 DOM 子孙。
+挂载规则与 ADR-002 一致，不因材质或动画重开场景根节点例外。视觉令牌见 `./ui-liquid-glass.md`。
 
-另一动机：宿主滚动容器 `overflow-y-auto` 会裁切容器内绝对定位浮层。
+## 2. AnchoredPopover
 
-## 2. AnchoredPopover（`src/components/Popover.tsx`）
+`src/components/Popover.tsx` 是锚定浮层基座：
 
-统一浮层基座，能力：
+- 默认提供 `.glass-pop`；`variant="bare"` 只负责 portal 和定位，由内容自身承担材质。Generate 使用此变体，单表面材质规则见 `./ui-liquid-glass.md`。
+- 支持 placement、align、matchAnchorWidth、gap、viewportMargin、边缘翻转、外点关闭，以及 scroll(capture)、resize、visualViewport 重定位。
+- 缩放优先读取根节点 `--app-zoom`，未设置时才以锚点 rect 宽度 / offsetWidth 自校准；锚点收缩到零宽时不得回退为 1。
+- 打开后经 useLayoutEffect 首测和 rAF 复测；定位完成前隐藏，完成后设置 `data-positioned="true"`。
+- 保留调用方的 listbox/dialog 语义、焦点和键盘行为；长选项换行由共享控件规则负责。
 
-- 锚点 rect → `fixed` 定位、placement/align、`matchAnchorWidth`、gap/viewportMargin。
-- 滚动 / resize / visualViewport 重定位、边缘翻转、外点关闭。
-- 定位计算遵守"视觉 px / 布局 px"换算纪律（应用内 CSS zoom 下锚定不漂移）。
+## 3. InfoTip 与延迟卸载
 
-## 3. InfoTip（参数 ⓘ，`controls.tsx`）
+InfoTip 支持 hover、focus、点击钉住和外点关闭；Esc 行为统一见 `./ux-guidelines.md`。浮层按视口余量上下翻转并横向钳制。
 
-- hover/focus/click 三态显隐 + 钉住态（Esc / 点外关闭）。
-- 浮层 portal 到 body + fixed 定位；按视口余量自动上/下翻转，横向钳制视口内。
+`useDelayedUnmount` 用于退场动画。关闭开始时立即注销临时材质，不等待延迟卸载结束。
+
+## 4. 临时材质边界
+
+只有模型下拉和 Generate 可通过 `GlassMaterialProvider` 注册临时表面，且必须同时满足 mounted 与 `data-positioned="true"`。其他浮层不注册。
+
+**当前交付不启用真实折射，所有浮层均使用 CSS 材质。** 实验期注册/注销能力不代表默认行为；引擎边界见 `../architecture.md`。

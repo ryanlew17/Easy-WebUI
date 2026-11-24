@@ -1,48 +1,52 @@
-# 本地数据存储（目录体系与备份 UX）
+# 本地数据与备份
 
-> 适用范围：数据目录解析优先级（自定义/便携/安装版）、指针文件、旧数据抢救迁移、自定义位置变更流程、备份/恢复的用户流程。
-> 何时读取：改 `electron/paths.ts` / `storage-migrate.ts`、设置页数据目录 UI、备份页之前。
-> 最后更新：2026-11-02
-> 来源：原 prd.md §7.1/§7.3 + 原 docs/impl-contract.md §10.1（两份重复内容合并）；表结构见 `../contracts/db-schema.md`，备份格式见 `../contracts/backup-format.md`
+> 权威范围：数据目录、启动迁移、自定义位置、UI 偏好持久化和备份/恢复流程。
+> 何时读取：修改 `electron/paths.ts`、存储迁移、窗口/外观持久化或备份页之前。
+> 代码事实来源：`electron/paths.ts`、`electron/storage-migrate.ts`、`electron/backup/`、`shared/appearance.ts`。
+> 最后更新：2026-11-22
 
-## 1. 目录解析优先级
+数据库结构见 `../contracts/db-schema.md`；备份 ZIP 与加密格式见 `../contracts/backup-format.md`。
 
-**自定义指针 → 便携 exe 旁 `data/` → 安装版 `userData/data`**。
+## 1. 数据目录
 
-- 便携判定：打包且存在 `PORTABLE_EXECUTABLE_DIR`（electron-builder portable 运行时注入；修复「便携版数据落 %TEMP% 解包目录」）。
-- 安装版默认 `%APPDATA%/easy-webui/data`（从早期"exe 旁 data/"改为用户目录，修复 NSIS 重装清空安装目录丢数据）；重装/覆盖安装/卸载均不动它（`nsis.deleteAppDataOnUninstall=false`）。
-- 指针文件：便携 → 便携根 `easywebui-data-dir.json`；安装版 → `userData/data-dir-pointer.json`，内容 `{"dataDir":"…"}`。
+解析优先级：**自定义指针 → 便携 exe 旁 `data/` → 安装版 `userData/data`**。
 
-## 2. 启动顺序与旧数据抢救
+- 便携模式由打包运行时的 `PORTABLE_EXECUTABLE_DIR` 判定；安装版默认 `%APPDATA%/easy-webui/data`，卸载不删除业务数据。
+- 指针文件在便携根为 `easywebui-data-dir.json`，安装版为 `userData/data-dir-pointer.json`，内容为 `{"dataDir":"…"}`。
+- 启动顺序为 `resolveDataDir → migrateStorageDir → openDatabase`。
+- 目标没有数据库时，从旧安装目录或临时解包目录中抢救首个有效数据目录；%Temp% 候选必须同时包含 `easyui.db` 和 `storage-layout.json`。
+- `storage-layout.json` 的当前布局版本为 1，后续结构迁移通过 `LAYOUT_STEPS` 扩展。
 
-`resolveDataDir` → `migrateStorageDir` → `openDatabase`。
-
-- `migrateStorageDir`（**旧数据抢救**）：目标目录无 easyui.db 时从 legacy 目录列表（旧安装目录、%Temp% 解包目录等）首个含 db 的目录整体复制；%Temp% 候选必须同时含 `easyui.db` 与 `storage-layout.json`，防止接受投毒目录（@req REQ-2026-001）。
-- 布局版本标记 `storage-layout.json`，当前 `STORAGE_LAYOUT_VERSION = 1`（扩展点 = LAYOUT_STEPS 数组），大版本结构变更可自动迁移。
-
-## 3. 自定义位置变更（设置页 → 通用 → 数据存储路径）
-
-- 校验链：`invalid_dir` → `noop`（同目录）→ `dir_inside_current`（子/父目录嵌套）→ `dir_not_writable`。
-- 目标已有数据 → 仅写指针（`switched`）；否则 `wal_checkpoint(TRUNCATE)` + 全量复制（`migrated`）。
-- 成功均 `needsRestart: true`，渲染层提示重启，`relaunchApp()` 执行 `app.relaunch()+exit(0)`。
-- **任何路径都不删除旧数据**。
-
-## 4. 目录结构
-
-```
+```text
 data/
-├── easyui.db(-wal/-shm)   # SQLite 主库（WAL）
-├── keyring.bin            # safeStorage 不可用时的回退密钥材料（权限 600）
-├── window-state.json      # 窗口尺寸/位置记忆
-├── storage-layout.json    # 存储布局版本标记
-├── backups/               # 备份 zip 默认输出位置
-└── logs/app.log           # 按日轮转，保留 7 天
+├── easyui.db(-wal/-shm)
+├── keyring.bin
+├── window-state.json
+├── storage-layout.json
+├── backups/
+└── logs/app.log
 ```
 
-## 5. 备份与恢复 UX（设置页「备份管理」）
+## 2. 自定义位置
 
-1. **导出** `easyui-backup-YYYYMMDD-HHmm.zip`（格式与加密见 `../contracts/backup-format.md`）。
-2. **不含密钥（默认）**：恢复后平台其余配置可用，仅需补填密钥。
-3. **含密钥**：独立备份密码（8–32 位，二次确认），scrypt + AES-256-GCM 加密密钥明文列表。
-4. **恢复**：选 zip → 验 manifest → 含密钥先验密码 → 事务内导入；**合并**（按 id 跳过，默认）/ **覆盖**（清表重导，二次确认 + 自动先做一份不含密钥的临时备份）；完成后报统计（平台/会话/消息/预设/跳过数）。
-5. 备份列表支持打开目录与删除（删除需确认）。列表 manifest 仅缓存成功解析的 `includes_keys`/`created_at` 展示字段，按完整路径 + 文件尺寸 + mtime 失效并清理已不存在文件；损坏或超限条目不进入缓存（REQ-2026-003）。导入断环使用线性 visiting/done 状态遍历，成环节点仍降级挂根。
+设置页修改数据目录时依次检查 `invalid_dir`、`noop`、目录嵌套和 `dir_not_writable`。
+
+- 目标已有数据：只切换指针（`switched`）。
+- 目标无数据：执行 WAL checkpoint 并完整复制（`migrated`）。
+- 成功均返回 `needsRestart:true`，提示并执行重启；任何路径都不删除旧数据。
+
+## 3. UI 偏好持久化
+
+轻量偏好使用 `easyui_prefs` Cookie，并以同名 localStorage 兜底：主题、已解析语言、侧栏状态、右栏宽度，以及 `zoom`、字体、代码主题和字号等外观项。
+
+- 外观项同时写入 SQLite GeneralSettings，设置页以其为事实来源；Cookie 用于 React 挂载前应用首帧，避免 FOUC。
+- Cookie 值为 `encodeURIComponent(JSON)`，小于 2KB，有效期 365 天，`SameSite=Lax`，不设 HttpOnly。
+- Cookie 不得包含敏感信息；业务数据一律进入 SQLite。外观值的归一化与白名单由 `shared/appearance.ts` 负责，CSP 哈希规则见 `./security.md`。
+
+## 4. 备份与恢复
+
+- 默认导出不含密钥；含密钥备份必须使用独立密码和 `../contracts/backup-format.md` 规定的加密格式，机器密文不得直接导出。
+- 恢复时依次验证 manifest、必要密码和事务导入。合并模式按 ID 跳过；覆盖模式需要二次确认，并先自动创建不含密钥的临时备份。
+- 完成后报告平台、会话、消息、预设和跳过数量；备份列表支持打开目录与删除，确认规则见 `./ux-guidelines.md`。
+- 列表缓存只保存成功解析的展示字段，按完整路径、尺寸和 mtime 失效；损坏、超限或已删除文件不进入缓存。
+- 导入消息树时以线性 visiting/done 状态防环，成环节点降级挂根。
