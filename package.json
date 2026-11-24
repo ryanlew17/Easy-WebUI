@@ -61,7 +61,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
-    "electron": "^45.4.1",
+    "electron": "^45.5.0",
     "electron-builder": "^26.18.1",
     "esbuild": "^0.28.2",
     "puppeteer-core": "^25.16.0",
@@ -116,7 +116,7 @@
     }
   },
   "allowScripts": {
-    "electron@45.4.1": true,
+    "electron@45.5.0": true,
     "better-sqlite3": true,
     "electron-winstaller": true,
     "esbuild": true
