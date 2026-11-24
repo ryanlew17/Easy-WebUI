@@ -33,13 +33,13 @@ Track A+B 是本次升级的完整基础形态；Track C 是可独立移除的�
 
 vendored 代码按 Electron/Chromium 生产目标维护：移除 Firefox 专用路径与 IndexedDB 持久缓存，使用有硬上限的内存缓存，并适配 Worker、地图 `data:` URL 和懒加载。保留 MIT 许可证、版权、来源版本和本地改动记录。上游升级只能通过显式 re-vendor、diff 审查和视觉/性能基准完成，不自动追随 `main`。
 
-React 19 基线由 [REQ-2026-005](../requirements/archive/REQ-2026-005-react-19-upgrade.md) 独立交付；视觉实施范围与验收门槛见 [REQ-2026-006](../requirements/active/REQ-2026-006-liquid-glass-visual-upgrade.md)。
+React 19 基线由 [REQ-2026-005](../requirements/archive/REQ-2026-005-react-19-upgrade.md) 独立交付；视觉实施范围与验收门槛见 [REQ-2026-006](../requirements/archive/REQ-2026-006-liquid-glass-visual-upgrade.md)。
 
 ## Consequences
 
 ### 收益
 
-- 全局视觉质量由 Track A+B 保证，关键表面再获得真实折射，投入与视觉收益相匹配。
+- 全局视觉质量由 Track A+B 保证；只有独立启用并通过验收的 Track C 才为关键表面增加真实折射，二者可独立交付。
 - React 19 由独立 REQ-2026-005 交付；视觉工作保留现有控件行为、键盘交互、portal 定位、消息树与双层缩放成果。
 - 材质引擎集中在有界场景，滤镜面积、表面数量和缓存都有明确边界。
 - CSS 材质同时承担首帧、降级与无 WebGPU 环境的完整体验。

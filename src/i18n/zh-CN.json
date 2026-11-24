@@ -58,7 +58,7 @@
     "new": "新建会话",
     "searchPlaceholder": "搜索会话标题…",
     "empty": "暂无会话",
-    "emptyHint": "点击上方「新建会话」开始",
+    "emptyHint": "点击「新建会话」开始",
     "noMatch": "没有匹配的会话",
     "pin": "置顶",
     "unpin": "取消置顶",
@@ -83,7 +83,7 @@
       },
       "noConversation": {
         "title": "开始新的对话",
-        "desc": "选择一个模型，输入消息即可开始。支持 Markdown、代码高亮与流式输出。",
+        "desc": "新建会话后，选择模型并输入消息即可开始。",
         "cta": "新建会话",
         "hintShortcut": "快捷键 Ctrl/Cmd+N"
       }
@@ -108,11 +108,12 @@
       "cancelEdit": "取消编辑",
       "retry": "重试",
       "partial": "已停止，内容为部分输出",
-      "copyMessage": "复制消息内容",
-      "tokenCount": "{{count}} tokens"
+      "tokenCount": "{{count}} tokens",
+      "statsDetails": "详情"
     },
     "actions": {
       "branch": "在此消息之后分叉聊天",
+      "returnBranch": "返回原分支",
       "copy": "复制",
       "edit": "编辑",
       "delete": "删除",
@@ -279,6 +280,8 @@
       "save": "保存平台"
     },
     "general": {
+      "preferences": "偏好",
+      "systemInfo": "系统信息",
       "language": "语言",
       "langSystem": "跟随系统",
       "theme": "主题",
@@ -426,6 +429,7 @@
     "noModel": "请先在顶栏选择模型",
     "stopFailed": "停止失败",
     "contextOverflow": "上下文超出预算：预计约 {{tokens}} tokens，超出 {{budget}} tokens 预算。请开启「截断中段」、清空历史，或更换更长上下文的模型",
+    "branchPointSet": "已定位到分叉点，可返回原分支",
     "presetSaved": "已保存预设：{{name}}",
     "presetDeleted": "预设已删除",
     "presetReset": "已恢复出厂默认",
@@ -435,11 +439,5 @@
     "titleNoUserMessage": "该会话还没有任何消息，无法生成标题。请先发送一条消息后再试。",
     "titleFailed": "标题生成失败（已重试一次）。可能是网络波动或服务商暂时不可用。请稍后点击 ✨ 重试。",
     "fontRejected": "字体设置未生效：输入含有不允许的字符。字体栈仅支持字母、数字、空格、逗号、引号、连字符与点。请修正后重试，或留空恢复默认字体。"
-  },
-  "time": {
-    "justNow": "刚刚",
-    "minutesAgo": "{{count}} 分钟前",
-    "hoursAgo": "{{count}} 小时前",
-    "daysAgo": "{{count}} 天前"
   }
 }

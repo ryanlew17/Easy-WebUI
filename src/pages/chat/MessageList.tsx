@@ -2,16 +2,18 @@
  * 消息流：普通滚动 + 分页渲染（尾部 PAGE_SIZE 条，顶部"加载更早"）。
  * - 贴底时新内容/流式 flush 自动滚到底；用户上翻则不打扰；
  * - 流式渲染 50ms 节流在 messages store 完成，这里只消费状态；
- * - 选择模式：右键任一气泡进入，气泡左侧复选框多选，底部浮出 .glass-pop 操作栏
- *   （已选计数 + 删除 + 取消），Esc 退出；退出后恢复分支导航显示。
+ * - 选择模式：右键任一气泡进入，气泡左侧复选框多选，选择栏 portal 到 body 并固定底部；
+ *   同时隐藏 Generate 与输入坞（草稿保留），Esc 退出；退出后恢复分支导航显示。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Message } from '@shared/types';
 import { useMessagesStore } from '../../store/messages';
 import { IconButton } from '../../components/controls';
 import { IconClose, IconTrash } from '../../components/icons';
 import { MessageBubble } from './MessageBubble';
+import { fadeAttributeChanged, nextScrollFades } from '../../lib/glass/geometry';
 
 const PAGE_SIZE = 50;
 const STICK_BOTTOM_PX = 96;
@@ -30,9 +32,13 @@ export interface MessageListCallbacks {
 export function MessageList({
   conversationId,
   callbacks,
+  materialRef,
+  onSelectionModeChange,
 }: {
   conversationId: string;
   callbacks: MessageListCallbacks;
+  materialRef: MutableRefObject<HTMLDivElement | null>;
+  onSelectionModeChange: (active: boolean) => void;
 }) {
   const { t } = useTranslation();
   const messages = useMessagesStore((s) => s.byConv[conversationId]);
@@ -40,12 +46,25 @@ export function MessageList({
   const generating = useMessagesStore((s) => !!s.generating[conversationId]);
   const loadFor = useMessagesStore((s) => s.loadFor);
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = materialRef;
   const stickRef = useRef(true);
+
+  // @req REQ-2026-006：渐隐只反映可滚动方向，不增加逐帧 React 状态。
+  const updateFades = useCallback((): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const fades = nextScrollFades(el);
+    if (fadeAttributeChanged(el.dataset.fadeTop, fades.top)) el.dataset.fadeTop = String(fades.top);
+    if (fadeAttributeChanged(el.dataset.fadeBottom, fades.bottom)) el.dataset.fadeBottom = String(fades.bottom);
+  }, []);
 
   /* ---------- 选择模式（右键进入 / Esc 退出） ---------- */
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    onSelectionModeChange(selectionMode);
+  }, [selectionMode, onSelectionModeChange]);
 
   const exitSelection = useCallback((): void => {
     setSelectionMode(false);
@@ -113,29 +132,42 @@ export function MessageList({
     return undefined;
   }, [all]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateFades();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateFades);
+    observer?.observe(el);
+    if (el.firstElementChild) observer?.observe(el.firstElementChild);
+    return () => observer?.disconnect();
+  }, [conversationId, updateFades]);
+
   // 内容变化（含流式 flush）时，若贴底则滚到底
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !stickRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [visible, generating]);
+    if (!el) return;
+    if (stickRef.current) el.scrollTop = el.scrollHeight;
+    updateFades();
+  }, [visible, generating, updateFades]);
 
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_BOTTOM_PX;
+    updateFades();
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="message-layer flex min-h-0 flex-col">
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="message-scroll min-h-0 overflow-y-auto"
+        data-generating={generating ? 'true' : undefined}
         aria-label={t('aria.messageList')}
         aria-live="polite"
       >
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+        <div className="message-column mx-auto flex w-full flex-col gap-4">
           {hiddenCount > 0 ? (
             <div className="text-center">
               <button
@@ -178,9 +210,9 @@ export function MessageList({
       </div>
 
       {/* 选择模式操作栏：底部浮出 .glass-pop（已选计数 + 删除 + 取消） */}
-      {selectionMode ? (
+      {selectionMode ? createPortal(
         <div
-          className="glass-pop pop-layer absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 px-3 py-2"
+          className="selection-toolbar glass-pop glass-optics pop-layer flex items-center gap-2 px-3 py-2"
           role="toolbar"
           aria-label={t('chat.select.count', { count: selectedIds.length })}
         >
@@ -203,7 +235,8 @@ export function MessageList({
             <IconClose />
             <span className="text-xs">{t('chat.select.exit')}</span>
           </IconButton>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

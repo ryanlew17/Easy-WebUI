@@ -27,8 +27,9 @@ import { EVT } from '../shared/ipc-constants';
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 // @req REQ-2026-001：CSP 硬化（object/base/frame/form 全部封死；应用无 iframe/object/form 使用面）
+// @req REQ-2026-006：响应头与 index.html meta 共用首帧脚本哈希，script 不启用 unsafe-inline。
 const CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";
+  "default-src 'self'; script-src 'self' 'sha256-WoE9wgpAUH0Q2zvlQqBQ36hi2DDcN8v7sp8m1ymMQ/8='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";
 /** dev 白名单原点（will-navigate / senderFrame 校验共用）；prod 为 null */
 const devOrigin =
   isDev && process.env.VITE_DEV_SERVER_URL

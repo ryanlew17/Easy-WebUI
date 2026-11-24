@@ -1,0 +1,238 @@
+/* @req REQ-2026-006：Track B 光学层只使用渐变、mask 与阴影，不新增模糊表面。 */
+
+.glass.glass-optics,
+.glass-strong.glass-optics {
+  position: relative;
+}
+.glass.glass-optics,
+.glass-pop.glass-optics,
+.glass-strong.glass-optics {
+  border-color: transparent;
+}
+.glass-optics::before,
+.glass-optics::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  corner-shape: inherit;
+  pointer-events: none;
+}
+.glass-optics::before {
+  padding: 1.25px;
+  background: linear-gradient(
+    135deg in oklab,
+    var(--optics-edge-start),
+    var(--optics-edge-middle) 42%,
+    var(--optics-edge-end)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.glass-optics::after {
+  padding: 0.25rem;
+  background: linear-gradient(
+    160deg in oklab,
+    var(--optics-ring-cool),
+    transparent 38%,
+    var(--optics-ring-warm)
+  );
+  box-shadow:
+    inset 0.0625rem 0 0 var(--optics-ring-cool),
+    inset -0.0625rem 0 0 var(--optics-ring-warm);
+  opacity: 0.9;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.composer-shell {
+  isolation: isolate;
+  overflow: hidden;
+}
+.composer-shell > :not(.composer-highlight) {
+  position: relative;
+  z-index: 1;
+}
+.composer-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 20rem;
+  height: 8rem;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(
+    ellipse in oklab,
+    var(--composer-highlight-core),
+    var(--composer-highlight-color) 32%,
+    transparent 70%
+  );
+  opacity: var(--highlight-opacity, 0);
+  transform: translate3d(var(--highlight-x, 0), var(--highlight-y, 0), 0);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .composer-highlight {
+    transition: opacity var(--dur-base) var(--ease-interactive);
+  }
+}
+.composer-highlight[data-settling='true'] {
+  display: none;
+  transition: none;
+}
+
+.message-scroll {
+  --scroll-mask-top: #000;
+  --scroll-mask-bottom: #000;
+  --scroll-fade-top-size: 4.5rem;
+  --scroll-fade-size: 2.5rem;
+}
+.message-scroll[data-fade-top='true'] {
+  --scroll-mask-top: transparent;
+}
+.message-scroll[data-fade-bottom='true'] {
+  --scroll-mask-bottom: transparent;
+}
+@supports (mask-image: linear-gradient(black, transparent)) {
+  .message-scroll:is([data-fade-top='true'], [data-fade-bottom='true']) {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      var(--scroll-mask-top) 0,
+      #000 var(--scroll-fade-top-size),
+      #000 calc(100% - var(--scroll-fade-size)),
+      var(--scroll-mask-bottom) 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      var(--scroll-mask-top) 0,
+      #000 var(--scroll-fade-top-size),
+      #000 calc(100% - var(--scroll-fade-size)),
+      var(--scroll-mask-bottom) 100%
+    );
+  }
+  .message-scroll:focus-within {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+.composer-shell[data-glass-active='true'],
+.glass-bar[data-glass-active='true'],
+.glass-pop[data-glass-active='true'] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.message-scroll[data-generating='true'] {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-highlight {
+    display: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong,
+  .modal-overlay {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-optics::before,
+  .glass-optics::after,
+  .composer-highlight {
+    display: none;
+  }
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong {
+    background: var(--surface-modal-bg);
+  }
+  .message-scroll:is([data-fade-top='true'], [data-fade-bottom='true']) {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@media (forced-colors: active) {
+  body {
+    color: CanvasText;
+    background: Canvas;
+  }
+  body::before,
+  body::after,
+  .glass-optics::before,
+  .glass-optics::after,
+  .composer-highlight {
+    display: none;
+  }
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong,
+  .drawer,
+  .row-surface,
+  .input-surface,
+  .btn,
+  .modal-overlay {
+    color: CanvasText;
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-image: none;
+  }
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong,
+  .drawer,
+  .row-surface,
+  .input-surface,
+  .btn {
+    border: 1px solid CanvasText;
+  }
+  .conversation-row:has([aria-current='true']) {
+    color: CanvasText;
+    background: Canvas;
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+    font-weight: 600;
+  }
+  .btn[aria-pressed='true'],
+  .select-option[aria-selected='true'] {
+    color: CanvasText;
+    background: Canvas;
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+  .btn:disabled {
+    color: GrayText;
+  }
+  .md a {
+    color: LinkText;
+  }
+  :focus-visible {
+    outline-color: Highlight;
+  }
+  .composer-focus-frame:has(.composer-input:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+    box-shadow: none;
+  }
+  .message-scroll:is([data-fade-top='true'], [data-fade-bottom='true']) {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

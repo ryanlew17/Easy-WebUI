@@ -2,7 +2,7 @@
  * Easy WebUI — 会话 UX 走查脚本（feat/ui-motion-overhaul，树形分支 + LM Studio 式交互）。
  * 复用 e2e-ui-motion.mjs 的 harness（puppeteer-core + Chromium 无头，默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖）。
  *
- * 产出 docs/screenshots/30-chat-*.png ~ 34-chat-*.png，并断言关键交互：
+ * 产出 build/e2e-shots/30-chat-*.png ~ 34-chat-*.png（不入库），并断言关键交互：
  * - regenerate 后出现分支导航 ‹ 2/2 ›；
  * - ‹ 切换后内容变化（mock 备用文案）；
  * - 选择模式计数正确（已选 2 条）、Esc 退出；
@@ -17,7 +17,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const OUT = 'docs/screenshots';
+const OUT = 'build/e2e-shots';
 mkdirSync(OUT, { recursive: true });
 
 /* 进程内静态服务器服务 dist/（脚本退出即释放端口） */
@@ -193,6 +193,22 @@ try {
   must(await clickAria('发送消息'), '发送消息');
   await waitGenerationDone();
   await sleep(600);
+  const listStyles = await page.evaluate(() => {
+    const host = document.querySelector('.md');
+    if (!host) return null;
+    const fixture = document.createElement('div');
+    fixture.className = 'md';
+    fixture.innerHTML = '<ul><li>无序</li></ul><ol><li>有序</li></ol>';
+    host.appendChild(fixture);
+    const result = {
+      ul: getComputedStyle(fixture.querySelector('ul')).listStyleType,
+      ol: getComputedStyle(fixture.querySelector('ol')).listStyleType,
+    };
+    fixture.remove();
+    return result;
+  });
+  ok(listStyles?.ul === 'disc' && listStyles.ol === 'decimal',
+    `Markdown 列表恢复项目符号与序号（${JSON.stringify(listStyles)}）`);
 
   /* ---- 30: regenerate → 分支导航 ‹ 2/2 › + 操作行 hover 态 ---- */
   await hoverLastBubble();
@@ -209,9 +225,14 @@ try {
   await shot('30-chat-actions-branch');
 
   /* ---- 31: reasoning 计时标题 + 统计行 ---- */
+  await page.evaluate(() => document.querySelector('.message-stats summary')?.click());
   const statsInfo = await page.evaluate(() => {
     const body = document.body.innerText;
+    const reasoning = document.querySelector('.reasoning-block');
+    const style = reasoning ? getComputedStyle(reasoning) : null;
     return {
+      reasoningClean: !!style && (style.backgroundColor === 'rgba(0, 0, 0, 0)' || style.backgroundColor === 'transparent')
+        && style.borderTopStyle === 'none',
       thought: /思考了 \d+\.\d{2} 秒/.test(body),
       tokPerSec: /tok\/s/.test(body),
       ttft: /TTFT \d+\.\d{2}s/.test(body) || /TTFT/.test(body),
@@ -219,6 +240,7 @@ try {
       finish: /结束原因：stop/.test(body),
     };
   });
+  ok(statsInfo.reasoningClean, 'reasoning 使用无卡片左边轨而非灰底边框');
   ok(statsInfo.thought, 'reasoning 块标题含「思考了 X.XX 秒」');
   ok(statsInfo.tokPerSec, '统计行含 tok/s');
   ok(statsInfo.ttft, '统计行含 TTFT');
@@ -327,6 +349,7 @@ try {
   await sleep(300);
 
   // Generate Response：点最后一条 user 消息的 branch（setActiveLeaf 到 user）→ 按钮浮出
+  const beforeBranchCount = await page.evaluate(() => document.querySelectorAll('[aria-label="消息列表"] .bubble-surface').length);
   const branchOnUser = await page.evaluate(() => {
     const toolbars = [...document.querySelectorAll('[role="toolbar"][aria-label="消息操作"]')];
     // user 气泡：操作行里没有「重新生成」按钮
@@ -342,6 +365,56 @@ try {
     return false;
   });
   must(branchOnUser, 'user 消息 branch 按钮（setActiveLeaf）');
+  await sleep(350);
+  const branchUx = await page.evaluate(() => {
+    const toast = document.querySelector('.toast-item');
+    const toastRect = toast?.getBoundingClientRect();
+    const controls = [...document.querySelectorAll('.app-inspector .field-row, .composer-shell, .generate-response-button')]
+      .map((el) => el.getBoundingClientRect());
+    return {
+      canReturn: !!document.querySelector('[aria-label="返回原分支"]'),
+      toastText: toast?.textContent ?? '',
+      toastCenterDelta: (() => {
+        const stage = document.querySelector('.app-stage')?.getBoundingClientRect();
+        return toastRect && stage ? toastRect.left + toastRect.width / 2 - (stage.left + stage.width / 2) : null;
+      })(),
+      toastCoversControls: !!toastRect && controls.some((row) =>
+        Math.min(toastRect.right, row.right) > Math.max(toastRect.left, row.left)
+        && Math.min(toastRect.bottom, row.bottom) > Math.max(toastRect.top, row.top)),
+    };
+  });
+  ok(branchUx.canReturn, 'M-26 分叉点提供返回原分支入口');
+  ok(branchUx.toastText.includes('已定位到分叉点'), 'M-31 分叉 Toast 使用结果文案');
+  ok(!branchUx.toastCoversControls, 'M-30 Toast 不遮挡检查器、输入坞或 Generate 控件');
+  ok(Math.abs(branchUx.toastCenterDelta) <= 1, 'N-6 Toast 与工作区中心对齐', JSON.stringify(branchUx));
+  await page.evaluate(() => document.querySelector('.app-inspector [role="separator"]')?.focus());
+  for (let i = 0; i < 4; i += 1) await page.keyboard.press('ArrowLeft');
+  await sleep(300);
+  const resizedToastDelta = await page.evaluate(() => {
+    const toast = document.querySelector('.toast-item')?.getBoundingClientRect();
+    const stage = document.querySelector('.app-stage')?.getBoundingClientRect();
+    return toast && stage ? toast.left + toast.width / 2 - (stage.left + stage.width / 2) : null;
+  });
+  ok(Math.abs(resizedToastDelta) <= 1, 'N-6 拖宽检查器后 Toast 继续跟随工作区中心', String(resizedToastDelta));
+  must(await clickAria('返回原分支'), '返回原分支');
+  await sleep(400);
+  const restoredCount = await page.evaluate(() => document.querySelectorAll('[aria-label="消息列表"] .bubble-surface').length);
+  ok(restoredCount === beforeBranchCount, 'M-26 返回后恢复原激活路径');
+  const originalLeaf = await page.evaluate(() => {
+    const leaves = JSON.parse(localStorage.getItem('easyui_mock_active_leaves') ?? '{}');
+    return Object.values(leaves)[0] ?? null;
+  });
+  const branchAgain = await page.evaluate(() => {
+    const toolbars = [...document.querySelectorAll('[role="toolbar"][aria-label="消息操作"]')];
+    for (let i = toolbars.length - 1; i >= 0; i--) {
+      const tb = toolbars[i];
+      if (tb.querySelector('[aria-label="重新生成"]')) continue;
+      const btn = tb.querySelector('[aria-label="在此消息之后分叉聊天"]');
+      if (btn) { btn.click(); return true; }
+    }
+    return false;
+  });
+  must(branchAgain, '返回后再次进入分叉点');
   await sleep(500);
   const genVisible = await page.evaluate(
     () => !!document.querySelector('[aria-label="✨ 生成回复 (Ctrl+R)"]'),
@@ -350,16 +423,59 @@ try {
   await shot('33c-chat-generate-response');
   must(await clickAria('✨ 生成回复 (Ctrl+R)'), 'Generate Response 点击');
   await sleep(400);
-  const stopVisible = await page.evaluate(
-    () => !!document.querySelector('[aria-label="停止生成"]'),
-  );
-  ok(stopVisible, 'Generate Response 触发生成（停止按钮出现）');
+  const stopVisible = await page.evaluate(() => {
+    const stop = document.querySelector('[aria-label="停止生成"]');
+    if (!stop) return null;
+    const style = getComputedStyle(stop);
+    return { background: style.backgroundColor, shadow: style.boxShadow };
+  });
+  ok(stopVisible?.background && stopVisible.background !== 'rgba(0, 0, 0, 0)' && stopVisible.background !== 'transparent',
+    'Generate Response 触发生成，停止按钮有可见玻璃容器', JSON.stringify(stopVisible));
   await waitGenerationDone();
   await sleep(500);
   const genGone = await page.evaluate(
     () => !document.querySelector('[aria-label="✨ 生成回复 (Ctrl+R)"]'),
   );
   ok(genGone, '生成完成后 Generate Response 隐藏（激活叶=assistant）');
+  ok(await page.evaluate(() => !!document.querySelector('[aria-label="返回原分支"]')), 'm-7 分叉生成后保留返回入口');
+  for (let i = 0; i < 4; i += 1) {
+    const activeLeaf = await page.evaluate(() => {
+      const leaves = JSON.parse(localStorage.getItem('easyui_mock_active_leaves') ?? '{}');
+      return Object.values(leaves)[0] ?? null;
+    });
+    if (activeLeaf === originalLeaf) break;
+    must(await clickBubbleAction('上一分支'), 'm-7 通过分支导航返回原分支');
+    await sleep(400);
+  }
+  const branchReturnState = await page.evaluate((target) => {
+    const leaves = JSON.parse(localStorage.getItem('easyui_mock_active_leaves') ?? '{}');
+    return {
+      target,
+      actual: Object.values(leaves)[0] ?? null,
+      returnPresent: !!document.querySelector('[aria-label="返回原分支"]'),
+      nav: document.querySelector('[role="group"][aria-label^="分支"]')?.getAttribute('aria-label') ?? null,
+    };
+  }, originalLeaf);
+  ok(branchReturnState.actual === originalLeaf && !branchReturnState.returnPresent,
+    `m-7 回到原分支后返回入口自动消失: ${JSON.stringify(branchReturnState)}`);
+
+  const branchBeforeDelete = await page.evaluate(() => {
+    const row = document.querySelector('.msg-in');
+    const button = row?.querySelector('[aria-label="在此消息之后分叉聊天"]');
+    button?.click();
+    return !!button;
+  });
+  must(branchBeforeDelete, 'N-2 删除前建立分叉返回点');
+  await sleep(400);
+  ok(await page.evaluate(() => !!document.querySelector('[aria-label="返回原分支"]')), 'N-2 删除前返回入口存在');
+  await page.evaluate(() => {
+    document.querySelector('.msg-in [aria-label="删除"]')?.click();
+  });
+  await sleep(250);
+  must(await clickExact('删除'), 'N-2 确认删除分叉点子树');
+  await sleep(450);
+  ok(await page.evaluate(() => !document.querySelector('[aria-label="返回原分支"]')),
+    'N-2 删除原叶子树后返回入口自动清除');
 
   console.log('FLOW_OK');
 } catch (e) {

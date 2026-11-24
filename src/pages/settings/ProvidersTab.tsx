@@ -12,6 +12,8 @@ import { useProvidersStore } from '../../store/providers';
 import { useConversationsStore } from '../../store/conversations';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
+import { IconButton } from '../../components/controls';
+import { IconChevronRight, IconEdit, IconGauge, IconTrash } from '../../components/icons';
 import { formatLatency } from '../../lib/format';
 import { summarizeIpcError } from '../../lib/errors';
 import { ProviderModal } from './ProviderModal';
@@ -39,7 +41,7 @@ function StatusDot({ model }: { model: ProviderModel }) {
         style={{ background: color }}
         aria-hidden="true"
       />
-      <span className="text-[0.6875rem] text-tertiary">
+      <span className="text-caption text-tertiary">
         {status === 'ok' && check?.latency_ms != null
           ? formatLatency(check.latency_ms, i18n.language)
           : t(`settings.providers.status.${status}`)}
@@ -90,77 +92,69 @@ function ProviderCard({ provider }: { provider: Provider }) {
   };
 
   return (
-    <div className="row-surface mb-3">
+    <div className="provider-card row-surface mb-3">
       <div className="flex items-center gap-2 px-3.5 py-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[0.875rem] font-medium">{provider.name}</span>
+            <span className="truncate text-body font-medium">{provider.name}</span>
             <span className="badge flex-none">{provider.api_format}</span>
-            <span
-              className="badge flex-none"
-              style={{
-                color: provider.has_key ? 'var(--success-text)' : 'var(--warning-text)',
-              }}
-            >
+            <span className="provider-key-badge badge flex-none gap-1.5">
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-pill"
+                style={{ background: provider.has_key ? 'var(--success)' : 'var(--warning)' }}
+                data-status-dot
+                aria-hidden="true"
+              />
               {provider.has_key ? t('settings.providers.keyYes') : t('settings.providers.keyNo')}
             </span>
           </div>
-          <div className="truncate text-[0.6875rem] text-tertiary" title={provider.base_url}>
+          <div className="truncate text-caption text-tertiary" title={provider.base_url}>
             {provider.base_url}
           </div>
         </div>
         <div
-          className="flex flex-none items-center gap-1"
+          className="provider-actions flex flex-none items-center gap-1"
           role="toolbar"
           aria-label={t('aria.providerActions')}
         >
-          <button
-            type="button"
-            className="btn btn-surface"
-            style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
+          <IconButton
+            label={testingAll ? t('settings.providers.testing') : t('settings.providers.testAll')}
             disabled={testingAll || enabledModels.length === 0}
             onClick={() => void testAll()}
           >
-            {testingAll ? t('settings.providers.testing') : t('settings.providers.testAll')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
-            onClick={() => setEditing(true)}
-          >
-            {t('common.edit')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-danger"
-            style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
+            {testingAll ? (
+              <span className="spinner" role="status" aria-label={t('settings.providers.testing')} />
+            ) : (
+              <IconGauge size={14} />
+            )}
+          </IconButton>
+          <IconButton label={t('common.edit')} onClick={() => setEditing(true)}>
+            <IconEdit />
+          </IconButton>
+          <IconButton
+            label={t('common.delete')}
+            className="provider-delete-action"
             onClick={() => setConfirming(true)}
           >
-            {t('common.delete')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost icon-btn"
-            aria-label={expanded ? t('common.collapse') : t('common.expand')}
-            aria-expanded={expanded}
+            <IconTrash />
+          </IconButton>
+          <IconButton
+            label={expanded ? t('common.collapse') : t('common.expand')}
+            expanded={expanded}
             onClick={() => setExpanded((v) => !v)}
           >
-            <svg
-              width="10"
-              height="6"
-              viewBox="0 0 10 6"
-              aria-hidden="true"
-              style={{ transform: expanded ? 'rotate(180deg)' : undefined }}
+            <span
+              className="inline-flex transition-transform"
+              style={{ transform: expanded ? 'rotate(90deg)' : undefined }}
             >
-              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            </svg>
-          </button>
+              <IconChevronRight />
+            </span>
+          </IconButton>
         </div>
       </div>
 
       {expanded ? (
-        <div className="border-t hairline px-3.5 py-2">
+        <div className="px-3.5 py-2">
           {enabledModels.length === 0 ? (
             <p className="py-1 text-xs text-tertiary">{t('settings.providers.modelListEmpty')}</p>
           ) : (
@@ -168,25 +162,27 @@ function ProviderCard({ provider }: { provider: Provider }) {
               {enabledModels.map((m) => (
                 <li
                   key={m.id}
-                  className="flex items-center gap-2 border-b hairline py-1.5 last:border-b-0"
+                  className="flex items-center gap-2 py-1.5"
                   style={{ minHeight: '2rem' }}
                 >
                   <StatusDot model={m} />
                   <span className="min-w-0 flex-1 truncate text-xs" title={m.id}>
                     {m.display_name || m.id}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost flex-none"
-                    style={{ minHeight: '1.625rem', fontSize: '0.6875rem', padding: '0 0.5rem' }}
+                  <IconButton
+                    size="sm"
+                    label={testingOne === m.id
+                      ? `${t('settings.providers.testingOne')} ${m.id}`
+                      : `${t('aria.testModel')} ${m.id}`}
                     disabled={testingOne === m.id || testingAll}
                     onClick={() => void testOne(m.id)}
-                    aria-label={`${t('aria.testModel')} ${m.id}`}
                   >
-                    {testingOne === m.id
-                      ? t('settings.providers.testingOne')
-                      : t('settings.providers.test')}
-                  </button>
+                    {testingOne === m.id ? (
+                      <span className="spinner" role="status" aria-label={t('settings.providers.testingOne')} />
+                    ) : (
+                      <IconGauge size={14} />
+                    )}
+                  </IconButton>
                 </li>
               ))}
             </ul>

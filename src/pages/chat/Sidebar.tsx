@@ -9,7 +9,7 @@ import type { Conversation } from '@shared/types';
 import { useConversationsStore } from '../../store/conversations';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
-import { IconPin, IconSettings, IconSparkle } from '../../components/icons';
+import { IconEdit, IconPin, IconPlus, IconSettings, IconSparkle, IconTrash } from '../../components/icons';
 import { getApi } from '../../bridge';
 import { formatDateTime, displayTitle } from '../../lib/format';
 import { parseIpcError } from '../../lib/errors';
@@ -74,7 +74,7 @@ function ConversationRow({
   return (
     <li>
       <div
-        className="row-surface row-surface-hover group relative mb-1 flex items-center gap-1 px-2.5 py-2"
+        className="conversation-row row-surface row-surface-hover group relative mb-1 flex items-center gap-1 px-2.5 py-2"
         style={{ background: active ? 'var(--accent-soft)' : undefined }}
       >
         {conv.pinned ? (
@@ -123,9 +123,10 @@ function ConversationRow({
             className="min-w-0 flex-1 rounded-s text-left"
             style={{ minHeight: '2rem' }}
             aria-current={active}
+            title={title}
           >
-            <span className="block truncate text-[0.8125rem]">{title}</span>
-            <span className="block text-[0.6875rem] text-tertiary">
+            <span className="block truncate text-control">{title}</span>
+            <span className="block whitespace-nowrap text-caption text-tertiary">
               {formatDateTime(conv.updated_at, i18n.language)}
             </span>
           </button>
@@ -162,14 +163,7 @@ function ConversationRow({
                 setRenaming(true);
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M11.7 1.9l2.4 2.4L4.8 13.6l-3 .6.6-3L11.7 1.9z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <IconEdit />
             </button>
             <button
               type="button"
@@ -178,15 +172,7 @@ function ConversationRow({
               aria-label={t('sidebar.delete')}
               onClick={() => setConfirming(true)}
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9.5h6.6L12 4"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <IconTrash />
             </button>
           </div>
         ) : null}
@@ -238,18 +224,17 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex min-h-0 flex-col" aria-label={t('aria.conversationList')}>
-      <div className="flex flex-none flex-col gap-2 px-3 pb-2 pt-3.5">
+    <aside className="app-sidebar drawer flex min-h-0 flex-col" aria-label={t('aria.conversationList')}>
+      <div className="sidebar-brand">{t('app.name')}</div>
+      <div className="flex flex-none flex-col gap-2 px-3 pb-3">
         <button
           type="button"
-          className="btn btn-accent btn-pill w-full"
+          className="btn btn-accent w-full"
           onClick={() => void onCreate()}
           disabled={creating}
           aria-label={t('aria.newConversation')}
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <IconPlus />
           {t('sidebar.new')}
         </button>
         <input
@@ -284,7 +269,7 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="flex-none px-2 py-1.5">
+      <div className="mt-auto flex-none px-2 py-2">
         <button
           type="button"
           className="btn btn-ghost w-full justify-start"

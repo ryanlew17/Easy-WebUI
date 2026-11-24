@@ -1,37 +1,26 @@
-# Provider Gateway（协议适配层）行为总览
+# Provider Gateway
 
-> 适用范围：主进程协议适配层的职责边界、统一接口、超时/重试/错误处理行为。payload/SSE/Header/参数映射的可执行细节在 `../contracts/protocol-mapping.md`。
-> 何时读取：改 `electron/gateway/` 任何文件之前（先读本文再读契约）；排查请求链路问题时。
-> 关联需求：REQ-2026-001（2026-10 安全审计修复）。
-> 最后更新：2026-10-22
-> 来源：原 prd.md §6 + 原 docs/impl-contract.md §5（通用要求部分）
+> 权威范围：主进程请求入口、网络栈、超时重试、响应限制和统一错误行为。
+> 何时读取：修改 `electron/gateway/` 或排查服务商请求链路之前。
+> 代码事实来源：`electron/gateway/`、`shared/types.ts`、`shared/errors.ts`。
+> 最后更新：2026-11-25
 
-## 1. 职责
+## 1. 职责边界
 
-主进程模块，渲染进程不持有明文密钥、不直接请求服务商（CORS 由主进程 `net.fetch` 绕过）。渲染进程只提供"平台 id + 模型名 + 参数"，主进程查库解密密钥后发请求。
+渲染进程只提交平台 ID、模型、消息和生效参数；主进程读取平台、解密密钥并发出请求。渲染进程不得持有明文密钥或直接请求服务商。
 
-**HTTP 栈**（REQ-2026-001）：生产环境经 `setGatewayFetch` 注入 Electron `net.fetch`（Chromium 网络栈——Brotli/gzip 解压不进 Node 主进程）；未注入时回落 `globalThis.fetch`（vitest/工具场景）。
+生产环境通过 `setGatewayFetch` 注入 Electron `net.fetch`，使用 Chromium 网络栈；测试和工具未注入时使用 `globalThis.fetch`。适配层输入以 `electron/gateway/api.ts` 的 `AdapterChatInput` 为准，输出统一为 `shared/types.ts` 的 `ChatChunk`；适配器同时提供 `listModels()` 和 `testModel()`。
 
-统一接口（`AdapterChatInput` 含 `reasoningOff` 透传）：
+## 2. 请求与资源限制
 
-```ts
-interface ChatRequest {
-  providerId: string; model: string;
-  messages: { role: 'system'|'user'|'assistant'; content: string }[];
-  params: ParamValues;            // resolveParams 后的生效参数
-  stream: boolean; reasoningOff?: boolean;
-  signal: AbortSignal;
-}
-interface ChatChunk { delta?: string; reasoning_delta?: string; finishReason?: string; usage?: Usage; error?: ApiError }
-// 统一出口：chat(req): AsyncIterable<ChatChunk>；另提供 listModels() / testModel()
-```
+- 连接超时 15s；流式空闲 60s 自动重试一次，再失败则返回错误。
+- 重定向一律使用 `redirect:'manual'` 并拒绝，3xx 映射为 `redirect_rejected`，避免跨源转发密钥和请求体。
+- 非流式响应体不超过 16MB，错误体不超过 1MB；SSE 单事件/半行不超过 1M 字符。
+- 单会话累计 content + reasoning 不超过 4M 字符；超限中止并按 partial 落库。上述限制统一报 `response_too_large`。
 
-## 2. 通用行为
+## 3. 适配与错误
 
-- **连接超时 15s**；流式空闲 60s 无数据自动重试 1 次，再失败报错（UI 给"重试"按钮，见 `./chat.md` §2）。
-- **重定向一律拒绝**（`redirect: 'manual'`，3xx → `redirect_rejected`；REQ-2026-001：LLM API 无合法重定向，跨源 307/308 会转发 `x-api-key` 与请求体）。
-- **响应大小硬上限**（REQ-2026-001）：非流式 body ≤ 16MB、错误体 ≤ 1MB（`gateway/read.ts`），SSE 单事件/半行 ≤ 1M 字符（`sse.ts`），会话累计 content+reasoning ≤ 4M 字符（`chat.ts`，超限中止并按 partial 落库）——统一报 `response_too_large`。
-- HTTP 非 2xx：读响应体 `error.message` 统一映射 `ApiError{code,message}`；**任何错误对象序列化前过 `redact()`**（密钥 → `前3字符***`，见 `./security.md`）；服务商可控的 error `code`/`type` 经 `sanitizeErrorCode` 脱敏截断（≤128 字符白名单字符集），`message` 经 `sanitizeErrorMessage` 脱敏截断（≤2000 字符，@req REQ-2026-001）。
-- 三种格式（`openai-chat` / `openai-responses` / `anthropic`）各自的 payload、SSE 事件、鉴权头、参数映射、URL 拼接（joinUrl）见 `../contracts/protocol-mapping.md`。
-- 协议差异（top_k、system 字段位置、penalty 语义、思考开关载荷）在适配层内部消化，UI 仅提示。
-- 发送前的上下文裁剪在 `gateway/trim.ts`（纯函数，行为见 `./context-trim.md`）。
+- openai-chat、openai-responses、anthropic 的 URL、鉴权、payload、SSE 和参数映射由 `../contracts/protocol-mapping.md` 定义。
+- 协议能力差异在适配层内部处理，UI 只提供提示；发送前裁剪规则见 `./context-trim.md`。
+- HTTP 非 2xx 读取受限错误体并映射为 `ApiError`。所有错误出口必须执行 `./security.md` 的脱敏、code 白名单和消息截断，不得直接把服务商响应或密钥传给渲染进程。
+- 取消、重试、partial 与失败的落库和展示由 `./chat.md` 负责。

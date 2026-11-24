@@ -13,6 +13,8 @@ import { useUiStore } from '../../store/ui';
 import { useProvidersStore } from '../../store/providers';
 import { useConversationsStore } from '../../store/conversations';
 import { ConfirmDialog, Modal } from '../../components/Modal';
+import { IconButton } from '../../components/controls';
+import { IconArchive, IconPlus, IconTrash } from '../../components/icons';
 import { formatBytes, formatDateTime } from '../../lib/format';
 import { summarizeIpcError } from '../../lib/errors';
 
@@ -79,8 +81,8 @@ function CreateBackupModal({ onClose }: { onClose: () => void }) {
           onChange={(e) => setIncludeKeys(e.target.checked)}
         />
         <span>
-          <span className="block text-[0.8125rem]">{t('settings.backup.includeKeys')}</span>
-          <span className="block text-[0.6875rem] text-tertiary">
+          <span className="block text-control">{t('settings.backup.includeKeys')}</span>
+          <span className="block text-caption text-tertiary">
             {t('settings.backup.includeKeysHint')}
           </span>
         </span>
@@ -101,7 +103,7 @@ function CreateBackupModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setPassword(e.target.value)}
             />
             {/* @req REQ-2026-001：密码 8–32 位，输入框内提示（minLength 逻辑校验在下方 valid） */}
-            <span className="mt-1 block text-[0.6875rem] text-tertiary">
+            <span className="mt-1 block text-caption text-tertiary">
               {t('settings.backup.passwordHint')}
             </span>
           </label>
@@ -217,7 +219,7 @@ function RestoreModal({ path, onClose }: { path: string; onClose: () => void }) 
               {t('settings.backup.restoreFile')}
             </span>
             <code
-              className="block break-all rounded-s px-2 py-1.5 text-[0.6875rem]"
+              className="block break-all rounded-s px-2 py-1.5 text-caption"
               style={{ background: 'var(--code-bg)' }}
             >
               {path}
@@ -235,7 +237,7 @@ function RestoreModal({ path, onClose }: { path: string; onClose: () => void }) 
               autoComplete="off"
               onChange={(e) => setPassword(e.target.value)}
             />
-            <span className="mt-1 block text-[0.6875rem] text-tertiary">
+            <span className="mt-1 block text-caption text-tertiary">
               {t('settings.backup.passwordNeeded')}
             </span>
           </label>
@@ -259,7 +261,7 @@ function RestoreModal({ path, onClose }: { path: string; onClose: () => void }) 
                     checked={mode === m}
                     onChange={() => setMode(m)}
                   />
-                  <span className="text-[0.8125rem]">
+                  <span className="text-control">
                     {m === 'merge'
                       ? t('settings.backup.modeMerge')
                       : t('settings.backup.modeOverwrite')}
@@ -335,14 +337,23 @@ export function BackupTab() {
           <button type="button" className="btn btn-surface" onClick={() => void onPickRestore()}>
             {t('settings.backup.restore')}
           </button>
-          <button type="button" className="btn btn-accent btn-pill" onClick={() => setCreating(true)}>
-            + {t('settings.backup.create')}
+          <button
+            type="button"
+            className="btn btn-accent backup-create"
+            aria-label={t('settings.backup.create')}
+            onClick={() => setCreating(true)}
+          >
+            <IconPlus />
+            {t('settings.backup.create')}
           </button>
         </div>
       </div>
 
       {backups.length === 0 ? (
-        <div className="row-surface px-6 py-10 text-center">
+        <div className="px-6 py-8 text-center">
+          <div className="mb-2 inline-flex text-tertiary" aria-hidden="true">
+            <IconArchive size={20} />
+          </div>
           <p className="mb-1 text-sm font-medium">{t('settings.backup.empty')}</p>
           <p className="text-xs text-secondary">{t('settings.backup.emptyHint')}</p>
         </div>
@@ -352,7 +363,7 @@ export function BackupTab() {
             <li key={b.filename} className="row-surface mb-2 flex items-center gap-3 px-3.5 py-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[0.8125rem] font-medium" title={b.filename}>
+                  <span className="truncate text-control font-medium" title={b.filename}>
                     {b.filename}
                   </span>
                   <span className="badge flex-none">
@@ -361,18 +372,17 @@ export function BackupTab() {
                       : t('settings.backup.withoutKeys')}
                   </span>
                 </div>
-                <span className="text-[0.6875rem] text-tertiary">
+                <span className="text-caption text-tertiary">
                   {formatDateTime(b.created_at, i18n.language)} · {formatBytes(b.size, i18n.language)}
                 </span>
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-danger flex-none"
-                style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
+              <IconButton
+                label={t('common.delete')}
+                className="danger-on-hover flex-none"
                 onClick={() => setDeleting(b)}
               >
-                {t('common.delete')}
-              </button>
+                <IconTrash />
+              </IconButton>
             </li>
           ))}
         </ul>

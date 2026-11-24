@@ -1,8 +1,9 @@
 /**
+ * @req REQ-2026-006：输入坞使用语义排版与强调色令牌。
  * 输入坞：浮在画布上的 ChatGPT 式玻璃输入卡片。
- * - textarea 在上（透明无边框，自适应增高 ≤10rem）；底行控件统一 2rem 高、右下角：
- *   Think 胶囊 → 上下文用量环（>80% 转 warning）→ 发送/停止圆钮；增高时底行钉底；
- * - 「✨ Generate Response」液态玻璃胶囊浮于卡片上方 12px 居中（仅末条为 user 消息时）；
+ * - textarea 在上（透明无边框，自适应增高 ≤10rem）；底行左侧为 Think + 上下文用量，
+ *   右侧为独立圆形发送/停止；选择模式隐藏输入坞但保留组件与草稿；
+ * - 「✨ Generate Response」液态玻璃胶囊浮于卡片上方 16px 居中（仅末条为 user 消息时）；
  * - Enter 发送 / Shift+Enter 换行（可在通用设置翻转）；生成中禁用输入 + 停止（Esc 亦可）；
  * - 浮层（胶囊 / 用量环明细）均 portal 到 body：输入卡片自带 backdrop-filter，
  *   浮层留在其 DOM 内则模糊失效。
@@ -16,6 +17,8 @@ import { AnchoredPopover } from '../../components/Popover';
 import { useDelayedUnmount } from '../../lib/useDelayedUnmount';
 import { IconBulb, IconSend, IconStop } from '../../components/icons';
 import { formatNumber } from '../../lib/format';
+import { quantizeComposerHeight, quantizeComposerMaxHeight } from '../../lib/glass/geometry';
+import { useGlassSurface } from '../../components/GlassMaterialProvider';
 
 /** 上下文用量（由 ChatPage 汇总历史与系统提示词；草稿估算在本组件内叠加） */
 export interface ContextUsage {
@@ -51,7 +54,7 @@ function ContextRing({ usage, draftTokens }: { usage: ContextUsage; draftTokens:
   return (
     <span
       ref={ringRef}
-      className="ctx-ring relative inline-flex min-h-8 flex-none items-center gap-1.5"
+      className="ctx-ring context-usage relative inline-flex min-h-8 flex-none items-center gap-1.5"
       tabIndex={0}
       role="img"
       aria-label={`${label}: ${usedPct}%`}
@@ -67,7 +70,7 @@ function ContextRing({ usage, draftTokens }: { usage: ContextUsage; draftTokens:
           cy="9"
           r={R}
           fill="none"
-          stroke={over ? 'var(--warning)' : 'var(--accent)'}
+          stroke={over ? 'var(--warning)' : 'var(--text-tertiary)'}
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray={`${(pctShown * C).toFixed(2)} ${C.toFixed(2)}`}
@@ -75,7 +78,7 @@ function ContextRing({ usage, draftTokens }: { usage: ContextUsage; draftTokens:
         />
       </svg>
       <span
-        className="text-[0.6875rem] tabular-nums"
+        className="text-caption tabular-nums"
         style={{ color: over ? 'var(--warning-text)' : 'var(--text-tertiary)' }}
       >
         {usedPct}%
@@ -104,18 +107,18 @@ function ContextRing({ usage, draftTokens }: { usage: ContextUsage; draftTokens:
   );
 }
 
-/* ---------- Generate Response 液态玻璃胶囊（浮于输入坞上方居中，LM Studio 式） ----------
- * 仅激活路径最后是 user 消息时出现（ChatPage canGenerate）；portal 到 body 保证
- * .glass-pop 模糊真实生效（输入坞 .glass-bar 是 backdrop root，留在其 DOM 内必失效）；
- * 锚定输入卡片顶缘居中，随窗口缩放/布局变化重定位；进/退场走 .pop-layer。 */
+/* Generate Response：bare AnchoredPopover 只负责 portal 与定位，按钮自身是唯一玻璃胶囊。
+ * 仅激活路径最后是 user 消息时出现；锚定输入卡片顶缘居中，随缩放/布局重定位。 */
 function GeneratePill({
   anchorRef,
+  popoverRef,
   mounted,
   closing,
   label,
   onClick,
 }: {
   anchorRef: React.MutableRefObject<HTMLElement | null>;
+  popoverRef: React.MutableRefObject<HTMLElement | null>;
   mounted: boolean;
   closing: boolean;
   label: string;
@@ -125,17 +128,19 @@ function GeneratePill({
   return (
     <AnchoredPopover
       anchorRef={anchorRef}
+      popoverRef={popoverRef}
       mounted={mounted}
       closing={closing}
       placement="top"
       align="center"
-      gap={12}
+      gap={16}
+      variant="bare"
       className="p-0"
     >
       <button
         type="button"
-        className="btn btn-pill px-4 text-xs font-medium"
-        style={{ color: 'var(--accent)', minHeight: '2rem' }}
+        className="generate-response-button btn btn-pill glass glass-optics px-4 text-xs font-medium"
+        style={{ color: 'var(--text-primary)', minHeight: '2.25rem' }}
         onClick={onClick}
         title={label}
         aria-label={label}
@@ -158,6 +163,7 @@ export function Composer({
   usage,
   canGenerate,
   onGenerate,
+  selectionMode,
 }: {
   disabled: boolean;
   generating: boolean;
@@ -172,25 +178,150 @@ export function Composer({
   /** 激活路径最后是 user 消息且无生成中 → 浮出 Generate Response */
   canGenerate: boolean;
   onGenerate: () => void;
+  selectionMode: boolean;
 }) {
   const { t } = useTranslation();
   const enterSend = useSettingsStore((s) => s.settings.enter_send);
   const [text, setText] = useState('');
   const taRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLSpanElement>(null);
+  const generateRef = useRef<HTMLDivElement>(null);
+  useGlassSurface('composer', shellRef);
 
-  // 自适应高度
+  // @req REQ-2026-006：按实际行高阶梯化，避免逐像素重建材质地图。
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 160) / 16}rem`;
+    const style = getComputedStyle(ta);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+    const maxHeight = quantizeComposerMaxHeight(
+      lineHeight,
+      Number.parseFloat(style.maxHeight) || 160,
+      padding,
+    );
+    const height = quantizeComposerHeight(
+      ta.scrollHeight,
+      lineHeight,
+      Number.parseFloat(style.minHeight) || 28,
+      maxHeight,
+    );
+    ta.style.height = `${height / 16}rem`;
   }, [text]);
 
+  // @req REQ-2026-006：同一尺寸观察器同步消息安全区；高光仅以单个 rAF 写 transform/opacity。
+  useEffect(() => {
+    const shell = shellRef.current;
+    const dock = dockRef.current;
+    const highlight = highlightRef.current;
+    if (!shell || !dock || !highlight) return;
+    const workspace = shell.closest<HTMLElement>('.chat-workspace');
+    const preference = window.matchMedia(
+      '(prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce), (forced-colors: active)',
+    );
+    let raf = 0;
+    let showTimer = 0;
+    let settling = false;
+    let inside = false;
+    let rect: DOMRect | null = null;
+    let point = { x: 0, y: 0 };
+    const hide = (): void => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.clearTimeout(showTimer);
+      raf = 0;
+      highlight.style.setProperty('--highlight-opacity', '0');
+    };
+    const settle = (): void => {
+      settling = true;
+      highlight.dataset.settling = 'true';
+      hide();
+      showTimer = window.setTimeout(() => {
+        settling = false;
+        delete highlight.dataset.settling;
+        if (inside && !preference.matches && !document.hidden) {
+          highlight.style.setProperty('--highlight-opacity', '1');
+        }
+      }, 150);
+    };
+    const measure = (): void => {
+      rect = shell.getBoundingClientRect();
+    };
+    const updateSpace = (): void => {
+      if (!workspace) return;
+      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      workspace.style.setProperty('--composer-space', `${dock.offsetHeight + rem}px`);
+    };
+    const onMove = (event: PointerEvent): void => {
+      if (preference.matches || document.hidden) return;
+      inside = true;
+      if (!rect) measure();
+      const current = rect;
+      if (!current) return;
+      const zoom = shell.offsetWidth > 0 ? current.width / shell.offsetWidth : 1;
+      point = {
+        x: (event.clientX - current.left) / zoom - highlight.offsetWidth / 2,
+        y: (event.clientY - current.top) / zoom - highlight.offsetHeight / 2,
+      };
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        if (preference.matches || document.hidden) {
+          hide();
+          return;
+        }
+        highlight.style.setProperty('--highlight-x', `${point.x}px`);
+        highlight.style.setProperty('--highlight-y', `${point.y}px`);
+        if (!settling) highlight.style.setProperty('--highlight-opacity', '1');
+      });
+    };
+    const onLeave = (): void => {
+      inside = false;
+      settling = false;
+      delete highlight.dataset.settling;
+      hide();
+    };
+    const onPreferenceChange = (): void => {
+      onLeave();
+      if (preference.matches) {
+        shell.removeEventListener('pointermove', onMove);
+      } else {
+        measure();
+        shell.addEventListener('pointermove', onMove);
+      }
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      measure();
+      updateSpace();
+      settle();
+    });
+    observer?.observe(shell);
+    observer?.observe(dock);
+    shell.addEventListener('pointerleave', onLeave);
+    shell.addEventListener('input', settle);
+    document.addEventListener('visibilitychange', onLeave);
+    preference.addEventListener('change', onPreferenceChange);
+    updateSpace();
+    onPreferenceChange();
+    return () => {
+      onLeave();
+      observer?.disconnect();
+      workspace?.style.removeProperty('--composer-space');
+      shell.removeEventListener('pointermove', onMove);
+      shell.removeEventListener('pointerleave', onLeave);
+      shell.removeEventListener('input', settle);
+      document.removeEventListener('visibilitychange', onLeave);
+      preference.removeEventListener('change', onPreferenceChange);
+    };
+  }, []);
+
   const canSend = !disabled && !generating && hasModel && text.trim().length > 0;
-  const showGenerate = canGenerate && !generating && hasModel && !disabled;
+  const showGenerate = canGenerate && !generating && hasModel && !disabled && !selectionMode;
   /* 胶囊退场动画（150ms 反向 .pop-layer）后再卸载 */
   const genPop = useDelayedUnmount(showGenerate, 150);
+  useGlassSurface('generate-pill', generateRef, showGenerate && genPop.mounted);
 
   const doSend = (): void => {
     if (!canSend) return;
@@ -227,19 +358,22 @@ export function Composer({
   }, [showGenerate, onGenerate]);
 
   return (
-    <div className="flex-none px-4 pb-4 pt-1">
+    <div ref={dockRef} className="composer-dock flex-none pl-5 pr-7 pb-1 pt-1" data-selection-mode={selectionMode ? 'true' : undefined}>
       {/* Generate Response 液态玻璃胶囊：LM Studio 式浮于输入卡片上方居中
           （Ctrl/Cmd+R；不清空草稿）。portal 到 body 保证模糊生效。 */}
       <GeneratePill
         anchorRef={shellRef}
-        mounted={genPop.mounted}
+        popoverRef={generateRef}
+        mounted={genPop.mounted && !selectionMode}
         closing={genPop.closing}
         label={t('chat.composer.generateResponse')}
         onClick={onGenerate}
       />
 
       {/* 输入卡片：浮在画布上的玻璃卡（.glass 模糊/边缘/高光，几何见 .composer-shell） */}
-      <div ref={shellRef} className="composer-shell glass mx-auto w-full max-w-7xl">
+      <div className="composer-focus-frame">
+        <div ref={shellRef} className="composer-shell glass glass-optics mx-auto">
+        <span ref={highlightRef} className="composer-highlight" aria-hidden="true" />
         <textarea
           ref={taRef}
           rows={1}
@@ -258,31 +392,31 @@ export function Composer({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        {/* 底行控件（flex-none 钉底、统一右下角）：左留白 → Think 胶囊 → 上下文环 → 发送/停止圆钮 */}
-        <div className="flex flex-none items-center justify-end gap-2">
-          <span className="flex-1" aria-hidden="true" />
-          {thinkSupported ? (
-            <IconButton
-              round
-              active={thinkEnabled}
-              label={t('chat.composer.thinkToggle')}
-              title={t('chat.composer.think')}
-              onClick={onToggleThink}
-              className="flex-none"
-            >
-              <IconBulb />
-              <span className="text-xs">{t('chat.composer.think')}</span>
-            </IconButton>
-          ) : null}
-          <ContextRing usage={usage} draftTokens={estimateDraftTokens(text)} />
+        {/* 次级控制靠左，发送/停止作为独立圆形主操作靠右。 */}
+        <div className="flex flex-none items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {thinkSupported ? (
+              <IconButton
+                active={thinkEnabled}
+                label={t('chat.composer.thinkToggle')}
+                title={t('chat.composer.think')}
+                onClick={onToggleThink}
+                className="composer-secondary btn-pill flex-none"
+              >
+                <IconBulb />
+                <span className="text-xs">{t('chat.composer.think')}</span>
+              </IconButton>
+            ) : null}
+            <ContextRing usage={usage} draftTokens={estimateDraftTokens(text)} />
+          </div>
           {generating ? (
             <IconButton
               round
-              variant="danger-solid"
+              variant="ghost"
               label={t('aria.stopGeneration')}
               title={t('chat.input.stop')}
               onClick={onStop}
-              className="flex-none"
+              className="btn-surface flex-none"
               size="md"
             >
               <IconStop />
@@ -301,6 +435,7 @@ export function Composer({
               <IconSend />
             </IconButton>
           )}
+        </div>
         </div>
       </div>
     </div>

@@ -1,8 +1,7 @@
 /**
- * 会话页三栏（docs/design/chat.md / docs/design/ui-liquid-glass.md）：
- * CSS Grid：minmax(200px,260px) 1fr <右栏宽度（cookie 持久化，可拖拽）>；960px 窗口仍可用。
- * 右栏可折叠（折叠态存 cookie）；栏间 0.5px 发丝分隔线。
- *
+ * 会话页共享 AppFrame：15rem 导航栏 + 工作区 + 可拖宽检查器。
+ * 顶栏与输入坞浮于消息上；窄窗口检查器默认收起，可显式打开实色覆盖栏。
+ * 消息树行为保持 schema v3 契约：
  * 树形分支模型接线（schema v3 契约）：
  * - user 编辑后"保存并重新发送"：内容变更 → sendMessage({siblingOf}) 产生新分支；
  *   未变更 → 其后 assistant regenerate（无后继则 generateResponse）；
@@ -26,6 +25,10 @@ import { useProvidersStore } from '../../store/providers';
 import { RIGHT_WIDTH_MAX, RIGHT_WIDTH_MIN, useUiStore } from '../../store/ui';
 import { displayTitle } from '../../lib/format';
 import { ConfirmDialog } from '../../components/Modal';
+import { AppFrame, type InspectorMode } from '../../components/AppFrame';
+import { IconButton } from '../../components/controls';
+import { IconChevronLeft, IconPanelRight, IconSliders } from '../../components/icons';
+import { GlassMaterialProvider } from '../../components/GlassMaterialProvider';
 import { Sidebar } from './Sidebar';
 import { MessageList, type MessageListCallbacks } from './MessageList';
 import { Composer, type ContextUsage } from './Composer';
@@ -55,8 +58,27 @@ export function ChatPage() {
   const { rightCollapsed, rightWidth, toggleRight, setRightWidth } = useUiStore();
 
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+  const chatSceneRef = useRef<HTMLDivElement>(null);
+  const messageContentRef = useRef<HTMLDivElement>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [branchReturn, setBranchReturn] = useState<{ conversationId: string; leafId: string; pathIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>('grid');
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const onInspectorModeChange = useCallback((mode: InspectorMode): void => {
+    setInspectorMode(mode);
+    if (mode === 'overlay') setOverlayDismissed(true);
+  }, []);
+  const inspectorAutoClosed = inspectorMode === 'overlay' && overlayDismissed;
+  const onToggleRight = (): void => {
+    if (inspectorAutoClosed) {
+      setOverlayDismissed(false);
+      if (rightCollapsed) toggleRight();
+      return;
+    }
+    toggleRight();
+  };
 
   const hasProvider = providers.length > 0;
   const providerId = conv ? conv.provider_id : null;
@@ -130,9 +152,16 @@ export function ChatPage() {
       },
       onBranch: (msg) => {
         if (!conv) return;
+        const activeMessages = useMessagesStore.getState().byConv[conv.id];
+        const previousLeaf = activeMessages?.length ? activeMessages[activeMessages.length - 1].id : null;
         void setActiveLeaf(conv.id, msg.id).then((res) => {
           if (!res.ok) reportError(res.error);
-          else toast('info', t('chat.actions.branch'));
+          else {
+            setBranchReturn(previousLeaf && previousLeaf !== msg.id
+              ? { conversationId: conv.id, leafId: previousLeaf, pathIds: (activeMessages ?? []).map((message) => message.id) }
+              : null);
+            toast('info', t('toast.branchPointSet'));
+          }
         });
       },
       onDelete: (ids) => setPendingDelete(ids),
@@ -152,6 +181,13 @@ export function ChatPage() {
         if (!conv) return;
         void switchBranch(conv.id, targetId).then((res) => {
           if (!res.ok) reportError(res.error);
+          else {
+            const path = useMessagesStore.getState().byConv[conv.id] ?? [];
+            const activeLeaf = path[path.length - 1]?.id;
+            setBranchReturn((current) => current?.conversationId === conv.id && current.leafId === activeLeaf
+              ? null
+              : current);
+          }
         });
       },
     }),
@@ -176,6 +212,10 @@ export function ChatPage() {
     void deleteMessages(conv.id, pendingDelete)
       .then((res) => {
         if (!res.ok) reportError(res.error);
+        else {
+          setBranchReturn((current) => current?.conversationId === conv.id
+            && current.pathIds.some((id) => pendingDelete.includes(id)) ? null : current);
+        }
       })
       .finally(() => {
         setDeleting(false);
@@ -257,56 +297,107 @@ export function ChatPage() {
     document.addEventListener('mouseup', onUp);
   };
 
+  const onDividerKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowLeft' ? 10 : -10;
+    setRightWidth(Math.min(RIGHT_WIDTH_MAX, Math.max(RIGHT_WIDTH_MIN, rightWidth + delta)));
+  };
+
   const rightRem = (rightWidth / 16).toFixed(3);
 
   return (
-    <div
-      className="grid h-full min-h-0"
-      style={{
-        gridTemplateColumns: rightCollapsed
-          ? 'minmax(12.5rem, 16.25rem) minmax(0, 1fr)'
-          : `minmax(12.5rem, 16.25rem) minmax(0, 1fr) ${rightRem}rem`,
-      }}
+    <AppFrame
+      navigation={<Sidebar />}
+      inspectorWidth={`${rightRem}rem`}
+      onInspectorModeChange={onInspectorModeChange}
+      inspector={!conv || rightCollapsed || inspectorAutoClosed ? null : (
+        <aside className="app-inspector drawer flex min-h-0 flex-col" aria-label={t('params.title')}>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t('aria.resizeRightPanel')}
+            aria-valuemin={RIGHT_WIDTH_MIN}
+            aria-valuemax={RIGHT_WIDTH_MAX}
+            aria-valuenow={rightWidth}
+            tabIndex={0}
+            onMouseDown={onDividerDown}
+            onKeyDown={onDividerKeyDown}
+            className="absolute left-0 top-0 z-10 h-full w-3"
+            style={{ cursor: 'grab' }}
+          />
+          <div className="flex flex-none items-center justify-between px-4 pb-2 pt-4">
+            <h2 className="truncate text-control font-semibold">{t('params.title')}</h2>
+            <IconButton
+              label={t('aria.toggleRightPanel')}
+              onClick={onToggleRight}
+            >
+              <IconChevronLeft />
+            </IconButton>
+          </div>
+          {conv ? (
+            <ParamsPanel conv={conv} />
+          ) : (
+            <div className="inspector-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+              <IconSliders size={18} />
+              <p className="m-0 text-control font-medium text-secondary">{t('sidebar.empty')}</p>
+              <p className="m-0 text-caption text-tertiary">{t('sidebar.emptyHint')}</p>
+            </div>
+          )}
+        </aside>
+      )}
     >
-      {/* 左栏：抽屉底色分区（无边线） */}
-      <div className="drawer flex min-h-0 flex-col">
-        <Sidebar />
-      </div>
-
-      {/* 中栏 */}
-      <div className="flex min-w-0 flex-col" style={{ minHeight: 0 }}>
+      {/* @req REQ-2026-006：聊天中栏是唯一有界材质场景。 */}
+      <GlassMaterialProvider
+        rootRef={chatSceneRef}
+        contentRef={messageContentRef}
+        sessionKey={conv?.id ?? ''}
+      >
+      <div ref={chatSceneRef} className="chat-workspace app-workspace">
         {/* 消息流顶栏（玻璃，消息从其下滚过）。z-30：backdrop-filter 形成堆叠上下文，
             缺省会被 DOM 序更靠后的消息列表盖住 */}
-        <div className="glass-bar relative z-30 flex flex-none items-center gap-2 px-4 py-2.5">
+        <div className="workspace-topbar glass-bar glass-optics flex items-center gap-3 px-3">
           <div className="min-w-0 flex-1">
             {conv ? (
               <ModelPicker providerId={providerId} model={model} onSelect={onModelSelect} />
             ) : (
-              <span className="text-sm text-secondary">{t('app.name')}</span>
+              <span className="text-sm text-secondary">{t('nav.chat')}</span>
             )}
           </div>
+          {conv && branchReturn?.conversationId === conv.id ? (
+            <IconButton
+              label={t('chat.actions.returnBranch')}
+              onClick={() => {
+                const target = branchReturn.leafId;
+                void setActiveLeaf(conv.id, target).then((res) => {
+                  if (!res.ok) reportError(res.error);
+                  else setBranchReturn(null);
+                });
+              }}
+              className="flex-none"
+            >
+              <IconChevronLeft />
+            </IconButton>
+          ) : null}
           {conv ? (
-            <span className="hidden max-w-[40%] truncate text-xs text-tertiary sm:inline">
+            <span
+              className="hidden max-w-[40%] truncate text-xs text-tertiary sm:inline"
+              title={displayTitle(conv.title, t('sidebar.untitled'))}
+            >
               {displayTitle(conv.title, t('sidebar.untitled'))}
             </span>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost icon-btn flex-none"
-            onClick={toggleRight}
-            aria-label={t('aria.toggleRightPanel')}
-            aria-pressed={!rightCollapsed}
-            title={t('params.title')}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M2 3.5h12v9H2zM10 3.5v9"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          {conv ? (
+            <IconButton
+              label={t('aria.toggleRightPanel')}
+              title={t('params.title')}
+              active={!rightCollapsed && !inspectorAutoClosed}
+              onClick={onToggleRight}
+              className="flex-none"
+            >
+              <IconPanelRight />
+            </IconButton>
+          ) : null}
         </div>
 
         {providersLoaded && !hasProvider ? (
@@ -315,7 +406,12 @@ export function ChatPage() {
           <EmptyNoConversation />
         ) : (
           <>
-            <MessageList conversationId={conv.id} callbacks={msgCallbacks} />
+            <MessageList
+              conversationId={conv.id}
+              callbacks={msgCallbacks}
+              materialRef={messageContentRef}
+              onSelectionModeChange={setSelectionMode}
+            />
             <Composer
               disabled={false}
               generating={generating}
@@ -328,46 +424,12 @@ export function ChatPage() {
               usage={usage}
               canGenerate={canGenerate}
               onGenerate={onGenerate}
+              selectionMode={selectionMode}
             />
           </>
         )}
       </div>
-
-      {/* 右栏（可折叠 + 可拖拽调宽）：抽屉底色分区 */}
-      {rightCollapsed ? null : (
-        <div className="drawer relative flex min-h-0 flex-col">
-          {/* 拖拽把手：左缘 0.5rem 热区 */}
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t('aria.resizeRightPanel')}
-            onMouseDown={onDividerDown}
-            className="absolute -left-1.5 top-0 z-10 h-full w-3"
-            style={{ cursor: 'grab' }}
-            onMouseDownCapture={() => {
-              document.body.style.cursor = 'grabbing';
-            }}
-          />
-          <div className="flex flex-none items-center justify-between px-4 py-2.5">
-            <h2 className="truncate text-sm font-semibold">{t('params.title')}</h2>
-            <button
-              type="button"
-              className="btn btn-ghost icon-btn"
-              onClick={toggleRight}
-              aria-label={t('aria.toggleRightPanel')}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          {conv ? (
-            <ParamsPanel conv={conv} />
-          ) : (
-            <div className="px-4 py-6 text-xs text-tertiary">{t('sidebar.empty')}</div>
-          )}
-        </div>
-      )}
+      </GlassMaterialProvider>
 
       {/* 删除确认（单删/多选批删共用；子树连删） */}
       {pendingDelete ? (
@@ -385,6 +447,6 @@ export function ChatPage() {
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}
-    </div>
+    </AppFrame>
   );
 }

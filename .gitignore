@@ -29,4 +29,5 @@ Thumbs.db
 
 # Agent session / e2e scratch
 .zcode/
+.workbuddy/
 build/

@@ -13,6 +13,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../store/ui';
+import { IconButton } from './controls';
+import { IconClose } from './icons';
 
 /** 模态关闭通道：footer/children 内的按钮用它关闭可播退场动画（与 ✕/Esc 一致） */
 const ModalCloseContext = createContext<() => void>(() => {});
@@ -53,6 +55,8 @@ export function Modal({
   const incModal = useUiStore((s) => s.incModal);
   const decModal = useUiStore((s) => s.decModal);
   const panelRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const mountedRef = useRef(false);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
@@ -89,18 +93,27 @@ export function Modal({
   }, []);
 
   useEffect(() => {
-    // 初始焦点进面板，保证可 Tab 到达（docs/design/ux-guidelines.md，可访问性）
+    // 初始焦点进面板，关闭后返回触发控件（docs/design/ux-guidelines.md，可访问性）
     const el = panelRef.current;
     if (!el) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (active && !el.contains(active)) returnFocusRef.current = active;
+    mountedRef.current = true;
     const focusable = el.querySelector<HTMLElement>(
       'input, textarea, select, button:not([disabled])',
     );
     (focusable ?? el).focus();
+    return () => {
+      mountedRef.current = false;
+      window.setTimeout(() => {
+        if (!mountedRef.current && returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+      }, 0);
+    };
   }, []);
 
   return createPortal(
     <div
-      className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-4"
       style={{ background: 'var(--overlay-bg)' }}
       data-closing={closing ? 'true' : undefined}
       onMouseDown={(e) => {
@@ -113,27 +126,18 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`modal-panel glass-strong flex w-full ${maxWidthClass} flex-col`}
+        className={`modal-panel glass-strong glass-optics flex w-full ${maxWidthClass} flex-col`}
         data-closing={closing ? 'true' : undefined}
         style={{ maxHeight: '90vh' }}
       >
         <div className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
           <h2 className="truncate text-sm font-semibold">{title}</h2>
-          <button
-            type="button"
-            className="btn btn-ghost icon-btn"
+          <IconButton
+            label={t('aria.closeModal')}
             onClick={requestClose}
-            aria-label={t('aria.closeModal')}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path
-                d="M2 2l8 8M10 2l-8 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+            <IconClose />
+          </IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <ModalCloseContext.Provider value={requestClose}>

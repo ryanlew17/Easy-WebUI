@@ -1,3 +1,4 @@
+// @req REQ-2026-006：Chrome/Edge 139+ 保留 corner-shape 渐进增强。
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -46,8 +47,8 @@ export default defineConfig({
   css: {
     lightningcss: {
       targets: {
-        chrome: 120 << 16,
-        edge: 120 << 16,
+        chrome: 139 << 16,
+        edge: 139 << 16,
         safari: (16 << 16) | (4 << 8),
         firefox: 128 << 16,
       },
@@ -55,6 +56,6 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    cssTarget: ['chrome120', 'edge120', 'safari16.4', 'firefox128'],
+    cssTarget: ['chrome139', 'edge139', 'safari16.4', 'firefox128'],
   },
 });

@@ -5,7 +5,7 @@
  * - 响应格式三选 + 自动探测（失败不阻断保存）；
  * - 检测模型列表：成功弹复选框勾选；失败显示脱敏错误 + 手动添加模型 ID 兜底（硬性要求）。
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   ApiFormat,
@@ -18,7 +18,8 @@ import { shouldClearKeyOnBaseUrlChange } from '@shared/url';
 import { useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { Modal } from '../../components/Modal';
-import { Checkbox } from '../../components/controls';
+import { Checkbox, IconButton } from '../../components/controls';
+import { IconClose } from '../../components/icons';
 import { summarizeIpcError } from '../../lib/errors';
 
 const FORMATS: ApiFormat[] = ['openai-chat', 'openai-responses', 'anthropic'];
@@ -52,6 +53,7 @@ export function ProviderModal({
   const [manualId, setManualId] = useState('');
   const [saving, setSaving] = useState(false);
   const [nameTouched, setNameTouched] = useState(!!provider);
+  const fetchedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void getApi()
@@ -59,6 +61,10 @@ export function ProviderModal({
       .then(setPresets)
       .catch(() => setPresets([]));
   }, []);
+
+  useEffect(() => {
+    if (fetched) fetchedRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [fetched]);
 
   const canSubmit = name.trim().length > 0 && baseUrl.trim().length > 0;
 
@@ -212,7 +218,7 @@ export function ProviderModal({
       }
     >
       <div className="flex flex-col gap-4">
-        {presets.length > 0 ? (
+        {!provider && presets.length > 0 ? (
           <div>
             <p className="mb-1.5 text-xs font-medium text-secondary">{t('settings.providers.preset')}</p>
             <div className="flex flex-wrap gap-1.5">{presetButtons}</div>
@@ -337,23 +343,41 @@ export function ProviderModal({
           ) : null}
 
           {fetched ? (
-            <div className="row-surface mb-2 p-2.5">
-              <div className="mb-1.5 flex items-center justify-between">
+            <div ref={fetchedRef} className="mb-2 py-1">
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-secondary">
                   {t('settings.providers.fetchSelectHint')}
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  style={{ minHeight: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem' }}
-                  onClick={() => {
-                    const all: Record<string, boolean> = {};
-                    for (const id of fetched) all[id] = true;
-                    setFetchedChecked(all);
-                  }}
-                >
-                  {t('common.selectAll')}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ minHeight: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem' }}
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      for (const id of fetched) all[id] = true;
+                      setFetchedChecked(all);
+                    }}
+                  >
+                    {t('common.selectAll')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ minHeight: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem' }}
+                    onClick={() => setFetched(null)}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    style={{ minHeight: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem' }}
+                    onClick={mergeFetched}
+                  >
+                    {t('common.confirm')}
+                  </button>
+                </div>
               </div>
               <div className="max-h-40 overflow-y-auto">
                 {fetched.map((id) => (
@@ -379,24 +403,6 @@ export function ProviderModal({
                     </span>
                   </div>
                 ))}
-              </div>
-              <div className="mt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
-                  onClick={() => setFetched(null)}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-accent"
-                  style={{ minHeight: '1.75rem', fontSize: '0.75rem' }}
-                  onClick={mergeFetched}
-                >
-                  {t('common.confirm')}
-                </button>
               </div>
             </div>
           ) : null}
@@ -435,15 +441,13 @@ export function ProviderModal({
                   <span className="truncate" title={m.id}>
                     {m.display_name || m.id}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost icon-btn"
-                    style={{ width: '1.25rem', height: '1.25rem', minHeight: '1.25rem' }}
-                    aria-label={`${t('common.remove')} ${m.id}`}
+                  <IconButton
+                    size="sm"
+                    label={`${t('common.remove')} ${m.id}`}
                     onClick={() => setModels((prev) => prev.filter((x) => x.id !== m.id))}
                   >
-                    ×
-                  </button>
+                    <IconClose />
+                  </IconButton>
                 </span>
               ))}
             </div>

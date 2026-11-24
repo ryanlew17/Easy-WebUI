@@ -38,8 +38,10 @@ import { useSettingsStore } from '../../store/settings';
 import { enabledModelsByProvider, useProvidersStore } from '../../store/providers';
 import { useUiStore } from '../../store/ui';
 import { SegmentedControl, TextField, Toggle } from '../../components/controls';
+import { FormRow, FormSection } from '../../components/FormLayout';
 import { Modal } from '../../components/Modal';
 import { ModelPicker } from '../chat/ModelPicker';
+import { IconClose, IconMinus, IconPlus } from '../../components/icons';
 
 /** 缩放步长：滑块取整、−/＋ 按钮、键盘方向键统一 10%（clampZoom 内已按 0.1 取整） */
 const ZOOM_STEP = 0.1;
@@ -108,19 +110,8 @@ function ZoomControl() {
     }
   };
 
-  const btnIcon = (plus: boolean) => (
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path
-        d={plus ? 'M6 2.5v7M2.5 6h7' : 'M2.5 6h7'}
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-
   return (
-    <div className="flex items-center gap-2" style={{ width: '15rem' }}>
+    <div className="flex w-full items-center gap-2">
       <button
         type="button"
         className="btn btn-ghost icon-btn flex-none"
@@ -129,7 +120,7 @@ function ZoomControl() {
         disabled={zoom <= ZOOM_MIN}
         onClick={() => setZoom(zoom - ZOOM_STEP)}
       >
-        {btnIcon(false)}
+        {<IconMinus />}
       </button>
       <div
         ref={trackRef}
@@ -161,21 +152,9 @@ function ZoomControl() {
         disabled={zoom >= ZOOM_MAX}
         onClick={() => setZoom(zoom + ZOOM_STEP)}
       >
-        {btnIcon(true)}
+        {<IconPlus />}
       </button>
       <span className="w-11 flex-none text-right text-xs text-secondary">{pct}%</span>
-    </div>
-  );
-}
-
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b hairline py-3 last:border-b-0">
-      <div className="min-w-0">
-        <p className="text-[0.8125rem] font-medium">{label}</p>
-        {hint ? <p className="mt-0.5 text-[0.6875rem] text-tertiary">{hint}</p> : null}
-      </div>
-      <div className="flex-none">{children}</div>
     </div>
   );
 }
@@ -248,14 +227,7 @@ function FontSizeField({
           aria-label={t('settings.general.fontSizeReset')}
           onClick={() => onCommit(null)}
         >
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path
-              d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinecap="round"
-            />
-          </svg>
+          <IconClose />
         </button>
       ) : null}
     </div>
@@ -339,14 +311,12 @@ export function GeneralTab() {
 
   return (
     <section aria-label={t('settings.tabs.general')}>
-      {/* 外观分组：页内现有层次 = row-surface 卡片 + h3 组标题（同「快捷键」卡） */}
-      <div className="row-surface mb-3 px-4">
-        <h3 className="pt-3 text-[0.8125rem] font-medium">{t('settings.general.appearance')}</h3>
-        <Row label={t('settings.general.zoom')} hint={t('settings.general.zoomHint')}>
+      <FormSection title={t('settings.general.appearance')}>
+        <FormRow label={t('settings.general.zoom')} hint={t('settings.general.zoomHint')}>
           <ZoomControl />
-        </Row>
-        <Row label={t('settings.general.fontUi')} hint={t('settings.general.fontUiHint')}>
-          <div style={{ width: '13rem' }}>
+        </FormRow>
+        <FormRow label={t('settings.general.fontUi')} hint={t('settings.general.fontUiHint')}>
+          <div className="w-full">
             <TextField
               value={settings.font_ui}
               onCommit={commitFont('font_ui')}
@@ -354,8 +324,8 @@ export function GeneralTab() {
               placeholder={t('settings.general.fontStackPlaceholder')}
             />
           </div>
-        </Row>
-        <Row label={t('settings.general.fontUiSize')} hint={t('settings.general.fontUiSizeHint')}>
+        </FormRow>
+        <FormRow label={t('settings.general.fontUiSize')} hint={t('settings.general.fontUiSizeHint')}>
           <FontSizeField
             value={settings.font_ui_size}
             min={FONT_UI_SIZE_MIN}
@@ -363,9 +333,9 @@ export function GeneralTab() {
             ariaLabel={t('settings.general.fontUiSize')}
             onCommit={(v) => void update({ font_ui_size: v })}
           />
-        </Row>
-        <Row label={t('settings.general.fontCode')} hint={t('settings.general.fontCodeHint')}>
-          <div style={{ width: '13rem' }}>
+        </FormRow>
+        <FormRow label={t('settings.general.fontCode')} hint={t('settings.general.fontCodeHint')}>
+          <div className="w-full">
             <TextField
               value={settings.font_code}
               onCommit={commitFont('font_code')}
@@ -373,8 +343,8 @@ export function GeneralTab() {
               placeholder={t('settings.general.fontStackPlaceholder')}
             />
           </div>
-        </Row>
-        <Row
+        </FormRow>
+        <FormRow
           label={t('settings.general.fontCodeSize')}
           hint={t('settings.general.fontCodeSizeHint')}
         >
@@ -385,8 +355,8 @@ export function GeneralTab() {
             ariaLabel={t('settings.general.fontCodeSize')}
             onCommit={(v) => void update({ font_code_size: v })}
           />
-        </Row>
-        <Row label={t('settings.general.codeTheme')} hint={t('settings.general.codeThemeHint')}>
+        </FormRow>
+        <FormRow label={t('settings.general.codeTheme')} hint={t('settings.general.codeThemeHint')}>
           <SegmentedControl
             ariaLabel={t('settings.general.codeTheme')}
             value={settings.code_theme}
@@ -397,11 +367,11 @@ export function GeneralTab() {
               { value: 'dark', label: t('settings.general.themeDark') },
             ]}
           />
-        </Row>
-      </div>
+        </FormRow>
+      </FormSection>
 
-      <div className="row-surface mb-3 px-4">
-        <Row label={t('settings.general.language')}>
+      <FormSection title={t('settings.general.preferences')}>
+        <FormRow label={t('settings.general.language')}>
           <SegmentedControl
             ariaLabel={t('settings.general.language')}
             value={settings.language}
@@ -412,8 +382,8 @@ export function GeneralTab() {
               { value: 'en-US', label: 'English' },
             ]}
           />
-        </Row>
-        <Row label={t('settings.general.theme')}>
+        </FormRow>
+        <FormRow label={t('settings.general.theme')}>
           <SegmentedControl
             ariaLabel={t('settings.general.theme')}
             value={settings.theme}
@@ -424,16 +394,16 @@ export function GeneralTab() {
               { value: 'system', label: t('settings.general.themeSystem') },
             ]}
           />
-        </Row>
-        <Row label={t('settings.general.autoTitle')} hint={t('settings.general.autoTitleHint')}>
+        </FormRow>
+        <FormRow label={t('settings.general.autoTitle')} hint={t('settings.general.autoTitleHint')}>
           <Toggle
             checked={settings.auto_title}
             label={t('settings.general.autoTitle')}
             onChange={(v) => void update({ auto_title: v })}
           />
-        </Row>
+        </FormRow>
         {settings.auto_title ? (
-          <Row
+          <FormRow
             label={t('settings.general.titleModel')}
             hint={
               hasAnyModel
@@ -444,14 +414,16 @@ export function GeneralTab() {
             }
           >
             {hasAnyModel ? (
-              <div className="flex items-center gap-1.5">
-                <ModelPicker
-                  providerId={settings.title_provider_id}
-                  model={settings.title_model}
-                  onSelect={(pid, mid) =>
-                    void update({ title_provider_id: pid, title_model: mid })
-                  }
-                />
+              <div className="flex min-w-0 items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <ModelPicker
+                    providerId={settings.title_provider_id}
+                    model={settings.title_model}
+                    onSelect={(pid, mid) =>
+                      void update({ title_provider_id: pid, title_model: mid })
+                    }
+                  />
+                </div>
                 {titlePinned ? (
                   <button
                     type="button"
@@ -460,14 +432,7 @@ export function GeneralTab() {
                     aria-label={t('settings.general.titleModelClear')}
                     onClick={() => void update({ title_provider_id: null, title_model: null })}
                   >
-                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                      <path
-                        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <IconClose />
                   </button>
                 ) : null}
               </div>
@@ -481,24 +446,23 @@ export function GeneralTab() {
                 {t('settings.general.titleModelGoProviders')}
               </button>
             )}
-          </Row>
+          </FormRow>
         ) : null}
-        <Row label={t('settings.general.enterSend')} hint={t('settings.general.enterSendHint')}>
+        <FormRow label={t('settings.general.enterSend')} hint={t('settings.general.enterSendHint')}>
           <Toggle
             checked={settings.enter_send}
             label={t('settings.general.enterSend')}
             onChange={(v) => void update({ enter_send: v })}
           />
-        </Row>
-      </div>
+        </FormRow>
+      </FormSection>
 
-      <div className="row-surface mb-3 px-4 py-3">
-        <h3 className="mb-2 text-[0.8125rem] font-medium">{t('settings.general.shortcuts')}</h3>
-        <table className="w-full text-xs">
+      <FormSection title={t('settings.general.shortcuts')}>
+        <table className="shortcut-table w-full text-caption">
           <tbody>
             {shortcuts.map(([keys, desc]) => (
-              <tr key={keys} className="border-b hairline last:border-b-0">
-                <td className="py-1.5 pr-3">
+              <tr key={keys}>
+                <td className="pr-3">
                   {keys.split('+').map((k, i, arr) => (
                     <span key={`${k}-${i}`}>
                       <kbd className="kbd">{k}</kbd>
@@ -506,18 +470,18 @@ export function GeneralTab() {
                     </span>
                   ))}
                 </td>
-                <td className="py-1.5 text-secondary">{desc}</td>
+                <td className="text-secondary">{desc}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </FormSection>
 
-      <div className="row-surface px-4">
-        <Row label={t('settings.general.dataPath')}>
+      <FormSection title={t('settings.general.systemInfo')}>
+        <FormRow label={t('settings.general.dataPath')} layout="stack">
           <div className="flex items-center gap-2">
             <code
-              className="block max-w-xs truncate rounded-s px-1.5 py-0.5 text-[0.6875rem]"
+              className="block max-w-xs truncate rounded-s px-1.5 py-0.5 text-caption"
               style={{ background: 'var(--code-bg)' }}
               title={systemInfo?.dataPath}
             >
@@ -543,14 +507,14 @@ export function GeneralTab() {
               </button>
             ) : null}
           </div>
-        </Row>
-        <Row label={t('settings.general.version')}>
+        </FormRow>
+        <FormRow label={t('settings.general.version')}>
           <span className="text-xs text-secondary">{systemInfo?.version ?? '…'}</span>
-        </Row>
-        <Row label={t('settings.general.platform')}>
+        </FormRow>
+        <FormRow label={t('settings.general.platform')}>
           <span className="text-xs text-secondary">{systemInfo?.platform ?? '…'}</span>
-        </Row>
-        <Row label={t('settings.general.encryption')}>
+        </FormRow>
+        <FormRow label={t('settings.general.encryption')}>
           <span
             className="badge"
             style={{
@@ -565,8 +529,8 @@ export function GeneralTab() {
                 : t('settings.general.encWeak')
               : '…'}
           </span>
-        </Row>
-      </div>
+        </FormRow>
+      </FormSection>
 
       {/* 数据路径变更：确认弹窗（迁移中态禁用按钮） */}
       {dataDirTarget ? (
@@ -602,7 +566,7 @@ export function GeneralTab() {
             {t('settings.general.dataPathConfirmBody')}
           </p>
           <code
-            className="mt-2 block break-all rounded-s px-2 py-1.5 text-[0.6875rem]"
+            className="mt-2 block break-all rounded-s px-2 py-1.5 text-caption"
             style={{ background: 'var(--code-bg)' }}
           >
             {dataDirTarget}

@@ -60,14 +60,14 @@ export function PresetTab() {
 
   return (
     <section aria-label={t('settings.tabs.presets')}>
-      <div className="row-surface mb-3 flex items-center justify-between gap-4 px-4 py-3">
+      <div className="preset-intro mb-8 flex items-center justify-between gap-4 px-0">
         <div className="min-w-0">
-          <p className="text-[0.8125rem] font-medium">{t('settings.presets.globalTitle')}</p>
-          <p className="mt-0.5 text-[0.6875rem] text-tertiary">{t('settings.presets.desc')}</p>
+          <p className="text-control font-medium">{t('settings.presets.globalTitle')}</p>
+          <p className="mt-0.5 text-caption text-tertiary">{t('settings.presets.desc')}</p>
         </div>
         <button
           type="button"
-          className="btn btn-surface btn-danger flex-none"
+          className="btn btn-ghost danger-on-hover flex-none"
           aria-label={t('settings.presets.resetFactory')}
           onClick={() => setConfirmingReset(true)}
         >
@@ -75,7 +75,7 @@ export function PresetTab() {
         </button>
       </div>
 
-      <div className="row-surface px-4 py-2">
+      <div>
         <ParamBlock icon={SectionIcons.systemPrompt} title={t('params.blocks.systemPrompt')}>
           <SystemPromptSection {...sectionProps} />
         </ParamBlock>

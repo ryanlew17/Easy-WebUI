@@ -1,8 +1,17 @@
+// @req REQ-2026-006：语义排版阶梯由 Tailwind 工具类共享。
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontSize: {
+        caption: ['var(--type-caption)', { lineHeight: 'var(--leading-caption)' }],
+        control: ['var(--type-control)', { lineHeight: 'var(--leading-control)' }],
+        body: ['var(--type-body)', { lineHeight: 'var(--leading-body)' }],
+        title: ['var(--type-title)', { lineHeight: 'var(--leading-control)', fontWeight: 'var(--weight-semibold)' }],
+        xs: ['var(--type-caption)', { lineHeight: 'var(--leading-caption)' }],
+        sm: ['var(--type-body)', { lineHeight: 'var(--leading-control)' }],
+      },
       colors: {
         accent: 'var(--accent)',
         'accent-soft': 'var(--accent-soft)',

@@ -1,46 +1,50 @@
-# 对话：布局、生成编排、思考开关、生成统计
+# 对话与生成
 
-> 适用范围：会话页三栏布局、生成编排（发送/重生成/续写共用）、流式渲染、失败重试、单生成锁、思考开关、生成统计口径与展示。
-> 何时读取：改会话页布局、`electron/chat.ts` 编排、流式渲染、统计展示之前。
-> 最后更新：2026-11-02
-> 来源：原 prd.md §4.1/§4.4/§4.6/§4.7 + 原 docs/impl-contract.md §11.2/§11.4；分支操作语义见 `./message-tree.md`，参数见 `./params.md`
+> 权威范围：生成编排、流式渲染、取消与失败、思考开关、生成统计。
+> 何时读取：修改 `electron/chat.ts`、消息流式状态或 Composer 生成行为之前。
+> 代码事实来源：`electron/chat.ts`、`src/store/messages.ts`、`shared/reasoning.ts`。
+> 最后更新：2026-11-25
 
-## 1. 会话页布局（三栏）
+页面骨架和视觉规格见 `./ui-liquid-glass.md`；分支位置见 `./message-tree.md`；参数合成见 `./params.md`。
 
-- **左栏（侧栏）**：会话列表（新建、重命名、删除、置顶、按更新时间排序、手动 ✨ 生成标题）；可折叠。
-- **中栏**：消息流（树形分支的激活路径）+ 输入坞（Composer：多行输入、思考开关、上下文环形计量、发送/停止；上方浮动"生成回复"胶囊）。
-- **右栏（可折叠）**：当前会话参数面板，覆盖项高亮 + 一键回退预设。
+## 1. 生成生命周期
 
-三栏 Grid `minmax(200px,260px) 1fr minmax(240px,320px)`；视觉规格（气泡宽度/输入坞/胶囊）见 `./ui-liquid-glass.md` §6。
+发送、重生成和续写共用主进程编排：
 
-## 2. 生成编排（发送 / 重生成 / 续写共用）
+1. 按消息树规则写入或定位消息。
+2. 按 `./context-trim.md` 组装发送载荷，经 `./gateway.md` 的适配层请求模型。
+3. 通过 `chat:delta` 分流 `reasoning` 与 `content`，结束或失败时落库 assistant 状态。
 
-- 编排顺序：落库 user 消息 → 裁剪组装（`./context-trim.md`）→ 调适配层（`./gateway.md`）→ 流式回推（`chat:delta`，reasoning 与 content 分流）→ 落库 assistant 消息。
-- 流式期间：输入框禁用、显示"停止"按钮；取消后主进程 abort（`AbortController.abort()`），已收部分内容落库（`partial: true`）。
-- 请求失败：已收内容与错误一并落库，消息以气泡内错误卡片呈现（状态码 + 脱敏后信息），提供"重试"按钮；重试复用同一条用户消息，不产生重复记录。
-- 后台 `run()` 启动点必须兜底捕获尾部 DAO/广播异常并记录脱敏日志，避免 fire-and-forget 产生未处理 Promise 拒绝（@req REQ-2026-002）。
-- **同会话同一时间只允许一个进行中的生成**（单生成锁；违反报 `generation_in_progress`）。
-- 流式渲染：气泡内三点 typing 指示器 → 首个 delta 替换为正文；delta 进增量缓冲，50ms 节流 flush（REQ-2026-003）。pending 按 conversationId 定向更新，未变化气泡经稳定引用 + memo 跳过重复 Markdown/高亮；生成期代码块保持纯文本，完成后按需加载语言并最终高亮，DOMPurify 与 raw HTML 禁令不变。
-- `generateResponse`：激活叶为 user 时直接生成 assistant 子消息（输入坞上方胶囊）；否则报 `nothing_to_generate`。
+- 同会话同一时间只允许一个生成，冲突报 `generation_in_progress`。
+- 生成时禁用输入并显示停止；取消调用 `AbortController.abort()`，已收内容以 `partial: true` 落库。
+- 请求失败时保留已收内容并记录脱敏错误，气泡提供重试；重试复用同一 user 消息，不生成重复记录。
+- 后台 `run()` 必须捕获尾部 DAO/广播异常并记录脱敏日志，避免未处理 Promise 拒绝。
+- `generateResponse` 仅允许激活叶为 user 时生成 assistant 子消息，否则报 `nothing_to_generate`。
 
-## 3. 思考开关（reasoning_enabled）
+## 2. 流式渲染
 
-- 会话级开关（DB 列，新会话默认开）。开 = 模型默认思考，请求不附加参数；关 = 按 api_format 附加关闭载荷：openai-chat `thinking:{type:'disabled'}`、openai-responses `reasoning:{effort:'none'}`、anthropic `thinking:{type:'disabled'}`（`shared/reasoning.ts` 的 `reasoningOffPayload()` 统一产出，`AdapterChatInput.reasoningOff` 透传）。
-- 能力判定 `modelSupportsReasoning(modelId)`：保守的"确认不支持"名单（gpt-3.5 / gpt-4o / moonshot-v1 / llama / mistral / gemma 等）；**未知一律按支持处理**（按钮显示）。标题生成不受影响。
+- 等待首包时显示 typing 指示器，首个 delta 后替换为正文。
+- delta 进入增量缓冲，每 50ms flush；pending 按 `conversationId` 定向更新，未变化气泡通过稳定引用和 memo 避免重复 Markdown/高亮。
+- 生成期代码块保持纯文本，完成后按需加载语言并高亮；聊天始终禁止 raw HTML，安全边界见 `./security.md`。
 
-## 4. 生成统计（MessageStats）
+## 3. 思考开关
 
-**计时口径**（t0 = 请求发出）：
+`reasoning_enabled` 是会话级设置，新会话默认开启，标题生成不受其影响。
+
+- 开启：使用模型默认行为，不附加参数。
+- 关闭：`shared/reasoning.ts` 的 `reasoningOffPayload()` 按格式生成载荷：openai-chat 为 `thinking:{type:'disabled'}`，openai-responses 为 `reasoning:{effort:'none'}`，anthropic 为 `thinking:{type:'disabled'}`；`AdapterChatInput.reasoningOff` 负责透传。
+- `modelSupportsReasoning(modelId)` 只确认已知不支持名单；未知模型按支持处理并显示开关。
+
+## 4. 生成统计
+
+以请求发出为 `t0`：
 
 | 指标 | 定义 |
 | --- | --- |
-| `ttft_ms` | 首个 delta（reasoning/content 先到为准）− t0；非流式 = total |
-| `reasoning_ms` | 首 content delta − t0（仅当出现过 reasoning；无则流结束） |
-| `total_ms` | 结束/中止/失败 − t0（中止/失败同样落库） |
+| `ttft_ms` | 首个 reasoning/content delta − t0；非流式等于总用时 |
+| `reasoning_ms` | 出现过 reasoning 时为首 content delta − t0，否则为流结束时间 |
+| `total_ms` | 结束、中止或失败 − t0；中止和失败也落库 |
 
-**展示**：
-
-- reasoning 折叠块标题「Thought for X.XXs / 思考了 X.XX 秒」。
-- 完成后气泡底部统计行：tok/s（= token_count / max(total−ttft, 1ms)）、tokens、TTFT、总用时、finish_reason。
-- ≥60s 显示 `Xm XXs`（`formatDurationMs` 双语格式化）。
-- 续写（continue）：不建行，delta 追加到同一消息；计时/字数对总内容累计（total_ms 与 token_count 累加，ttft 保留首段值，finish_reason 取本次）。
+- reasoning 标题显示思考时长；完成后默认显示 tok/s、tokens 和“详情”标签，其余指标通过原生 `<details>` 展开。
+- tok/s = `token_count / max(total_ms − ttft_ms, 1ms)`；时长格式化使用 `formatDurationMs`。
+- 续写不新建消息，delta 追加到原消息；`total_ms` 和 `token_count` 累加，保留首段 `ttft_ms`，`finish_reason` 取本次值。

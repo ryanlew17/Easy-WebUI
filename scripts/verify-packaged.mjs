@@ -1,6 +1,6 @@
 /**
- * 打包产物（release/win-unpacked/Easy WebUI.exe）启动验证：拉起真实 exe，
- * 经远程调试确认 preload 桥与系统信息，截图后结束进程并清理临时与便携数据目录。
+ * 打包产物（默认 release/win-unpacked/Easy WebUI.exe，可用 EASYUI_APP_EXE 覆盖）启动验证：
+ * 拉起真实 exe，经远程调试确认 preload 桥与系统信息，截图后结束进程并清理临时与便携数据目录。
  * @req REQ-2026-004 增强验证：--user-data-dir 指向临时目录，绝不读写真实 %APPDATA% 数据。
  */
 import './node-version-guard.mjs';
@@ -10,7 +10,10 @@ import os from 'node:os';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 
-const exe = path.resolve('release/win-unpacked/Easy WebUI.exe');
+const exe = path.resolve(process.env.EASYUI_APP_EXE ?? 'release/win-unpacked/Easy WebUI.exe');
+/* 走查截图只写 build/（.gitignore 覆盖），docs/screenshots 保留 README 精选图 */
+const SHOTS = 'build/e2e-shots';
+fs.mkdirSync(SHOTS, { recursive: true });
 // 隔离 userData（Electron 将 --user-data-dir 映射到 app.getPath('userData')）
 const isolatedUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'easyui-verify-'));
 const child = spawn(
@@ -39,6 +42,7 @@ try {
   const browser = await puppeteer.connect({
     browserURL: 'http://127.0.0.1:9444',
     defaultViewport: null,
+    protocolTimeout: 120000,
   });
   let page = null;
   for (let i = 0; i < 30; i++) {
@@ -70,7 +74,12 @@ try {
   const ustate = await page.evaluate(() => window.easyui.updateGetState());
   console.log('PACKAGED updateGetState =', JSON.stringify(ustate));
   await sleep(1500);
-  await page.screenshot({ path: 'docs/screenshots/14-electron-packaged.png' });
+  try {
+    await page.screenshot({ path: `${SHOTS}/14-electron-packaged.png` });
+  } catch (e) {
+    // 合成器偶发超时不应抹掉已通过的桥接与更新链路断言
+    console.warn('PACKAGED screenshot skipped:', e.message);
+  }
   console.log('PACKAGED_APP_OK');
   await browser.disconnect();
 } finally {
@@ -78,7 +87,7 @@ try {
     execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
   } catch {}
   // 清理便携模式在 exe 旁生成的 data/ 与隔离临时目录，保持产物目录与机器干净
-  const dataDir = path.resolve('release/win-unpacked/data');
+  const dataDir = path.resolve(path.dirname(exe), 'data');
   if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
   fs.rmSync(isolatedUserData, { recursive: true, force: true });
 }

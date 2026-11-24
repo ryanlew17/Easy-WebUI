@@ -154,6 +154,10 @@ export function IconChevronLeft({ size = 12 }: IconProps) {
 }
 
 /** 下一分支 › */
+export function IconChevronDown({ size = 12 }: IconProps) {
+  return base(size, <path d="M3.5 5.5L8 10l4.5-4.5" />);
+}
+
 export function IconChevronRight({ size = 12 }: IconProps) {
   return base(size, <path d="M5.5 3.5l5 4.5-5 4.5" />);
 }
@@ -194,5 +198,42 @@ export function IconSettings({ size = 14 }: IconProps) {
       key="b"
       d="M12.93 10a1.1 1.1 0 00.22 1.21l.04.04a1.33 1.33 0 11-1.89 1.89l-.04-.04a1.1 1.1 0 00-1.21-.22 1.1 1.1 0 00-.67 1.01V14a1.33 1.33 0 11-2.67 0v-.06A1.1 1.1 0 006 12.93a1.1 1.1 0 00-1.21.22l-.04.04a1.33 1.33 0 11-1.89-1.89l.04-.04a1.1 1.1 0 00.22-1.21 1.1 1.1 0 00-1.01-.67H2a1.33 1.33 0 110-2.67h.06A1.1 1.1 0 003.07 6a1.1 1.1 0 00-.22-1.21l-.04-.04a1.33 1.33 0 111.89-1.89l.04.04a1.1 1.1 0 001.21.22H6a1.1 1.1 0 00.67-1.01V2a1.33 1.33 0 112.67 0v.06a1.1 1.1 0 00.67 1.01 1.1 1.1 0 001.21-.22l.04-.04a1.33 1.33 0 111.89 1.89l-.04.04a1.1 1.1 0 00-.22 1.21V6a1.1 1.1 0 001.01.67H14a1.33 1.33 0 110 2.67h-.06a1.1 1.1 0 00-1.01.67z"
     />,
+  ]);
+}
+
+export function IconPlus({ size = 14 }: IconProps) {
+  return base(size, <path d="M8 3v10M3 8h10" />);
+}
+
+export function IconMinus({ size = 14 }: IconProps) {
+  return base(size, <path d="M3 8h10" />);
+}
+
+export function IconPanelRight({ size = 14 }: IconProps) {
+  return base(size, [
+    <rect key="a" x="2.5" y="3" width="11" height="10" rx="1.5" />,
+    <path key="b" d="M10 3v10" />,
+  ]);
+}
+
+export function IconServer({ size = 14 }: IconProps) {
+  return base(size, [
+    <rect key="a" x="2.5" y="2.5" width="11" height="4" rx="1" />,
+    <rect key="b" x="2.5" y="9.5" width="11" height="4" rx="1" />,
+    <path key="c" d="M5 4.5h.01M5 11.5h.01M8 4.5h3M8 11.5h3" />,
+  ]);
+}
+
+export function IconArchive({ size = 14 }: IconProps) {
+  return base(size, [
+    <path key="a" d="M3 5.5h10v8H3zM2.5 2.5h11v3h-11z" />,
+    <path key="b" d="M6.5 8h3" />,
+  ]);
+}
+
+export function IconInfo({ size = 14 }: IconProps) {
+  return base(size, [
+    <circle key="a" cx="8" cy="8" r="5.5" />,
+    <path key="b" d="M8 7.5v3.5M8 5h.01" />,
   ]);
 }

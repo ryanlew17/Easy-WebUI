@@ -1,6 +1,6 @@
 {
   "name": "easy-webui",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "private": true,
   "description": "Easy WebUI — local-first multi-provider LLM chat client",
   "main": "dist-electron/electron/main.js",
@@ -15,6 +15,10 @@
     "test": "vitest run",
     "preperf": "node scripts/node-version-guard.mjs",
     "perf": "npm run build && node scripts/perf-main.mjs && node scripts/perf-renderer.mjs",
+    "preperf:gpu": "node scripts/node-version-guard.mjs",
+    "perf:gpu": "npm run build && node scripts/perf-renderer.mjs --gpu --runs=5",
+    "preperf:glass": "node scripts/node-version-guard.mjs",
+    "perf:glass": "npm run build && node scripts/perf-glass.mjs --runs=1",
     "preperf:electron": "node scripts/node-version-guard.mjs",
     "perf:electron": "npm run build && node scripts/perf-electron.mjs",
     "preshot": "node scripts/node-version-guard.mjs",
@@ -32,7 +36,7 @@
     "dompurify": "^3.1.7",
     "electron-updater": "^6.8.11",
     "highlight.js": "^11.10.0",
-    "i18next": "^23.16.5",
+    "i18next": "^26.7.2",
     "js-tiktoken": "^1.0.15",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -57,7 +61,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
-    "electron": "^45.4.1",
+    "electron": "^45.5.0",
     "electron-builder": "^26.18.1",
     "esbuild": "^0.28.2",
     "puppeteer-core": "^25.16.0",
@@ -112,7 +116,7 @@
     }
   },
   "allowScripts": {
-    "electron@45.4.1": true,
+    "electron@45.5.0": true,
     "better-sqlite3": true,
     "electron-winstaller": true,
     "esbuild": true

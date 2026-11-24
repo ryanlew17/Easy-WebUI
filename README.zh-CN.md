@@ -15,7 +15,7 @@
 
 ## 功能特性
 
-- **12 家预置供应商**开箱即用：OpenAI、Anthropic、OpenRouter、DeepSeek、Kimi (Moonshot AI)、智谱 (Bigmodel)、小米 (Xiaomi MiMo)、MiniMax、硅基流动 (SiliconFlow)、魔搭 (ModelScope)、火山引擎 (Ark)、阿里云百炼 (Alibaba Cloud Bailian)——同时支持完全自定义 base_url / 协议格式（`openai-chat` / `openai-responses` / `anthropic`），支持自动探测。
+- **12 家预置供应商**开箱即用：OpenAI、Anthropic、OpenRouter、DeepSeek、Kimi (Moonshot AI)、智谱 (Bigmodel)、小米 (Xiaomi MiMo)、MiniMax、硅基流动 (SiliconFlow)、魔搭 (ModelScope)、火山引擎 (Ark)、阿里云百炼 (Alibaba Cloud Bailian)——同时支持完全自定义 base_url / 协议格式（`openai-chat` / `openai-responses` / `anthropic`），并可自动探测 OpenAI 与 Anthropic 两种格式。
 - **流式对话 + 推理过程展示**——SSE 流式输出、Markdown 增量渲染（GFM 表格、代码高亮），DeepSeek 等模型的推理内容以折叠块展示。支持停止 / 重新生成。
 - **LM Studio 风格参数预设**——全局预设之上叠加用户预设，会话级覆盖可一键恢复预设值；涵盖系统提示词、温度、回复长度限制、上下文溢出策略、停止字符串、采样开关与 JSON Schema 结构化输出。
 - **液态玻璃双主题 UI**——浅色 / 深色 / 跟随系统，完整支持减弱动效 / 减弱透明度降级。
@@ -37,7 +37,7 @@
 | --- | --- |
 | ![模型选择器](docs/screenshots/04-model-picker-blur-zh.png) | ![新增平台](docs/screenshots/03-provider-modal-light-zh.png) |
 
-更多见 [docs/screenshots/](./docs/screenshots/)：欢迎页、设置、生成中「思考中…」状态与多行输入坞（上方浮出「生成回复」液态玻璃胶囊）等 8 张。
+更多见 [docs/screenshots/](./docs/screenshots/)：欢迎页、设置、平台与模型选择、深浅主题会话、流式生成，以及上方浮出「生成回复」液态玻璃胶囊的多行输入坞，共 8 张。
 
 ## 数据与隐私
 

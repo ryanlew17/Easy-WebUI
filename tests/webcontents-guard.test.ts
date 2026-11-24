@@ -1,7 +1,9 @@
 /**
- * electron/webcontents-guard.ts 纯函数测试（@req REQ-2026-001 I1/I2/I3）：
- * 导航白名单、IPC senderFrame 校验、外链协议白名单。
+ * 渲染与导航安全测试（@req REQ-2026-001 I1/I2/I3）：
+ * 导航白名单、IPC senderFrame 校验、外链协议白名单与首帧脚本 CSP 一致性。
  */
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   isAllowedNavigationUrl,
@@ -55,5 +57,23 @@ describe('shouldOpenExternally', () => {
     expect(shouldOpenExternally('file:///C:/Windows')).toBe(false);
     expect(shouldOpenExternally('javascript:alert(1)')).toBe(false);
     expect(shouldOpenExternally('easywebui://x')).toBe(false);
+  });
+});
+
+describe('startup script CSP', () => {
+  it('meta 与主进程响应头放行同一实际脚本哈希，且不启用 unsafe-inline', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const main = readFileSync(new URL('../electron/main.ts', import.meta.url), 'utf8');
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    const meta = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1];
+    const header = main.match(/const CSP =\s*"([^"]+)"/)?.[1];
+    expect(script).toBeDefined();
+    expect(meta).toBeDefined();
+    expect(header).toBeDefined();
+    const token = `sha256-${createHash('sha256').update(script!, 'utf8').digest('base64')}`;
+    expect(meta).toContain(`script-src 'self' '${token}'`);
+    expect(header).toContain(`script-src 'self' '${token}'`);
+    expect(meta?.match(/script-src[^;]+/)?.[0]).not.toContain('unsafe-inline');
+    expect(header?.match(/script-src[^;]+/)?.[0]).not.toContain('unsafe-inline');
   });
 });

@@ -1,4 +1,5 @@
 /**
+ * @req REQ-2026-006：参数修改态使用语义强调色。
  * 参数分区控件集（System Prompt / Settings / Sampling / Structured Output）——
  * 聊天页参数面板（override 模式）与设置页预设 Tab（edit 模式）共用同一套控件。
  *
@@ -17,6 +18,7 @@ import {
   IconNote,
   IconSliders,
   IconSparkle,
+  IconTrash,
 } from '../icons';
 import {
   Checkbox,
@@ -86,7 +88,7 @@ function GatedRow({
           {modified ? <span className="param-dot" aria-hidden="true" /> : null}
           <span
             className="text-xs font-medium"
-            style={{ color: modified ? 'var(--accent)' : 'var(--text-secondary)' }}
+            style={{ color: modified ? 'var(--accent-text)' : 'var(--text-secondary)' }}
           >
             {label}
           </span>
@@ -99,15 +101,7 @@ function GatedRow({
               aria-label={resetLabel}
               onClick={onReset}
             >
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9.5h6.6L12 4"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <IconTrash />
             </button>
           ) : null}
         </div>
@@ -142,7 +136,7 @@ export function SystemPromptSection(props: ParamSectionsProps) {
   const row = useRowExtras(props);
   const { values, onPatch } = props;
   return (
-    <FieldRow label={t('params.systemPrompt')} {...row(['system_prompt'])}>
+    <FieldRow label={t('params.systemPrompt')} layout="stack" hideLabelText {...row(['system_prompt'])}>
       <TextAreaField
         value={values.system_prompt}
         rows={4}

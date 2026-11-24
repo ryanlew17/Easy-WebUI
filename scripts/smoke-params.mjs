@@ -1,5 +1,5 @@
 /**
- * 模型参数+预设系统的临时冒烟脚本（不进交付依赖树）。
+ * 模型参数+预设系统冒烟脚本：
  * 自起 dev server（5181/strictPort）→ Edge 无头走通：
  *   建平台→建会话→参数面板五个块→改温度出高亮点→垃圾桶重置→
  *   另存为预设→设置页预设 Tab→恢复出厂默认。
@@ -9,7 +9,7 @@ import './node-version-guard.mjs';
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 
-const NPM = 'C:/Users/Ryan/AppData/Roaming/kimi-desktop/daimon-share/daimon/command-process-owner/bin/npm.cmd';
+const VITE_BIN = 'node_modules/vite/bin/vite.js';
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 5181;
 const BASE = `http://localhost:${PORT}/`;
@@ -17,8 +17,8 @@ const BASE = `http://localhost:${PORT}/`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------- dev server 生命周期 ---------- */
-const dev = spawn(NPM, ['run', 'dev', '--', '--port', String(PORT), '--strictPort'], {
-  shell: true,
+const dev = spawn(process.execPath, [VITE_BIN, '--port', String(PORT), '--strictPort'], {
+  shell: false,
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let devLog = '';
@@ -188,9 +188,11 @@ try {
   const savedToast = await page.evaluate(() => document.body.textContent.includes('已保存预设'));
   if (!savedToast) throw new Error('未出现「已保存预设」toast');
   console.log('ok: 另存为预设 toast');
+  must(await clickAria('选择预设'), '打开预设下拉');
+  await sleep(300);
   const selectHasNew = await page.evaluate(() =>
-    [...document.querySelectorAll('.param-block select option')].some(
-      (o) => o.textContent.trim() === '冒烟预设',
+    [...document.querySelectorAll('[role="listbox"][aria-label="选择预设"] [role="option"]')].some(
+      (option) => option.textContent.trim() === '冒烟预设',
     ),
   );
   if (!selectHasNew) throw new Error('预设下拉中无「冒烟预设」');
