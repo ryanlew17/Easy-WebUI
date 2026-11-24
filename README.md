@@ -15,7 +15,7 @@ No Electron handy? `npm install && npm run dev` starts a **pure-browser preview*
 
 ## Features
 
-- **12 preset providers** out of the box: OpenAI, Anthropic, OpenRouter, DeepSeek, Kimi (Moonshot AI), 智谱 (Bigmodel), 小米 (Xiaomi MiMo), MiniMax, 硅基流动 (SiliconFlow), 魔搭 (ModelScope), 火山引擎 (Ark), 阿里云百炼 (Alibaba Cloud Bailian) — plus fully custom base URL / API format (`openai-chat` / `openai-responses` / `anthropic`) with auto-detection.
+- **12 preset providers** out of the box: OpenAI, Anthropic, OpenRouter, DeepSeek, Kimi (Moonshot AI), 智谱 (Bigmodel), 小米 (Xiaomi MiMo), MiniMax, 硅基流动 (SiliconFlow), 魔搭 (ModelScope), 火山引擎 (Ark), 阿里云百炼 (Alibaba Cloud Bailian) — plus fully custom base URL / API format (`openai-chat` / `openai-responses` / `anthropic`), with auto-detection for the OpenAI and Anthropic formats.
 - **Streaming chat with reasoning display** — SSE streaming, incremental Markdown rendering (GFM tables, code highlighting), collapsible reasoning blocks for models like DeepSeek. Stop / regenerate supported.
 - **LM Studio-style parameter presets** — a global preset plus your own presets, with per-conversation overrides and one-click reset; system prompt, temperature, response-length limit, context-overflow strategy, stop strings, sampling toggles, and JSON-Schema structured output.
 - **Liquid-glass dual-theme UI** — light / dark / system themes with reduced-motion and reduced-transparency fallbacks.
@@ -24,12 +24,12 @@ No Electron handy? `npm install && npm run dev` starts a **pure-browser preview*
 - **Encrypted backup & restore** — one-click zip backups; key-including backups are protected by an independent password. Merge or overwrite restore.
 - **Your data, your location** — the portable build keeps data next to the exe; the installed build uses the per-user directory (reinstalling and uninstalling never touch it). A custom location can be picked with automatic migration, and legacy data from older versions is rescued automatically.
 - **Online updates** — checks GitHub Releases, auto-downloads with sha512 verification, shows the release summary, and installs with a restart on confirm.
-- **Bilingual UI** — 简体中文 / English, with system-locale detection.
+- **Bilingual UI** — Chinese / English, with system-locale detection.
 - **Model management** — fetch remote model lists, per-model connectivity checks (latency + status), batch "test all".
 
 ## Screenshots
 
-| Chat (light, 中文) | Chat (dark, 中文) |
+| Chat (light, Chinese UI) | Chat (dark, Chinese UI) |
 | --- | --- |
 | ![Chat light](docs/screenshots/05-chat-light-zh.png) | ![Chat dark](docs/screenshots/07-chat-dark-zh.png) |
 

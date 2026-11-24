@@ -3,7 +3,7 @@
 > 权威范围：消息树模型、激活路径、分支操作、删除恢复和批量选择语义。
 > 何时读取：修改消息 DAO、分支导航、消息操作或 Mock 分支逻辑之前。
 > 代码事实来源：`electron/db/messages.ts`、`src/bridge/mock.ts`、`src/pages/chat/MessageBubble.tsx`。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 
 列结构见 `../contracts/db-schema.md`；生成流程见 `./chat.md`；视觉和焦点规则见 `./ui-liquid-glass.md`。
 
@@ -34,6 +34,7 @@
 
 - user/assistant 提供 branch/copy/edit/delete，assistant 另有 regenerate/continue；生成中禁用这些操作。
 - 分支导航仅在 `count > 1` 时显示，不渲染 `‹1/1›`。
-- 右键气泡进入批量选择：复选框统一在左侧，隐藏普通操作和分支导航；底部工具栏提供计数、删除和退出。
+- 右键气泡进入批量选择：复选框统一在左侧，隐藏普通操作和分支导航；底部工具栏提供计数、删除和退出。整个 24px 勾选包装区均可切换。
+- 进入分叉点时，会话页临时记录原激活叶并在顶栏提供“返回原分支”；这只恢复激活路径，不改变消息树或分支数据。通过分支导航回到该叶时入口自动清除；记录返回点时同时保存原激活路径，删除路径上任一祖先后立即清除入口，不保留指向已删子树的无效操作。
 - 选择模式的浮层互斥与草稿保留见 `./ui-liquid-glass.md`；删除确认与 Esc 行为见 `./ux-guidelines.md`。
 - 修改本文件所述行为必须回归 `tests/db-messages.test.ts`。

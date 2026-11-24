@@ -167,7 +167,7 @@ export function MessageList({
         aria-label={t('aria.messageList')}
         aria-live="polite"
       >
-        <div className="message-column mx-auto flex w-full flex-col gap-7">
+        <div className="message-column mx-auto flex w-full flex-col gap-4">
           {hiddenCount > 0 ? (
             <div className="text-center">
               <button

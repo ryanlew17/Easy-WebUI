@@ -55,6 +55,8 @@ export function Modal({
   const incModal = useUiStore((s) => s.incModal);
   const decModal = useUiStore((s) => s.decModal);
   const panelRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const mountedRef = useRef(false);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
@@ -91,18 +93,27 @@ export function Modal({
   }, []);
 
   useEffect(() => {
-    // 初始焦点进面板，保证可 Tab 到达（docs/design/ux-guidelines.md，可访问性）
+    // 初始焦点进面板，关闭后返回触发控件（docs/design/ux-guidelines.md，可访问性）
     const el = panelRef.current;
     if (!el) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (active && !el.contains(active)) returnFocusRef.current = active;
+    mountedRef.current = true;
     const focusable = el.querySelector<HTMLElement>(
       'input, textarea, select, button:not([disabled])',
     );
     (focusable ?? el).focus();
+    return () => {
+      mountedRef.current = false;
+      window.setTimeout(() => {
+        if (!mountedRef.current && returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+      }, 0);
+    };
   }, []);
 
   return createPortal(
     <div
-      className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-4"
       style={{ background: 'var(--overlay-bg)' }}
       data-closing={closing ? 'true' : undefined}
       onMouseDown={(e) => {

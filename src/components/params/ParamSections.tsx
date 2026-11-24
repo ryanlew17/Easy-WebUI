@@ -136,7 +136,7 @@ export function SystemPromptSection(props: ParamSectionsProps) {
   const row = useRowExtras(props);
   const { values, onPatch } = props;
   return (
-    <FieldRow label={t('params.systemPrompt')} layout="stack" {...row(['system_prompt'])}>
+    <FieldRow label={t('params.systemPrompt')} layout="stack" hideLabelText {...row(['system_prompt'])}>
       <TextAreaField
         value={values.system_prompt}
         rows={4}

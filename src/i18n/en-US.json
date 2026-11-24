@@ -55,10 +55,10 @@
   },
   "nav": { "chat": "Chat", "settings": "Settings" },
   "sidebar": {
-    "new": "New chat",
+    "new": "New conversation",
     "searchPlaceholder": "Search titles…",
     "empty": "No conversations yet",
-    "emptyHint": "Click “New chat” above to start",
+    "emptyHint": "Click “New conversation” to start",
     "noMatch": "No matching conversations",
     "pin": "Pin",
     "unpin": "Unpin",
@@ -83,7 +83,7 @@
       },
       "noConversation": {
         "title": "Start a new conversation",
-        "desc": "Start with a blank conversation, with Markdown, code highlighting, and streaming responses.",
+        "desc": "Create a conversation, then choose a model and type a message to begin.",
         "cta": "New conversation",
         "hintShortcut": "Shortcut Ctrl/Cmd+N"
       }
@@ -108,11 +108,12 @@
       "cancelEdit": "Cancel editing",
       "retry": "Retry",
       "partial": "Stopped — output is partial",
-      "copyMessage": "Copy message content",
-      "tokenCount": "{{count}} tokens"
+      "tokenCount": "{{count}} tokens",
+      "statsDetails": "Details"
     },
     "actions": {
       "branch": "Branch chat after this message",
+      "returnBranch": "Return to original branch",
       "copy": "Copy",
       "edit": "Edit",
       "delete": "Delete",
@@ -428,6 +429,7 @@
     "noModel": "Select a model from the top bar first",
     "stopFailed": "Failed to stop",
     "contextOverflow": "Context over budget: ~{{tokens}} tokens estimated, exceeding the {{budget}}-token budget. Enable “Truncate middle”, clear history, or switch to a model with a longer context",
+    "branchPointSet": "Branch point set; you can return to the original branch",
     "presetSaved": "Preset saved: {{name}}",
     "presetDeleted": "Preset deleted",
     "presetReset": "Restored factory defaults",
@@ -437,11 +439,5 @@
     "titleNoUserMessage": "This conversation has no messages yet, so there is nothing to summarize. Send a message first.",
     "titleFailed": "Title generation failed (already retried once). The network or provider may be temporarily unavailable. Click ✨ again later to retry.",
     "fontRejected": "Font not applied: the input contains disallowed characters. Font stacks only allow letters, digits, spaces, commas, quotes, hyphens and dots. Fix the input, or leave it empty to restore the default font."
-  },
-  "time": {
-    "justNow": "just now",
-    "minutesAgo": "{{count}} min ago",
-    "hoursAgo": "{{count}} hr ago",
-    "daysAgo": "{{count}} d ago"
   }
 }

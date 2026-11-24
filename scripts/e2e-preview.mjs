@@ -1,6 +1,6 @@
 /**
  * Easy WebUI — 临时浏览器验证脚本（不进交付依赖树的运行时路径）。
- * 用 Chromium 无头模式走通核心流程并截图到 docs/screenshots/；默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖。
+ * 用 Chromium 无头模式走通核心流程并截图到 build/e2e-shots/（不入库）；默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖。
  * 前提：vite dev server 已在 5173 端口运行（由外层命令起停）。
  */
 import './node-version-guard.mjs';
@@ -9,7 +9,7 @@ import { mkdirSync } from 'node:fs';
 
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173/';
-const OUT = 'docs/screenshots';
+const OUT = 'build/e2e-shots';
 mkdirSync(OUT, { recursive: true });
 
 const errors = [];
@@ -109,6 +109,22 @@ try {
   must(await clickExact('检测模型列表'), '检测模型列表');
   await sleep(1800);
   await shot('04-fetch-models');
+  const fetchedLayer = await page.evaluate(() => {
+    const list = document.querySelector('.modal-panel .max-h-40');
+    const rect = list?.getBoundingClientRect();
+    const panel = document.querySelector('.modal-panel')?.getBoundingClientRect();
+    const manual = document.querySelector('.modal-panel [aria-label="手动添加模型"]')?.getBoundingClientRect();
+    const footer = document.querySelector('.modal-panel > div:last-child')?.getBoundingClientRect();
+    const confirm = [...document.querySelectorAll('.modal-panel button')].find((el) => el.textContent.trim() === '确认')?.getBoundingClientRect();
+    return {
+      flat: !!list?.parentElement && !list.parentElement.classList.contains('row-surface'),
+      visible: !!rect && !!panel && rect.top >= panel.top - 1 && rect.bottom <= panel.bottom + 1,
+      manualClear: !!manual && !!footer && manual.bottom <= footer.top,
+      actionsSeparated: !!confirm && !!footer && confirm.bottom < footer.top - 32,
+    };
+  });
+  if (!fetchedLayer.flat || !fetchedLayer.visible || !fetchedLayer.manualClear || !fetchedLayer.actionsSeparated) throw new Error(`M-27 模型勾选区层级/可见性失败: ${JSON.stringify(fetchedLayer)}`);
+  console.log('M-27: flat visible model selection OK');
   must(await clickExact('全选'), '全选');
   must(await clickExact('确认'), '确认勾选');
   await sleep(300);

@@ -32,6 +32,12 @@ export function quantizeComposerHeight(
   return Math.min(maxHeight, Math.max(minHeight, minHeight + lines * lineHeight));
 }
 
+export function quantizeComposerMaxHeight(lineHeight: number, maxHeight: number, padding: number): number {
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0 || !Number.isFinite(maxHeight)) return maxHeight;
+  const lines = Math.max(1, Math.floor((maxHeight - padding) / lineHeight));
+  return padding + lines * lineHeight;
+}
+
 export interface GlassRect {
   left: number;
   top: number;

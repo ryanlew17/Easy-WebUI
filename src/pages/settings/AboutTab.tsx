@@ -148,7 +148,7 @@ export function AboutTab() {
   return (
     <section aria-label={t('settings.tabs.about')}>
       <FormSection title={t('settings.tabs.about')}>
-        <div className="about-identity flex items-center gap-3 pb-4 mb-2">
+        <div className="about-identity flex items-center gap-3 pb-2">
           {iconFailed ? null : (
             <img
               src="./favicon.svg"
@@ -174,10 +174,10 @@ export function AboutTab() {
           <span className="text-xs text-secondary">{t('settings.about.authorValue')}</span>
         </FormRow>
         <FormRow label={t('settings.about.github')} layout="stack">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <code
-              className="block max-w-[16rem] truncate rounded-s px-1.5 py-0.5 text-caption"
-              style={{ background: 'var(--code-bg)' }}
+              className="block min-w-0 flex-1 break-normal rounded-s px-1.5 py-0.5 text-caption"
+              style={{ background: 'var(--code-bg)', overflowWrap: 'anywhere' }}
               title={t('settings.about.githubValue')}
             >
               {t('settings.about.githubValue')}

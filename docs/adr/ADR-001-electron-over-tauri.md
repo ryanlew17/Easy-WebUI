@@ -17,7 +17,7 @@
 
 ## Decision
 
-采用 **Electron**（初版 44，2026-11-01 安全升级至 45）：主进程 Provider Gateway 统一转发出站请求（绕过 CORS、密钥不进渲染进程），密钥加密用 Electron 内建的异步 `safeStorage`（不可用时机器指纹 scrypt + AES-256-GCM 兜底，见 `../design/security.md`）。主进程用 TypeScript 编写，tsc 编译到 `dist-electron/`。
+采用 **Electron**（初版 44，2026-11-20 经 REQ-2026-004 升级至 45）：主进程 Provider Gateway 统一转发出站请求（绕过 CORS、密钥不进渲染进程），密钥加密用 Electron 内建的异步 `safeStorage`（不可用时机器指纹 scrypt + AES-256-GCM 兜底，见 `../design/security.md`）。主进程用 TypeScript 编写，tsc 编译到 `dist-electron/`。
 
 ## Consequences
 

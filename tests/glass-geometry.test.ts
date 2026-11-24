@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fadeAttributeChanged, isValidSurfaceGeometry, nextGeometryGrace, nextScrollFades, quantizeComposerHeight, surfaceOptionsForRole } from '../src/lib/glass/geometry';
+import { fadeAttributeChanged, isValidSurfaceGeometry, nextGeometryGrace, nextScrollFades, quantizeComposerHeight, quantizeComposerMaxHeight, surfaceOptionsForRole } from '../src/lib/glass/geometry';
 
 // @req REQ-2026-006：只在对应方向仍有内容时显示滚动渐隐。
 describe('@req REQ-2026-006 scroll edge fades', () => {
@@ -79,6 +79,12 @@ describe('@req REQ-2026-006 composer height quantization', () => {
     expect(quantizeComposerHeight(999, 20, 28, 160)).toBe(160);
     expect(quantizeComposerHeight(100, 0, 28, 160)).toBe(28);
     expect(quantizeComposerHeight(Number.NaN, 20, 28, 160)).toBe(28);
+  });
+
+  it('aligns the maximum to whole visible content lines', () => {
+    expect(quantizeComposerMaxHeight(21, 160, 8)).toBe(155);
+    expect(quantizeComposerMaxHeight(20, 160, 8)).toBe(148);
+    expect(quantizeComposerMaxHeight(0, 160, 8)).toBe(160);
   });
 });
 

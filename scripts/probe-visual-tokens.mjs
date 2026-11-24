@@ -97,6 +97,7 @@ try {
         inputShadow: input?.boxShadow,
         inputOutline: composerInput?.outlineStyle,
         hostFocusOutline: composer?.outlineStyle,
+        hostFocusShadow: composer?.boxShadow,
         frameFocusShadow: getComputedStyle(document.querySelector('.composer-focus-frame')).boxShadow,
         frameFocusOutline: getComputedStyle(document.querySelector('.composer-focus-frame')).outlineStyle,
         frameOverflow: getComputedStyle(document.querySelector('.composer-focus-frame')).overflow,
@@ -138,13 +139,12 @@ try {
       `${result.inputSize}/${result.inputLeading}`);
     check(result.inputBorder === 'none' && result.inputShadow !== 'none',
       `${prefix} input uses one inset boundary without an outer border`);
-    // @req REQ-2026-006：焦点环由不裁剪的 wrapper 承载（常态阴影环、forced-colors 描边环）；
-    // 壳与 textarea 不得自带焦点环（无双环）。
+    // @req REQ-2026-006：液态玻璃焦点内嵌于材质边缘；forced-colors 才使用系统色描边。
     check(result.inputOutline === 'none' && result.hostFocusOutline === 'none'
-      && (result.frameFocusShadow !== 'none' || result.frameFocusOutline === 'solid')
+      && result.frameFocusOutline === 'none' && result.hostFocusShadow?.includes('inset')
       && result.frameOverflow === 'visible' && result.frameMatchesShell,
-      `${prefix} focus ring lives on the unclipped wrapper; shell and textarea stay ring-free`,
-      `frame=${result.frameFocusShadow}/${result.frameFocusOutline} shell=${result.hostFocusOutline} input=${result.inputOutline}`);
+      `${prefix} composer focus lights the glass edge without an outline`,
+      `shell=${result.hostFocusShadow}/${result.hostFocusOutline} input=${result.inputOutline}`);
     await page.emulateMediaFeatures([{ name: 'forced-colors', value: 'active' }]);
     const forcedFrameOutline = await page.evaluate(() =>
       getComputedStyle(document.querySelector('.composer-focus-frame')).outlineStyle);

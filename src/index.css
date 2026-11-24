@@ -64,11 +64,11 @@
   #root {
     width: 100%;
     height: 100%;
+    container: app / inline-size;
   }
-  /* 焦点环：骑在边界上（仅 1px 入内、1px 出外）—— 不显著外扩，也不挤占文字区 */
+  /* 焦点使用材质自身的内嵌光学反馈；系统强制色模式另保留系统色轮廓。 */
   :focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -1px;
+    outline: none;
   }
   ::selection {
     background: var(--accent-soft);
@@ -94,6 +94,7 @@
 @layer components {
   /* @req REQ-2026-006：聊天与设置共享网格，chrome 浮于真实滚动内容之上。 */
   .app-frame {
+    --inspector-layout: grid;
     position: relative;
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
@@ -129,6 +130,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    container: inspector / inline-size;
   }
   .workspace-topbar {
     position: absolute;
@@ -151,8 +153,8 @@
   }
   .message-scroll {
     height: 100%;
-    padding: 5rem 1.25rem 11rem;
-    scroll-padding: 5rem 0 11rem;
+    padding: 5rem 1.25rem max(11rem, var(--composer-space, 0rem));
+    scroll-padding: 5rem 0 max(11rem, var(--composer-space, 0rem));
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
   }
@@ -245,6 +247,16 @@
   .app-inspector .field-row[data-layout='stack'] {
     grid-template-columns: minmax(0, 1fr);
   }
+  @container inspector (max-width: 22rem) {
+    .app-inspector .field-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.375rem;
+      padding: 0.5rem 0;
+    }
+    .app-inspector .field-row-control {
+      justify-content: stretch;
+    }
+  }
   @container (max-width: 36rem) {
     .settings-content .field-row {
       grid-template-columns: minmax(0, 1fr);
@@ -255,21 +267,30 @@
       justify-content: flex-start;
     }
   }
-  @media (max-width: 64rem) {
+  @container app (max-width: 64rem) {
     .app-frame {
       --sidebar-width: 13rem;
+      --inspector-layout: overlay;
     }
     .app-frame[data-has-inspector='true'] {
       grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     }
     .app-inspector {
       position: absolute;
-      inset: var(--app-gutter) var(--app-gutter) var(--app-gutter) auto;
+      inset: var(--app-gutter) var(--app-gutter) var(--app-gutter)
+        calc(var(--app-gutter) + var(--sidebar-width) + var(--layout-gap));
       z-index: 40;
-      width: min(var(--inspector-width), calc(100% - var(--app-gutter) - var(--app-gutter)));
+      width: auto;
       height: auto;
-      background: var(--surface-modal-bg);
       box-shadow: var(--surface-modal-shadow);
+    }
+  }
+  @container app (max-width: 24rem) {
+    .app-frame {
+      --sidebar-width: 7.5rem;
+    }
+    .composer-secondary span {
+      display: none;
     }
   }
 
@@ -310,10 +331,14 @@
   .btn-surface:hover:not(:disabled) {
     background: var(--row-bg-hover);
   }
-  .btn-ghost:hover:not(:disabled) {
+  .btn-ghost:hover:not(:disabled):not([aria-pressed='true']):not([aria-selected='true']):not([data-active='true']) {
     background: var(--code-bg);
   }
   .btn-danger {
+    color: var(--text-secondary);
+  }
+  .btn-danger:hover:not(:disabled),
+  .btn-danger:focus-visible {
     color: var(--danger-text);
   }
   .btn-danger-solid {
@@ -394,6 +419,9 @@
     color: var(--text-tertiary);
   }
   .input-surface:focus {
+    box-shadow: var(--input-shadow);
+  }
+  .input-surface:focus-visible {
     box-shadow: none;
   }
   /* 分段控件轨道（iOS 式）：内凹井 + 胶囊圆角，选中项为浮起小卡 */
@@ -434,9 +462,6 @@
     max-width: var(--content-max);
     margin-inline: auto;
     border-radius: var(--radius-surface);
-  }
-  .composer-focus-frame:has(.composer-input:focus-visible) {
-    box-shadow: 0 0 0 2px var(--focus-ring);
   }
   .composer-input {
     flex: 1 1 auto;
@@ -501,8 +526,11 @@
   }
   .settings-nav-list {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 0.25rem;
+    min-height: 0;
+    overflow-y: auto;
   }
   .settings-nav-item {
     width: 100%;
@@ -517,6 +545,7 @@
     font-weight: var(--weight-semibold);
   }
   .settings-nav-footer {
+    flex: none;
     margin-top: auto;
     padding-top: 0.75rem;
   }
@@ -590,6 +619,8 @@
     width: max-content;
     max-width: 100%;
     min-height: 1.5rem;
+    padding-inline: 0.375rem;
+    border-radius: var(--radius-s);
   }
   .message-stats summary {
     cursor: pointer;
@@ -710,6 +741,9 @@
   }
   .switch[data-on='true']::after {
     transform: translateY(-50%) translateX(1.25rem);
+  }
+  :root[data-theme='dark'] .switch[data-on='true']::after {
+    background: var(--on-accent);
   }
   @media (prefers-reduced-motion: no-preference) {
     .switch,
@@ -893,6 +927,12 @@
   .md h4 {
     font-size: var(--type-body);
   }
+  .md ul {
+    list-style: disc;
+  }
+  .md ol {
+    list-style: decimal;
+  }
   .md ul,
   .md ol {
     margin: 0.5rem 0;
@@ -950,81 +990,74 @@
     margin: 0.5rem 0;
   }
 
-  /* ---------- highlight.js 令牌色（双主题，不引外部样式表） ---------- */
+  /* ---------- highlight.js 令牌色（页面主题与代码块独立主题共用语义变量） ---------- */
+  :root {
+    --syntax-keyword: #8646b0;
+    --syntax-string: #187531;
+    --syntax-comment: #65656b;
+    --syntax-number: #9a4f00;
+    --syntax-title: #005da9;
+    --syntax-attr: #b42318;
+  }
+  :root[data-theme='dark'] {
+    --syntax-keyword: #b66ce5;
+    --syntax-string: #34de60;
+    --syntax-comment: #a4a4aa;
+    --syntax-number: #ff9500;
+    --syntax-title: #70b4ff;
+    --syntax-attr: #ff6961;
+  }
   .hljs-keyword,
   .hljs-literal,
   .hljs-selector-tag {
-    color: #af52de;
+    color: var(--syntax-keyword);
   }
   .hljs-string,
   .hljs-regexp,
   .hljs-addition {
-    color: #28a745;
-  }
-  :root[data-theme='dark'] .hljs-string,
-  :root[data-theme='dark'] .hljs-regexp,
-  :root[data-theme='dark'] .hljs-addition {
-    color: #34de60;
+    color: var(--syntax-string);
   }
   .hljs-comment,
   .hljs-quote {
-    color: #8e8e93;
+    color: var(--syntax-comment);
   }
   .hljs-number,
   .hljs-symbol,
   .hljs-meta {
-    color: #ff9500;
+    color: var(--syntax-number);
   }
   .hljs-title,
   .hljs-title.function_,
   .hljs-built_in {
-    color: #0a84ff;
+    color: var(--syntax-title);
   }
   .hljs-attr,
   .hljs-attribute,
   .hljs-variable,
   .hljs-template-variable {
-    color: #ff3b30;
-  }
-  :root[data-theme='dark'] .hljs-attr,
-  :root[data-theme='dark'] .hljs-attribute,
-  :root[data-theme='dark'] .hljs-variable,
-  :root[data-theme='dark'] .hljs-template-variable {
-    color: #ff6961;
+    color: var(--syntax-attr);
   }
 
-  /* ---------- 代码块主题强制覆盖（设置-通用-外观 code_theme） ----------
-     auto = 不落 data-code-theme 属性，完全跟随页面主题（上方 data-theme 规则）；
-     light/dark = 强制对应一套背景与 hljs 令牌色。与上方规则同优先级，靠后置源码序取胜。 */
+  /* ---------- 代码块主题强制覆盖（设置-通用-外观 code_theme） ---------- */
   :root[data-code-theme='light'] {
     --md-code-bg: rgba(118, 118, 128, 0.12);
     --md-code-text: rgba(0, 0, 0, 0.85);
+    --syntax-keyword: #8646b0;
+    --syntax-string: #187531;
+    --syntax-comment: #65656b;
+    --syntax-number: #9a4f00;
+    --syntax-title: #005da9;
+    --syntax-attr: #b42318;
   }
   :root[data-code-theme='dark'] {
     --md-code-bg: rgba(18, 18, 22, 0.92);
     --md-code-text: rgba(255, 255, 255, 0.92);
-  }
-  :root[data-code-theme='light'] .hljs-string,
-  :root[data-code-theme='light'] .hljs-regexp,
-  :root[data-code-theme='light'] .hljs-addition {
-    color: #28a745;
-  }
-  :root[data-code-theme='light'] .hljs-attr,
-  :root[data-code-theme='light'] .hljs-attribute,
-  :root[data-code-theme='light'] .hljs-variable,
-  :root[data-code-theme='light'] .hljs-template-variable {
-    color: #ff3b30;
-  }
-  :root[data-code-theme='dark'] .hljs-string,
-  :root[data-code-theme='dark'] .hljs-regexp,
-  :root[data-code-theme='dark'] .hljs-addition {
-    color: #34de60;
-  }
-  :root[data-code-theme='dark'] .hljs-attr,
-  :root[data-code-theme='dark'] .hljs-attribute,
-  :root[data-code-theme='dark'] .hljs-variable,
-  :root[data-code-theme='dark'] .hljs-template-variable {
-    color: #ff6961;
+    --syntax-keyword: #b66ce5;
+    --syntax-string: #34de60;
+    --syntax-comment: #a4a4aa;
+    --syntax-number: #ff9500;
+    --syntax-title: #70b4ff;
+    --syntax-attr: #ff6961;
   }
   .md pre,
   .md code.md-inline {
@@ -1032,5 +1065,131 @@
   }
   .md pre {
     color: var(--md-code-text, inherit);
+  }
+}
+
+/* @req REQ-2026-006：覆盖栏实色规则须与未分层 .drawer 同级竞争。 */
+@container app (max-width: 64rem) {
+  .app-frame > .app-inspector.drawer {
+    background: var(--surface-modal-bg);
+  }
+}
+
+.generate-response-button.glass,
+.workspace-topbar .model-picker-trigger {
+  border-radius: var(--radius-pill);
+  corner-shape: initial;
+}
+
+@container app (max-width: 24rem) {
+  .workspace-topbar > span {
+    display: none;
+  }
+}
+
+/* @req REQ-2026-006：键盘与文本焦点点亮材质本身，不再叠加普通蓝色外框。 */
+:where(
+  button,
+  a[href],
+  input,
+  textarea,
+  pre,
+  summary,
+  [role='button'],
+  [role='checkbox'],
+  [role='switch'],
+  [role='slider'],
+  [role='separator'][tabindex],
+  .context-usage
+):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-control-shadow);
+}
+:is(
+  .btn:not(.btn-accent):not(.btn-danger-solid):not(.glass),
+  .param-block-toggle,
+  .select-option,
+  .model-picker-trigger,
+  summary
+):focus-visible {
+  background-color: var(--focus-fill);
+}
+.input-surface:focus-visible {
+  box-shadow: var(--focus-input-shadow);
+}
+:is(.btn-accent, .btn-danger-solid, .switch[data-on='true'], .checkbox[data-checked='true']):focus-visible {
+  box-shadow: var(--focus-fill-shadow);
+}
+.composer-input:focus-visible {
+  background: transparent;
+  box-shadow: none;
+}
+.composer-shell.glass:has(.composer-input:focus-visible) {
+  --optics-edge-start: var(--focus-sheen);
+  --optics-edge-middle: var(--focus-edge);
+  --optics-edge-end: var(--focus-edge-soft);
+  --optics-ring-cool: var(--focus-glow);
+  --optics-ring-warm: var(--focus-glow);
+  box-shadow: var(--surface-chrome-shadow), var(--focus-input-shadow);
+}
+.generate-response-button.glass:focus-visible {
+  --optics-edge-start: var(--focus-sheen);
+  --optics-edge-middle: var(--focus-edge);
+  --optics-edge-end: var(--focus-edge-soft);
+  box-shadow: var(--surface-chrome-shadow), var(--focus-input-shadow);
+}
+.conversation-row:has(> button:focus-visible) {
+  box-shadow: var(--focus-control-shadow);
+}
+.conversation-row > button:focus-visible {
+  background: transparent;
+  box-shadow: none;
+}
+[role='separator'][tabindex]:focus-visible {
+  background: var(--focus-glow);
+  box-shadow: inset 2px 0 0 var(--focus-edge);
+}
+a[href]:focus-visible {
+  border-radius: var(--radius-s);
+  box-shadow: inset 0 -2px 0 var(--focus-edge);
+}
+
+@media (forced-colors: active) {
+  :is(
+    button,
+    a[href],
+    input,
+    textarea,
+    pre,
+    summary,
+    [role='button'],
+    [role='checkbox'],
+    [role='switch'],
+    [role='slider'],
+    /* 可聚焦的滚动区域（About 发布说明）只有 box-shadow 反馈，强制色下必须回落到系统轮廓 */
+    [role='region'],
+    .context-usage
+  ):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -1px;
+    box-shadow: none;
+  }
+  [role='separator'][tabindex]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -1px;
+    box-shadow: none;
+  }
+  .composer-input:focus-visible,
+  .conversation-row > button:focus-visible {
+    outline: none;
+  }
+  .conversation-row:has(> button:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -1px;
+    box-shadow: none;
+  }
+  .composer-shell.glass:has(.composer-input:focus-visible),
+  .generate-response-button.glass:focus-visible {
+    box-shadow: none;
   }
 }

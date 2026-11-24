@@ -4,7 +4,7 @@
  *  1) 模型下拉 / Select 弹层 / ctx-tip：portal 到 document.body（祖先链无 backdrop-filter
  *     的 backdrop root）且自身 backdrop-filter 生效 → 液态玻璃模糊真实可用；
  *  2) 气泡：user 最小宽度 3rem、头部单行；assistant 使用开放阅读排版；
- *  3) 输入坞：宿主承担焦点环，底行控件统一 32px 高且不越界；
+ *  3) 输入坞：玻璃边缘光表示焦点，底行控件统一 32px 高且不越界；
  *  4) Generate 胶囊：portal 到 body 的浮窗（不在输入卡片流内），浮于输入坞上方、水平居中。
  * 复用 e2e-ui-polish.mjs 的 harness（静态服务器 + seed + Edge 无头）。
  */
@@ -251,7 +251,7 @@ const tip = await page.evaluate(() => {
 check(!!tip, '上下文环悬停明细 portal 到 body');
 if (tip) check(tip.backdrop !== 'none', 'ctx-tip backdrop-filter 生效', `backdrop=${tip.backdrop}`);
 
-/* ---------- 5) 焦点环内化：聚焦不外扩（负偏移画在元素内部，不压邻居/不溢出卡片） ---------- */
+/* ---------- 5) 液态玻璃焦点：内嵌边缘光，不使用普通外描边 ---------- */
 await page.click('.composer-input');
 const taAudit = await page.evaluate(() => {
   const el = document.activeElement;
@@ -263,25 +263,28 @@ const taAudit = await page.evaluate(() => {
     frameExists: !!frame,
     frameRadius: frameStyle?.borderRadius,
     frameShadow: frameStyle?.boxShadow,
+    frameOutline: frameStyle?.outlineStyle,
     frameOverflow: frameStyle?.overflow,
     shellStyle: shellStyle.outlineStyle,
+    shellShadow: shellStyle.boxShadow,
     inputStyle: getComputedStyle(el).outlineStyle,
   };
 });
 check(taAudit.frameExists && taAudit.frameRadius === '16px'
-  && taAudit.frameShadow !== 'none' && taAudit.frameShadow !== undefined
-  && taAudit.frameOverflow === 'visible',
-'composer wrapper 提供不裁剪且不扩展布局的焦点环', JSON.stringify(taAudit));
+  && taAudit.frameOutline === 'none' && taAudit.frameOverflow === 'visible'
+  && taAudit.shellShadow.includes('inset'),
+'输入坞使用内嵌玻璃边缘光，不扩展布局', JSON.stringify(taAudit));
 check(taAudit.shellStyle === 'none' && taAudit.inputStyle === 'none',
-  '壳与 textarea 不重复绘制焦点环', JSON.stringify(taAudit));
+  '壳与 textarea 不绘制普通焦点描边', JSON.stringify(taAudit));
 await page.keyboard.press('Tab'); // 真实键盘事件 → 下一控件 :focus-visible
 const btnAudit = await page.evaluate(() => {
   const el = document.activeElement;
   const r = el.getBoundingClientRect();
   const cs = getComputedStyle(el);
-  return { name: el.getAttribute('aria-label') ?? el.className.slice(0, 24), offset: cs.outlineOffset, style: cs.outlineStyle, rect: { w: r.width, h: r.height } };
+  return { name: el.getAttribute('aria-label') ?? el.className.slice(0, 24), style: cs.outlineStyle, shadow: cs.boxShadow, rect: { w: r.width, h: r.height } };
 });
-check(btnAudit.offset === '-1px', `${btnAudit.name} 键盘焦点环 -1px（骑边界）`, `offset=${btnAudit.offset}`);
+check(btnAudit.style === 'none' && btnAudit.shadow.includes('inset'),
+  `${btnAudit.name} 使用内嵌玻璃焦点反馈`, JSON.stringify(btnAudit));
 
 /* ---------- 6) 选择模式：复选框左对齐 + 首个图标与气泡顶对齐 ---------- */
 await page.click('.composer-input');

@@ -123,9 +123,10 @@ function ConversationRow({
             className="min-w-0 flex-1 rounded-s text-left"
             style={{ minHeight: '2rem' }}
             aria-current={active}
+            title={title}
           >
             <span className="block truncate text-control">{title}</span>
-            <span className="block text-caption text-tertiary">
+            <span className="block whitespace-nowrap text-caption text-tertiary">
               {formatDateTime(conv.updated_at, i18n.language)}
             </span>
           </button>

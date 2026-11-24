@@ -1,7 +1,10 @@
 // v1.0.0 安装版验证：版本号 + 真实数据 v3 迁移完整性 + 截图
 const { spawn, execSync } = require('child_process');
+const fs = require('fs');
 const puppeteer = require('puppeteer-core');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/* 走查截图只写 build/（.gitignore 覆盖），docs/screenshots 保留 README 精选图 */
+fs.mkdirSync('build/e2e-shots', { recursive: true });
 
 (async () => {
   const child = spawn(
@@ -51,7 +54,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const chainOk = msgs.every((m, i) => (i === 0 ? m.parent_id === null : m.parent_id === msgs[i - 1].id));
   console.log('conv[0] messages =', msgs.length, '| parent链完整 =', chainOk);
   if (msgs.length > 0 && !chainOk) throw new Error('parent 链损坏');
-  await page.screenshot({ path: 'docs/screenshots/40-v1.0.0-installed.png' });
+  await page.screenshot({ path: 'build/e2e-shots/40-v1.0.0-installed.png' });
   console.log('INSTALL_TEST_OK');
   await browser.disconnect();
   execSync('taskkill /F /IM "Easy WebUI.exe"', { stdio: 'ignore' });

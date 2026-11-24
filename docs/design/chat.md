@@ -3,7 +3,7 @@
 > 权威范围：生成编排、流式渲染、取消与失败、思考开关、生成统计。
 > 何时读取：修改 `electron/chat.ts`、消息流式状态或 Composer 生成行为之前。
 > 代码事实来源：`electron/chat.ts`、`src/store/messages.ts`、`shared/reasoning.ts`。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 
 页面骨架和视觉规格见 `./ui-liquid-glass.md`；分支位置见 `./message-tree.md`；参数合成见 `./params.md`。
 
@@ -45,6 +45,6 @@
 | `reasoning_ms` | 出现过 reasoning 时为首 content delta − t0，否则为流结束时间 |
 | `total_ms` | 结束、中止或失败 − t0；中止和失败也落库 |
 
-- reasoning 标题显示思考时长；完成后默认仅显示 tok/s 与 tokens，其余指标通过原生 `<details>` 展开。
+- reasoning 标题显示思考时长；完成后默认显示 tok/s、tokens 和“详情”标签，其余指标通过原生 `<details>` 展开。
 - tok/s = `token_count / max(total_ms − ttft_ms, 1ms)`；时长格式化使用 `formatDurationMs`。
 - 续写不新建消息，delta 追加到原消息；`total_ms` 和 `token_count` 累加，保留首段 `ttft_ms`，`finish_reason` 取本次值。

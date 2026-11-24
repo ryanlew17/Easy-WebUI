@@ -747,11 +747,14 @@ export function FieldRow({
   modified,
   onReset,
   resetLabel,
+  hideLabelText,
   layout = 'inline',
   children,
 }: {
   label: string;
   hint?: string;
+  /** 参数组已提供同名标题时隐藏字段文字，保留覆盖/重置操作 */
+  hideLabelText?: boolean;
   /** 该参数（组）与预设基线不一致 → label 前 accent 小圆点高亮 */
   modified?: boolean;
   /** 提供时显示垃圾桶小图标按钮（点击删除该参数组的 override） */
@@ -767,7 +770,9 @@ export function FieldRow({
       label={
         <>
           {modified ? <span className="param-dot" aria-hidden="true" /> : null}
-          <span style={{ color: modified ? 'var(--accent-text)' : undefined }}>{label}</span>
+          {!hideLabelText ? (
+            <span style={{ color: modified ? 'var(--accent-text)' : undefined }}>{label}</span>
+          ) : null}
           {hint ? <InfoTip text={hint} /> : null}
           {modified && onReset ? (
             <button

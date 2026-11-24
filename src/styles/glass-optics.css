@@ -89,6 +89,7 @@
 .message-scroll {
   --scroll-mask-top: #000;
   --scroll-mask-bottom: #000;
+  --scroll-fade-top-size: 4.5rem;
   --scroll-fade-size: 2.5rem;
 }
 .message-scroll[data-fade-top='true'] {
@@ -102,14 +103,14 @@
     -webkit-mask-image: linear-gradient(
       to bottom,
       var(--scroll-mask-top) 0,
-      #000 var(--scroll-fade-size),
+      #000 var(--scroll-fade-top-size),
       #000 calc(100% - var(--scroll-fade-size)),
       var(--scroll-mask-bottom) 100%
     );
     mask-image: linear-gradient(
       to bottom,
       var(--scroll-mask-top) 0,
-      #000 var(--scroll-fade-size),
+      #000 var(--scroll-fade-top-size),
       #000 calc(100% - var(--scroll-fade-size)),
       var(--scroll-mask-bottom) 100%
     );
@@ -151,6 +152,12 @@
   .composer-highlight {
     display: none;
   }
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong {
+    background: var(--surface-modal-bg);
+  }
   .message-scroll:is([data-fade-top='true'], [data-fade-bottom='true']) {
     -webkit-mask-image: none;
     mask-image: none;
@@ -186,10 +193,29 @@
     backdrop-filter: none;
     background-image: none;
   }
+  .glass,
+  .glass-bar,
+  .glass-pop,
+  .glass-strong,
+  .drawer,
+  .row-surface,
+  .input-surface,
+  .btn {
+    border: 1px solid CanvasText;
+  }
+  .conversation-row:has([aria-current='true']) {
+    color: CanvasText;
+    background: Canvas;
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+    font-weight: 600;
+  }
   .btn[aria-pressed='true'],
   .select-option[aria-selected='true'] {
-    color: HighlightText;
-    background: Highlight;
+    color: CanvasText;
+    background: Canvas;
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
   }
   .btn:disabled {
     color: GrayText;

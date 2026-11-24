@@ -37,7 +37,7 @@ export function AnchoredPopover({
   align = 'start',
   matchAnchorWidth = false,
   gap = 6,
-  viewportMargin = 8,
+  viewportMargin = 16,
   className = '',
   style,
   role,
@@ -125,8 +125,11 @@ export function AnchoredPopover({
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
     window.visualViewport?.addEventListener('scroll', update);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    if (anchorRef.current) observer?.observe(anchorRef.current);
     return () => {
       window.cancelAnimationFrame(raf);
+      observer?.disconnect();
       window.removeEventListener('scroll', update, { capture: true } as EventListenerOptions);
       window.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('resize', update);

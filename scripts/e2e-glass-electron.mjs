@@ -77,7 +77,6 @@ async function launchScenario(name, providerUrl, options = {}) {
   child.stderr.on('data', (data) => { output += data; });
   let browser;
   const errors = [];
-  const knownCspErrors = [];
   const resources = new Set();
   let completed = false;
   try {
@@ -90,10 +89,7 @@ async function launchScenario(name, providerUrl, options = {}) {
     if (!page) throw new Error('Electron page not found');
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => {
-      if (message.type() !== 'error') return;
-      const text = message.text();
-      if (/inline script/.test(text) && text.includes('sha256-WoE9wgpAUH0Q2zvlQqBQ36hi2DDcN8v7sp8m1ymMQ/8=')) knownCspErrors.push(text);
-      else errors.push(text);
+      if (message.type() === 'error') errors.push(message.text());
     });
     page.on('request', (request) => resources.add(request.url()));
     if (options.media) await page.emulateMediaFeatures(options.media);
@@ -222,8 +218,8 @@ async function launchScenario(name, providerUrl, options = {}) {
       const fallback = await page.evaluate(() => getComputedStyle(document.querySelector('.composer-shell')).backdropFilter);
       check(fallback !== 'none', `${name}: device loss restores CSS material`);
     }
-    check(errors.length === 0, `${name}: no unexpected renderer/CSP errors${errors.length ? ` (${errors.join('; ')})` : ''}`);
-    results.push({ name, adapter, expected, state, resources: [...resources].filter((url) => !url.startsWith('data:')), errors, knownCspErrors, workerResource: [...resources].find((url) => url.includes('map-encoder.worker')) ?? null });
+    check(errors.length === 0, `${name}: no renderer or CSP errors${errors.length ? ` (${errors.join('; ')})` : ''}`);
+    results.push({ name, adapter, expected, state, resources: [...resources].filter((url) => !url.startsWith('data:')), errors, workerResource: [...resources].find((url) => url.includes('map-encoder.worker')) ?? null });
     completed = true;
   } catch (error) {
     results.push({ name, error: String(error), state: 'failed', output: output.slice(-1200), errors });

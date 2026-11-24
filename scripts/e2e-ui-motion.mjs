@@ -1,7 +1,7 @@
 /**
  * Easy WebUI — UI/动效改造走查脚本（feat/ui-motion-overhaul）。
  * 复用 e2e-preview.mjs 的 harness（puppeteer-core + Chromium 无头，默认系统 Edge，可由 EASYUI_BROWSER_PATH 覆盖）。
- * 产出 docs/screenshots/20-ui-*.png ~ 27-ui-*.png，并对 InfoTip 做视口内几何断言
+ * 产出 build/e2e-shots/20-ui-*.png ~ 27-ui-*.png（不入库），并对 InfoTip 做视口内几何断言
  * （zoom=1 与 zoom=2 两档，回归右缘溢出 bug）。
  */
 import './node-version-guard.mjs';
@@ -11,7 +11,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-const OUT = 'docs/screenshots';
+const OUT = 'build/e2e-shots';
 mkdirSync(OUT, { recursive: true });
 
 /* 进程内静态服务器服务 dist/（避免常驻 dev server；脚本退出即释放端口） */
@@ -146,8 +146,9 @@ try {
   // 保存成功 toast（4.5s 生命周期内截图）
   await shot('26-ui-toast');
 
-  // 2. 设置页 light（平台管理 tab 当前已有内容）
-  await sleep(800);
+  // 2. 设置页 light：等 toast 退场后再截，否则会与上一状态截成同一帧
+  await page.waitForFunction(() => !document.querySelector('.toast-item'), { timeout: 7000 });
+  await sleep(200);
   await shot('22-ui-settings-light');
 
   // 3. 回会话页 → 新建会话 → 选模型 → 发消息 → 等生成完成
@@ -193,6 +194,13 @@ try {
     document.documentElement.style.setProperty('--app-zoom', '2');
   });
   await sleep(400);
+  // @req REQ-2026-006：高缩放默认收起覆盖栏；本场景显式打开后再验证 InfoTip 几何。
+  await page.evaluate(() => {
+    if (!document.querySelector('.app-inspector')) {
+      document.querySelector('.workspace-topbar [aria-label="折叠或展开参数面板"]')?.click();
+    }
+  });
+  await sleep(300);
   await pinInfoTipAndAssert('zoom=2 右栏');
   await shot('27-ui-infotip-zoom200');
   await page.keyboard.press('Escape');

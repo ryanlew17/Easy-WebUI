@@ -1,6 +1,6 @@
 /**
  * 会话页共享 AppFrame：15rem 导航栏 + 工作区 + 可拖宽检查器。
- * 顶栏与输入坞浮于消息上；窄窗口检查器转为可关闭的覆盖栏。
+ * 顶栏与输入坞浮于消息上；窄窗口检查器默认收起，可显式打开实色覆盖栏。
  * 消息树行为保持 schema v3 契约：
  * 树形分支模型接线（schema v3 契约）：
  * - user 编辑后"保存并重新发送"：内容变更 → sendMessage({siblingOf}) 产生新分支；
@@ -25,7 +25,7 @@ import { useProvidersStore } from '../../store/providers';
 import { RIGHT_WIDTH_MAX, RIGHT_WIDTH_MIN, useUiStore } from '../../store/ui';
 import { displayTitle } from '../../lib/format';
 import { ConfirmDialog } from '../../components/Modal';
-import { AppFrame } from '../../components/AppFrame';
+import { AppFrame, type InspectorMode } from '../../components/AppFrame';
 import { IconButton } from '../../components/controls';
 import { IconChevronLeft, IconPanelRight, IconSliders } from '../../components/icons';
 import { GlassMaterialProvider } from '../../components/GlassMaterialProvider';
@@ -62,7 +62,23 @@ export function ChatPage() {
   const messageContentRef = useRef<HTMLDivElement>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [branchReturn, setBranchReturn] = useState<{ conversationId: string; leafId: string; pathIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>('grid');
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const onInspectorModeChange = useCallback((mode: InspectorMode): void => {
+    setInspectorMode(mode);
+    if (mode === 'overlay') setOverlayDismissed(true);
+  }, []);
+  const inspectorAutoClosed = inspectorMode === 'overlay' && overlayDismissed;
+  const onToggleRight = (): void => {
+    if (inspectorAutoClosed) {
+      setOverlayDismissed(false);
+      if (rightCollapsed) toggleRight();
+      return;
+    }
+    toggleRight();
+  };
 
   const hasProvider = providers.length > 0;
   const providerId = conv ? conv.provider_id : null;
@@ -136,9 +152,16 @@ export function ChatPage() {
       },
       onBranch: (msg) => {
         if (!conv) return;
+        const activeMessages = useMessagesStore.getState().byConv[conv.id];
+        const previousLeaf = activeMessages?.length ? activeMessages[activeMessages.length - 1].id : null;
         void setActiveLeaf(conv.id, msg.id).then((res) => {
           if (!res.ok) reportError(res.error);
-          else toast('info', t('chat.actions.branch'));
+          else {
+            setBranchReturn(previousLeaf && previousLeaf !== msg.id
+              ? { conversationId: conv.id, leafId: previousLeaf, pathIds: (activeMessages ?? []).map((message) => message.id) }
+              : null);
+            toast('info', t('toast.branchPointSet'));
+          }
         });
       },
       onDelete: (ids) => setPendingDelete(ids),
@@ -158,6 +181,13 @@ export function ChatPage() {
         if (!conv) return;
         void switchBranch(conv.id, targetId).then((res) => {
           if (!res.ok) reportError(res.error);
+          else {
+            const path = useMessagesStore.getState().byConv[conv.id] ?? [];
+            const activeLeaf = path[path.length - 1]?.id;
+            setBranchReturn((current) => current?.conversationId === conv.id && current.leafId === activeLeaf
+              ? null
+              : current);
+          }
         });
       },
     }),
@@ -182,6 +212,10 @@ export function ChatPage() {
     void deleteMessages(conv.id, pendingDelete)
       .then((res) => {
         if (!res.ok) reportError(res.error);
+        else {
+          setBranchReturn((current) => current?.conversationId === conv.id
+            && current.pathIds.some((id) => pendingDelete.includes(id)) ? null : current);
+        }
       })
       .finally(() => {
         setDeleting(false);
@@ -263,30 +297,40 @@ export function ChatPage() {
     document.addEventListener('mouseup', onUp);
   };
 
+  const onDividerKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowLeft' ? 10 : -10;
+    setRightWidth(Math.min(RIGHT_WIDTH_MAX, Math.max(RIGHT_WIDTH_MIN, rightWidth + delta)));
+  };
+
   const rightRem = (rightWidth / 16).toFixed(3);
 
   return (
     <AppFrame
       navigation={<Sidebar />}
       inspectorWidth={`${rightRem}rem`}
-      inspector={rightCollapsed ? null : (
+      onInspectorModeChange={onInspectorModeChange}
+      inspector={!conv || rightCollapsed || inspectorAutoClosed ? null : (
         <aside className="app-inspector drawer flex min-h-0 flex-col" aria-label={t('params.title')}>
           <div
             role="separator"
             aria-orientation="vertical"
             aria-label={t('aria.resizeRightPanel')}
+            aria-valuemin={RIGHT_WIDTH_MIN}
+            aria-valuemax={RIGHT_WIDTH_MAX}
+            aria-valuenow={rightWidth}
+            tabIndex={0}
             onMouseDown={onDividerDown}
-            className="absolute -left-1.5 top-0 z-10 h-full w-3"
+            onKeyDown={onDividerKeyDown}
+            className="absolute left-0 top-0 z-10 h-full w-3"
             style={{ cursor: 'grab' }}
-            onMouseDownCapture={() => {
-              document.body.style.cursor = 'grabbing';
-            }}
           />
           <div className="flex flex-none items-center justify-between px-4 pb-2 pt-4">
             <h2 className="truncate text-control font-semibold">{t('params.title')}</h2>
             <IconButton
               label={t('aria.toggleRightPanel')}
-              onClick={toggleRight}
+              onClick={onToggleRight}
             >
               <IconChevronLeft />
             </IconButton>
@@ -317,23 +361,43 @@ export function ChatPage() {
             {conv ? (
               <ModelPicker providerId={providerId} model={model} onSelect={onModelSelect} />
             ) : (
-              <span className="text-sm text-secondary">{t('app.name')}</span>
+              <span className="text-sm text-secondary">{t('nav.chat')}</span>
             )}
           </div>
+          {conv && branchReturn?.conversationId === conv.id ? (
+            <IconButton
+              label={t('chat.actions.returnBranch')}
+              onClick={() => {
+                const target = branchReturn.leafId;
+                void setActiveLeaf(conv.id, target).then((res) => {
+                  if (!res.ok) reportError(res.error);
+                  else setBranchReturn(null);
+                });
+              }}
+              className="flex-none"
+            >
+              <IconChevronLeft />
+            </IconButton>
+          ) : null}
           {conv ? (
-            <span className="hidden max-w-[40%] truncate text-xs text-tertiary sm:inline">
+            <span
+              className="hidden max-w-[40%] truncate text-xs text-tertiary sm:inline"
+              title={displayTitle(conv.title, t('sidebar.untitled'))}
+            >
               {displayTitle(conv.title, t('sidebar.untitled'))}
             </span>
           ) : null}
-          <IconButton
-            label={t('aria.toggleRightPanel')}
-            title={t('params.title')}
-            active={!rightCollapsed}
-            onClick={toggleRight}
-            className="flex-none"
-          >
-            <IconPanelRight />
-          </IconButton>
+          {conv ? (
+            <IconButton
+              label={t('aria.toggleRightPanel')}
+              title={t('params.title')}
+              active={!rightCollapsed && !inspectorAutoClosed}
+              onClick={onToggleRight}
+              className="flex-none"
+            >
+              <IconPanelRight />
+            </IconButton>
+          ) : null}
         </div>
 
         {providersLoaded && !hasProvider ? (

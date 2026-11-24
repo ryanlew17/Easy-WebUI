@@ -3,13 +3,13 @@
 > 权威范围：主进程请求入口、网络栈、超时重试、响应限制和统一错误行为。
 > 何时读取：修改 `electron/gateway/` 或排查服务商请求链路之前。
 > 代码事实来源：`electron/gateway/`、`shared/types.ts`、`shared/errors.ts`。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 
 ## 1. 职责边界
 
 渲染进程只提交平台 ID、模型、消息和生效参数；主进程读取平台、解密密钥并发出请求。渲染进程不得持有明文密钥或直接请求服务商。
 
-生产环境通过 `setGatewayFetch` 注入 Electron `net.fetch`，使用 Chromium 网络栈；测试和工具未注入时使用 `globalThis.fetch`。统一聊天输入输出类型以 `shared/types.ts` 的 `AdapterChatInput`、`ChatChunk` 为准，适配器同时提供 `listModels()` 和 `testModel()`。
+生产环境通过 `setGatewayFetch` 注入 Electron `net.fetch`，使用 Chromium 网络栈；测试和工具未注入时使用 `globalThis.fetch`。适配层输入以 `electron/gateway/api.ts` 的 `AdapterChatInput` 为准，输出统一为 `shared/types.ts` 的 `ChatChunk`；适配器同时提供 `listModels()` 和 `testModel()`。
 
 ## 2. 请求与资源限制
 

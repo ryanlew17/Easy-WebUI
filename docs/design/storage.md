@@ -3,7 +3,7 @@
 > 权威范围：数据目录、启动迁移、自定义位置、UI 偏好持久化和备份/恢复流程。
 > 何时读取：修改 `electron/paths.ts`、存储迁移、窗口/外观持久化或备份页之前。
 > 代码事实来源：`electron/paths.ts`、`electron/storage-migrate.ts`、`electron/backup/`、`shared/appearance.ts`。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 
 数据库结构见 `../contracts/db-schema.md`；备份 ZIP 与加密格式见 `../contracts/backup-format.md`。
 
@@ -16,6 +16,7 @@
 - 启动顺序为 `resolveDataDir → migrateStorageDir → openDatabase`。
 - 目标没有数据库时，从旧安装目录或临时解包目录中抢救首个有效数据目录；%Temp% 候选必须同时包含 `easyui.db` 和 `storage-layout.json`。
 - `storage-layout.json` 的当前布局版本为 1，后续结构迁移通过 `LAYOUT_STEPS` 扩展。
+- `logs/app.log` 按日轮转为 `app-YYYY-MM-DD.log`，启动时清理 7 天前的滚动文件；内容脱敏规则见 `./security.md`。
 
 ```text
 data/
@@ -45,7 +46,7 @@ data/
 
 ## 4. 备份与恢复
 
-- 默认导出不含密钥；含密钥备份必须使用独立密码和 `../contracts/backup-format.md` 规定的加密格式，机器密文不得直接导出。
+- 备份默认不含密钥；含密钥备份的密码要求与加密格式见 `../contracts/backup-format.md`（机器密文不得直接导出）。
 - 恢复时依次验证 manifest、必要密码和事务导入。合并模式按 ID 跳过；覆盖模式需要二次确认，并先自动创建不含密钥的临时备份。
 - 完成后报告平台、会话、消息、预设和跳过数量；备份列表支持打开目录与删除，确认规则见 `./ux-guidelines.md`。
 - 列表缓存只保存成功解析的展示字段，按完整路径、尺寸和 mtime 失效；损坏、超限或已删除文件不进入缓存。

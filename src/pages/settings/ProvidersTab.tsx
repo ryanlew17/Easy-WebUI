@@ -13,7 +13,7 @@ import { useConversationsStore } from '../../store/conversations';
 import { useUiStore } from '../../store/ui';
 import { ConfirmDialog } from '../../components/Modal';
 import { IconButton } from '../../components/controls';
-import { IconChevronRight, IconEdit, IconRegenerate, IconTrash } from '../../components/icons';
+import { IconChevronRight, IconEdit, IconGauge, IconTrash } from '../../components/icons';
 import { formatLatency } from '../../lib/format';
 import { summarizeIpcError } from '../../lib/errors';
 import { ProviderModal } from './ProviderModal';
@@ -122,7 +122,11 @@ function ProviderCard({ provider }: { provider: Provider }) {
             disabled={testingAll || enabledModels.length === 0}
             onClick={() => void testAll()}
           >
-            <IconRegenerate />
+            {testingAll ? (
+              <span className="spinner" role="status" aria-label={t('settings.providers.testing')} />
+            ) : (
+              <IconGauge size={14} />
+            )}
           </IconButton>
           <IconButton label={t('common.edit')} onClick={() => setEditing(true)}>
             <IconEdit />
@@ -167,11 +171,17 @@ function ProviderCard({ provider }: { provider: Provider }) {
                   </span>
                   <IconButton
                     size="sm"
-                    label={`${t('aria.testModel')} ${m.id}`}
+                    label={testingOne === m.id
+                      ? `${t('settings.providers.testingOne')} ${m.id}`
+                      : `${t('aria.testModel')} ${m.id}`}
                     disabled={testingOne === m.id || testingAll}
                     onClick={() => void testOne(m.id)}
                   >
-                    <IconRegenerate />
+                    {testingOne === m.id ? (
+                      <span className="spinner" role="status" aria-label={t('settings.providers.testingOne')} />
+                    ) : (
+                      <IconGauge size={14} />
+                    )}
                   </IconButton>
                 </li>
               ))}

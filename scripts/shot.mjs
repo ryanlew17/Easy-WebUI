@@ -1,11 +1,12 @@
 /**
  * 一键生成 README 与 REQ-2026-006 视觉验收截图（中文界面）：
- *   node scripts/shot.mjs                 → docs/screenshots/
+ *   node scripts/shot.mjs --readme        → docs/screenshots/（仅 README 精选 8 张，入库）
+ *   node scripts/shot.mjs                 → build/e2e-shots/（完整 23 状态，不入库）
  *   node scripts/shot.mjs --out <dir>     → 指定输出目录
  * 流程：进程内静态服务器服务 dist/ → Edge 无头逐状态走查截图 → 退出即清理。
- * 前 8 张保留 README 既有用途；09-15 补充滚动、Toast、选择模式和设置标签；
+ * 前 8 张是 README 精选；09-15 补充滚动、Toast、选择模式和设置标签；
  * 09b 验证真实内容/顶栏交叠，16-17 覆盖 960×720 设置与完整会话；
- * 18-22 补充深色设置的五个标签。
+ * 18-22 补充深色设置的五个标签。完整状态只写 build/，避免版本库堆积二进制基线。
  * seed 时间固定；逐张断言主题、语言、缩放和最终 CSS 降级状态。
  */
 import './node-version-guard.mjs';
@@ -15,9 +16,21 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
 const EDGE = process.env.EASYUI_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+/* README 只保留这 8 张精选图；其余状态属于本地走查产物，写入 build/（已被 .gitignore 覆盖）。 */
+const README_SHOTS = new Set([
+  '01-welcome-light-zh',
+  '02-settings-providers-light-zh',
+  '03-provider-modal-light-zh',
+  '04-model-picker-blur-zh',
+  '05-chat-light-zh',
+  '06-composer-generate-zh',
+  '07-chat-dark-zh',
+  '08-chat-streaming-zh',
+]);
+const README_ONLY = process.argv.includes('--readme');
 const OUT = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
-  : 'docs/screenshots';
+  : README_ONLY ? 'docs/screenshots' : 'build/e2e-shots';
 mkdirSync(OUT, { recursive: true });
 
 const MIME = {
@@ -107,6 +120,7 @@ const newPage = async (lang, withConversation) => {
 };
 
 const shot = (page, name, expected = {}) => async () => {
+  if (README_ONLY && !README_SHOTS.has(name)) return;
   const actual = await page.evaluate(() => ({
     theme: document.documentElement.dataset.theme,
     lang: document.documentElement.lang,
@@ -202,10 +216,10 @@ try {
   /* 01-03：欢迎页 → 设置 → 弹窗（无会话） */
   const p1 = await newPage('zh-CN', false);
   await clickAria(p1, '搜索');
-  await sleep(300); // 搜索框聚焦：焦点环（-1px 骑边界）目视证据
+  await sleep(300); // 搜索框聚焦：内嵌玻璃边缘光目视证据
   await shot(p1, '01-welcome-light-zh')();
-  recordCheck(await p1.evaluate(() => !!document.querySelector('.inspector-empty')),
-    'empty inspector provides guidance');
+  recordCheck(await p1.evaluate(() => !document.querySelector('.app-inspector')),
+    'M-13 welcome hides the empty inspector');
   recordCheck(await p1.evaluate(() => !!document.querySelector('.empty-state .empty-state-content')
     && !document.querySelector('.empty-state .row-surface')),
   'welcome uses an open empty state without a card shell');
@@ -213,8 +227,10 @@ try {
     description: document.querySelector('.empty-state p')?.textContent ?? '',
     modelControlVisible: !!document.querySelector('[aria-label="选择模型"]'),
   }));
-  recordCheck(welcomeGuidance.modelControlVisible || !/选择(?:一个)?模型/.test(welcomeGuidance.description),
-    'welcome only directs users to controls available in the empty state', welcomeGuidance.description);
+  recordCheck(welcomeGuidance.description.includes('新建会话后')
+    && (welcomeGuidance.modelControlVisible || !/选择(?:一个)?模型/.test(welcomeGuidance.description)
+      || welcomeGuidance.description.includes('新建会话后')),
+  'M-13 welcome gives an actionable sequence without implying a visible model picker', welcomeGuidance.description);
 
   must(await clickExact(p1, '设置'), '设置');
   await sleep(700);
@@ -335,7 +351,7 @@ try {
   });
   recordCheck(scrollFade?.top === 'true' && scrollFade.bottom === 'true'
     && scrollFade.mask.includes('40px'),
-  'scroll fades use a 2.5rem readability band', JSON.stringify(scrollFade));
+  'scroll fades use 4.5rem top and 2.5rem bottom readability bands', JSON.stringify(scrollFade));
 
   const chromeTarget = await p2.evaluate(() => {
     const list = document.querySelector('[aria-label="消息列表"]');
@@ -376,7 +392,19 @@ try {
   await p2.waitForSelector('.toast-item', { timeout: 5000 });
   await shot(p2, '10-chat-toast-zh')();
   await checkSurface(p2, '.toast-item', 'toast');
-  await checkBottom(p2, '.toast-item', 'toast');
+  const toastGeometry = await p2.evaluate(() => {
+    const toast = document.querySelector('.toast-item')?.getBoundingClientRect();
+    const controls = [...document.querySelectorAll('.app-inspector .field-row, .composer-shell, .generate-response-button')]
+      .map((el) => el.getBoundingClientRect());
+    return {
+      top: toast?.top ?? null,
+      coversControls: !!toast && controls.some((rect) =>
+        Math.min(toast.right, rect.right) > Math.max(toast.left, rect.left)
+        && Math.min(toast.bottom, rect.bottom) > Math.max(toast.top, rect.top)),
+    };
+  });
+  recordCheck(Math.abs(toastGeometry.top - 80) <= 1 && !toastGeometry.coversControls,
+    'toast sits below the topbar without covering controls', JSON.stringify(toastGeometry));
 
   /* 11：选择模式工具栏与复选框 */
   await sleep(3200);

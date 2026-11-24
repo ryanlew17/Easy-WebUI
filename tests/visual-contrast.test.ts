@@ -52,14 +52,24 @@ describe('@req REQ-2026-006 visual contrast', () => {
     expect(tokens['--accent-text']).toBeDefined();
     expect(tokens['--accent-fill']).toBeDefined();
     expect(tokens['--control-border']).toBeDefined();
-    expect(tokens['--focus-ring']).toBeDefined();
+    expect(tokens['--focus-edge']).toBeDefined();
+    expect(tokens['--focus-edge-soft']).toBeDefined();
+    expect(css).toMatch(/--focus-fill-shadow:\s*inset 0 0 0 2px var\(--on-accent\)/);
+    expect(css).toMatch(/--focus-control-shadow:\s*inset 0 0 0 1px var\(--focus-edge\),/);
     for (const background of [base, card]) {
       expect(textContrast(tokens, '--accent-text', background)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(parseCssColor(tokens['--on-accent']), parseCssColor(tokens['--accent-fill'])))
         .toBeGreaterThanOrEqual(4.5);
     }
     expect(contrastRatio(parseCssColor(tokens['--accent']), base)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(parseCssColor(tokens['--focus-ring']), control)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(parseCssColor(tokens['--focus-edge']), control)).toBeGreaterThanOrEqual(3);
+    for (const background of [
+      control,
+      surface(tokens, '--accent-soft', base),
+      surface(tokens, '--code-bg', base),
+    ]) {
+      expect(contrastRatio(parseCssColor(tokens['--focus-edge']), background)).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it.each(['light', 'dark'] as const)('%s theme keeps status text readable', (theme) => {

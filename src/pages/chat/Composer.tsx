@@ -3,7 +3,7 @@
  * 输入坞：浮在画布上的 ChatGPT 式玻璃输入卡片。
  * - textarea 在上（透明无边框，自适应增高 ≤10rem）；底行左侧为 Think + 上下文用量，
  *   右侧为独立圆形发送/停止；选择模式隐藏输入坞但保留组件与草稿；
- * - 「✨ Generate Response」液态玻璃胶囊浮于卡片上方 12px 居中（仅末条为 user 消息时）；
+ * - 「✨ Generate Response」液态玻璃胶囊浮于卡片上方 16px 居中（仅末条为 user 消息时）；
  * - Enter 发送 / Shift+Enter 换行（可在通用设置翻转）；生成中禁用输入 + 停止（Esc 亦可）；
  * - 浮层（胶囊 / 用量环明细）均 portal 到 body：输入卡片自带 backdrop-filter，
  *   浮层留在其 DOM 内则模糊失效。
@@ -17,7 +17,7 @@ import { AnchoredPopover } from '../../components/Popover';
 import { useDelayedUnmount } from '../../lib/useDelayedUnmount';
 import { IconBulb, IconSend, IconStop } from '../../components/icons';
 import { formatNumber } from '../../lib/format';
-import { quantizeComposerHeight } from '../../lib/glass/geometry';
+import { quantizeComposerHeight, quantizeComposerMaxHeight } from '../../lib/glass/geometry';
 import { useGlassSurface } from '../../components/GlassMaterialProvider';
 
 /** 上下文用量（由 ChatPage 汇总历史与系统提示词；草稿估算在本组件内叠加） */
@@ -185,6 +185,7 @@ export function Composer({
   const [text, setText] = useState('');
   const taRef = useRef<HTMLTextAreaElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLSpanElement>(null);
   const generateRef = useRef<HTMLDivElement>(null);
   useGlassSurface('composer', shellRef);
@@ -195,20 +196,29 @@ export function Composer({
     if (!ta) return;
     ta.style.height = 'auto';
     const style = getComputedStyle(ta);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+    const maxHeight = quantizeComposerMaxHeight(
+      lineHeight,
+      Number.parseFloat(style.maxHeight) || 160,
+      padding,
+    );
     const height = quantizeComposerHeight(
       ta.scrollHeight,
-      Number.parseFloat(style.lineHeight),
+      lineHeight,
       Number.parseFloat(style.minHeight) || 28,
-      Number.parseFloat(style.maxHeight) || 160,
+      maxHeight,
     );
     ta.style.height = `${height / 16}rem`;
   }, [text]);
 
-  // @req REQ-2026-006：高光只在单个 rAF 中写 transform/opacity，不进入 React 渲染。
+  // @req REQ-2026-006：同一尺寸观察器同步消息安全区；高光仅以单个 rAF 写 transform/opacity。
   useEffect(() => {
     const shell = shellRef.current;
+    const dock = dockRef.current;
     const highlight = highlightRef.current;
-    if (!shell || !highlight) return;
+    if (!shell || !dock || !highlight) return;
+    const workspace = shell.closest<HTMLElement>('.chat-workspace');
     const preference = window.matchMedia(
       '(prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce), (forced-colors: active)',
     );
@@ -238,6 +248,11 @@ export function Composer({
     };
     const measure = (): void => {
       rect = shell.getBoundingClientRect();
+    };
+    const updateSpace = (): void => {
+      if (!workspace) return;
+      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      workspace.style.setProperty('--composer-space', `${dock.offsetHeight + rem}px`);
     };
     const onMove = (event: PointerEvent): void => {
       if (preference.matches || document.hidden) return;
@@ -279,17 +294,21 @@ export function Composer({
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
       measure();
+      updateSpace();
       settle();
     });
     observer?.observe(shell);
+    observer?.observe(dock);
     shell.addEventListener('pointerleave', onLeave);
     shell.addEventListener('input', settle);
     document.addEventListener('visibilitychange', onLeave);
     preference.addEventListener('change', onPreferenceChange);
+    updateSpace();
     onPreferenceChange();
     return () => {
       onLeave();
       observer?.disconnect();
+      workspace?.style.removeProperty('--composer-space');
       shell.removeEventListener('pointermove', onMove);
       shell.removeEventListener('pointerleave', onLeave);
       shell.removeEventListener('input', settle);
@@ -339,7 +358,7 @@ export function Composer({
   }, [showGenerate, onGenerate]);
 
   return (
-    <div className="composer-dock flex-none px-4 pb-1 pt-1" data-selection-mode={selectionMode ? 'true' : undefined}>
+    <div ref={dockRef} className="composer-dock flex-none pl-5 pr-7 pb-1 pt-1" data-selection-mode={selectionMode ? 'true' : undefined}>
       {/* Generate Response 液态玻璃胶囊：LM Studio 式浮于输入卡片上方居中
           （Ctrl/Cmd+R；不清空草稿）。portal 到 body 保证模糊生效。 */}
       <GeneratePill
@@ -393,11 +412,11 @@ export function Composer({
           {generating ? (
             <IconButton
               round
-              variant="danger-solid"
+              variant="ghost"
               label={t('aria.stopGeneration')}
               title={t('chat.input.stop')}
               onClick={onStop}
-              className="flex-none"
+              className="btn-surface flex-none"
               size="md"
             >
               <IconStop />

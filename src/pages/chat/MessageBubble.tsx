@@ -115,7 +115,10 @@ function StatsRow({ msg }: { msg: Message }) {
   }
   return (
     <details className="message-stats">
-      <summary className="message-stats-summary">{summaryContent}</summary>
+      <summary className="message-stats-summary">
+        {summaryContent}
+        <span className="text-secondary">{t('chat.message.statsDetails')}</span>
+      </summary>
       <div className="message-stats-details">
         {details.map((item) => <span key={item.key}>{item.text}</span>)}
       </div>
@@ -312,7 +315,10 @@ export const MessageBubble = memo(function MessageBubble({
           <span
             className="mt-1.5 flex h-6 w-6 flex-none items-center justify-center"
             /* 阻止冒泡：否则勾选会再触发气泡包装器的 toggle（双重切换=没切） */
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!(e.target as HTMLElement).closest('.checkbox')) onToggleSelect(msg);
+            }}
           >
             <Checkbox
               checked={selected}

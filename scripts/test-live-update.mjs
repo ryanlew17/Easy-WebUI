@@ -9,9 +9,13 @@
  */
 import './node-version-guard.mjs';
 import { spawn, execSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
 const EXE = 'C:\\Users\\Ryan\\AppData\\Local\\Programs\\easy-webui\\Easy WebUI.exe';
+/* 走查截图只写 build/（.gitignore 覆盖），docs/screenshots 保留 README 精选图 */
+const SHOTS = 'build/e2e-shots';
+mkdirSync(SHOTS, { recursive: true });
 const DEBUG_URL = 'http://127.0.0.1:9555';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const mode = process.argv[2];
@@ -139,7 +143,7 @@ try {
       throw new Error('升级后数据丢失：providers 为空');
     const convs = await page.evaluate(() => window.easyui.listConversations());
     console.log('UPDATED conversations =', convs.length, '个');
-    await page.screenshot({ path: 'docs/screenshots/15-live-updated.png' });
+    await page.screenshot({ path: `${SHOTS}/15-live-updated.png` });
     console.log('VERIFY_OK');
     await browser.disconnect();
     killAll();

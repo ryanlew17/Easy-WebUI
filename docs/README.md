@@ -48,5 +48,6 @@ ADR 只记录决策背景与后果；现行规则以 `design/` 和 `contracts/` 
 - 新需求先登记 GitHub Issue 或 `requirements/active/`；实现后回写行为文档并更新需求状态。
 - 每类现行规则只在一个 `design/` 文档维护，其他文档通过链接引用；类型和接口细节以 `shared/` 与 `contracts/` 为准。
 - 需求文档保留决策、验收和性能证据，不另设性能报告目录；实施计划、审计等中间产物在收口时删除。
+- 走查与探针截图写入 `build/e2e-shots/`（不入库）；`docs/screenshots/` 只保留 README 引用的 8 张精选图。
 - 接口变更同步 `shared/types.ts`、Electron、Mock 桥和对应契约。
 - 已完成需求移入 `requirements/archive/`；历史快照不再复制到入口文档。

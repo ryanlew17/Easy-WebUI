@@ -3,7 +3,7 @@
 > 权威范围：密钥生命周期、脱敏、CSP、渲染隔离、内容消毒和出站隐私。
 > 何时读取：接触密钥、日志、错误消息、CSP、导航或外部内容的代码之前；密钥改动必读。
 > 代码事实来源：`electron/crypto/`、`electron/main.ts`、`electron/webcontents-guard.ts`、`shared/errors.ts`。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 
 ## 1. 密钥生命周期
 
@@ -23,8 +23,9 @@
 
 ## 3. 渲染与导航安全
 
-- CSP 使用 `default-src 'self'`，并设置 `object-src 'none'`、`base-uri 'none'`、`frame-src 'none'`、`form-action 'none'`；开发环境由 Vite 插件剥离 CSP 以支持 HMR。
-- `index.html` 的防 FOUC 内联脚本通过 `script-src 'sha256-…'` 放行，不使用 `unsafe-inline`。修改脚本（包括空白）后必须重算：
+- CSP 使用 `default-src 'self'`，并设置 `object-src 'none'`、`base-uri 'none'`、`frame-src 'none'`、`form-action 'none'`；开发环境由 Vite 插件剥离 meta CSP 以支持 HMR。
+- `index.html` 的 meta CSP 与 `electron/main.ts` 的响应头 CSP 使用相同的 `script-src 'self' 'sha256-…'`，只放行对应哈希的防 FOUC 内联脚本，不为 script 启用 `unsafe-inline`。响应头与 meta 取交集，两处必须保持一致。
+- 修改内联脚本（包括空白）后必须重算并同步两处哈希。`tests/webcontents-guard.test.ts` 直接计算实际脚本哈希并检查两处策略；策略调整后还必须执行真实 Electron 验证：
 
   ```bash
   node -e "const fs=require('fs'),c=require('crypto');const m=fs.readFileSync('index.html','utf8').match(/<script>(\(function[\s\S]*?)<\/script>/);console.log(c.createHash('sha256').update(m[1],'utf8').digest('base64'))"

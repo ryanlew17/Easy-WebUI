@@ -414,14 +414,16 @@ export function GeneralTab() {
             }
           >
             {hasAnyModel ? (
-              <div className="flex items-center gap-1.5">
-                <ModelPicker
-                  providerId={settings.title_provider_id}
-                  model={settings.title_model}
-                  onSelect={(pid, mid) =>
-                    void update({ title_provider_id: pid, title_model: mid })
-                  }
-                />
+              <div className="flex min-w-0 items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <ModelPicker
+                    providerId={settings.title_provider_id}
+                    model={settings.title_model}
+                    onSelect={(pid, mid) =>
+                      void update({ title_provider_id: pid, title_model: mid })
+                    }
+                  />
+                </div>
                 {titlePinned ? (
                   <button
                     type="button"
@@ -460,7 +462,7 @@ export function GeneralTab() {
           <tbody>
             {shortcuts.map(([keys, desc]) => (
               <tr key={keys}>
-                <td className="py-1.5 pr-3">
+                <td className="pr-3">
                   {keys.split('+').map((k, i, arr) => (
                     <span key={`${k}-${i}`}>
                       <kbd className="kbd">{k}</kbd>
@@ -468,7 +470,7 @@ export function GeneralTab() {
                     </span>
                   ))}
                 </td>
-                <td className="py-1.5 text-secondary">{desc}</td>
+                <td className="text-secondary">{desc}</td>
               </tr>
             ))}
           </tbody>

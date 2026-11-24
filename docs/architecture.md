@@ -2,7 +2,7 @@
 
 > 适用范围：技术选型、进程架构与关键约束、目录结构、构建与工程配置、Mock 桥二元性。
 > 何时读取：做架构级/跨模块改动、新增目录或依赖、排查构建问题之前。
-> 最后更新：2026-11-22
+> 最后更新：2026-11-25
 > 来源：原 prd.md §2 + 原 docs/impl-contract.md §0
 
 ## 1. 技术选型（当前锁定版本）
@@ -72,7 +72,7 @@ EasyWebUI/
 │   └── vendor/liquid-glass/ # 选定的 Glass SDK 0.0.2 + 最小 vgpu/Lisse、类型与 MIT 许可证
 ├── tests/               # vitest 单测（gateway/trim/crypto/backup/db/窗口状态/视觉材质…）
 ├── scripts/             # 走查与探针（puppeteer-core + Chromium 无头，默认系统 Edge）、截图、冒烟、性能基准
-├── build/               # 应用图标
+├── build/               # 应用图标与本地走查产物（gitignore）
 └── release/             # electron-builder 产物
 ```
 
@@ -83,12 +83,12 @@ EasyWebUI/
 - `vite.config.mts`：`base: './'`（Electron `file://` 需要相对路径，**不许改**）；server.port 5173；`.mts` 保持 ESM 原生加载；Tailwind 4 经 `@tailwindcss/vite`，旧 JS 配置经 `@config` 保留，`source(none)` 下仅显式注册 `index.html` 与 `src/**/*.{ts,tsx}`；CSS／构建目标 Chrome／Edge 139+、Safari 16.4+、Firefox 128+。这些是构建目标，不代表对应浏览器均已完成实测；`corner-shape` 另有 Chrome 138 普通圆角回退验证。
 - better-sqlite3 ABI：开发期报 ABI 错误时 `npx electron-rebuild -f -w better-sqlite3`；**Electron 44+ 需 better-sqlite3 ≥ 12（本项目 v13）**；纯 Web 预览安装可 `npm install --ignore-scripts` 保底，但桌面完整验收必须执行安装脚本并实载原生模块。Electron 45.4.1 包提供 `install-electron` 而不自动执行二进制下载，本项目以根 `postinstall: install-electron` 在干净安装后准备 `dist`。`allowScripts` 仅为声明性约定；项目未安装 `@lavamoat/allow-scripts`，该字段不参与安装门控。
 - electron-builder 输出 Windows（nsis + portable，已实测）与 macOS（dmg）/ Linux（AppImage，配置就绪未实测）。`build.npmRebuild: false`（预编译原生模块已经目标 Electron 实载验证，打包直接复用）与 `build.electronDist: node_modules/electron/dist`（规避 Windows 解压 rename EPERM）是**测得的工程决策，不许"清理"**。排障：构建 PATH 需含 PowerShell；winCodeSign 缓存解包失败用 7za 手工解开对应 `.7z`（darwin 符号链接报错可忽略）。
-- 验证、打包与发布门槛见 `./release.md`；`npm run perf` / `npm run perf:electron`（REQ-2026-003）为隔离基准（内存 SQLite / 临时目录 / 隔离 userData），不触碰真实业务数据。
+- 验证、打包与发布门槛见 `./release.md`；性能基准不触碰真实业务数据（`perf` / `perf:electron` 使用内存 SQLite、临时目录与隔离 userData）。
 
 ## 5. 液态玻璃与 vendored 边界（REQ-2026-006）
 
-- Track A/B 由 `src/styles/tokens.css`、`src/styles/glass-optics.css` 和现有组件承担，始终提供首帧与完整 CSS 降级。Track C 默认输出 `fallback/filter-budget`，不创建 GPU 表面；`data-glass-engine="enabled"` 仅用于后续明确评审，不是用户偏好。
+- Track A/B 由 `src/styles/tokens.css`、`src/styles/glass-optics.css` 和现有组件承担，始终提供首帧与完整 CSS 降级。Track C 默认输出 `fallback/filter-budget`，不创建 GPU 表面；`data-glass-engine="enabled"` 仅用于后续明确评审（需在页面脚本执行前注入），不是用户偏好。
 - `GlassMaterialProvider` 只在聊天中栏建立场景，页面不得直接调用 vendored API。引擎、WGSL/vgpu 和编码器经动态 `import()` 进入独立 chunk；Worker 由 Vite 编译为本地文件，地图使用 data: PNG，不放宽 CSP。
 - `scripts/revendor-liquid-glass.mjs` 仅在显式 re-vendor 时运行：固定版本、校验 registry integrity、生成最小浏览器闭包并重放本地补丁。正常 install/build 不访问上游，不把 Glass SDK、Base UI 或 vgpu 添加为 npm 依赖。
 - 许可证、来源与本地改动见 `src/vendor/liquid-glass/VENDORED.md` 和 `THIRD_PARTY_NOTICES.md`。像素缓存与 pending 共用 4,000,000 像素硬上限，不使用 IndexedDB/localStorage 持久缓存。
-- 性能命令：`npm run perf`（构建 + 主进程 + `--disable-gpu` 渲染）、`npm run perf:gpu`（GPU 渲染）、`npm run perf:glass`（交互/帧/Paint/内存）、`npm run perf:electron`（真实 IPC 建会话后的 5 次隔离冷启动）。REQ-2026-006 的测量数据与 CSS 降级决定收束在该需求文档中，不另设性能文档目录。
+- REQ-2026-006 的测量数据与 CSS 降级决定收束在[归档需求](./requirements/archive/REQ-2026-006-liquid-glass-visual-upgrade.md)中，不另设性能文档目录；GPU Task 余量约束与复验要求见 `./release.md`。
