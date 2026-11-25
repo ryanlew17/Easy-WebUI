@@ -16,6 +16,7 @@
 | [REQ-2026-004](./archive/REQ-2026-004-node-26-electron-45-security.md) | Node 26 基线与 Electron 45 安全升级 | done | 用户安全基线与维护成本决策 | 构建工具链、electron/、scripts/、文档 | architecture.md、design/security.md、design/gateway.md、release.md | 2026-11-20 |
 | [REQ-2026-005](./archive/REQ-2026-005-react-19-upgrade.md) | React 19 渲染基线升级 | done | 用户长期技术栈与组件生态维护决策 | package.json、package-lock.json、src/、tests/、文档 | architecture.md、design/popover.md、design/ux-guidelines.md、release.md | 2026-11-21 |
 | [REQ-2026-006](./archive/REQ-2026-006-liquid-glass-visual-upgrade.md) | 液态玻璃视觉系统升级 | done | 用户视觉升级目标与已认可动机稿；依赖 REQ-2026-005 | src/、vite.config.mts、scripts/、tests/、文档 | adr/ADR-005、design/ui-liquid-glass.md、design/popover.md、design/ux-guidelines.md、architecture.md、release.md | 2026-11-25 |
+| [REQ-2026-007](./active/REQ-2026-007-installer-path-and-updater-cleanup.md) | 安装器路径选择、数据迁移与 updater 清理 | active | owner（安装可配置性与磁盘占用决策） | package.json、installer/、electron/、shared/、src/、scripts/、tests/ | design/storage.md、adr/ADR-004、adr/ADR-006、architecture.md、release.md、design/ux-guidelines.md、contracts/installer.md（本需求交付） | 2026-11-25 |
 
 ## 状态流转
 
